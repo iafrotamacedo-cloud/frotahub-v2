@@ -1,16 +1,20 @@
 # dependências (baixadas por quem compila, nunca versionadas)
 node_modules/
 
-# resultado da compilação (é gerado pela automação, não guardado aqui)
+# resultado da compilação do front (gerado pela automação)
 dist/
 web/dist/
+
+# binário compilado do motor.
+#
+# ATENÇÃO ao caminho completo: uma linha com apenas "baleryan" casaria também com
+# a PASTA do motor, e o Git ignoraria o código-fonte inteiro em silêncio. Já
+# aconteceu — o primeiro envio da Fase 2a subiu sem o motor por causa disso.
+/baleryan/baleryan
+/baleryan/baleryan.exe
 
 # arquivos locais e de sistema
 .env
 .env.local
 .DS_Store
 Thumbs.db
-
-# binário compilado do motor
-baleryan
-baleryan.exe
