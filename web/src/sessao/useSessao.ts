@@ -1,10 +1,26 @@
-// rev 1 — a sessão do usuário
+// rev 2 — a sessão do usuário
 //
-// Uma responsabilidade só: dizer QUEM está logado (CORE-17). O que essa pessoa PODE
-// fazer é assunto de permissão, que entra quando as rotinas existirem.
+// Uma responsabilidade só: dizer QUEM está logado.
+//
+// Por que o perfil é lido direto do banco, e não do motor: para a tela abrir, basta
+// saber quem entrou — e o banco responde na hora. Se dependesse do motor, o primeiro
+// acesso do dia esperaria o serviço acordar antes de mostrar qualquer coisa. O motor
+// entra quando a ação exige servidor (criar login, por exemplo).
+//
+// A segurança de linha garante que cada um só enxerga a própria linha.
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, usuarioParaEmail } from '../supabase/cliente'
-import type { Perfil } from './tipos'
+import type { Nivel, Perfil } from './tipos'
+
+interface LinhaPerfil {
+  id: string
+  usuario: string
+  nome: string
+  ativo: boolean
+  cliente_id: string
+  categoria_id: string
+  categorias: { nome: string; nivel: Nivel } | null
+}
 
 interface Estado {
   carregando: boolean
@@ -15,21 +31,29 @@ export function useSessao() {
   const [estado, setEstado] = useState<Estado>({ carregando: true, perfil: null })
 
   const carregarPerfil = useCallback(async (userId: string): Promise<Perfil | null> => {
-    // A segurança de linha do banco garante que cada um só enxerga a própria linha.
     const { data, error } = await supabase
       .from('perfis')
-      .select('id, usuario, nome, nivel, ativo')
+      .select('id, usuario, nome, ativo, cliente_id, categoria_id, categorias(nome, nivel)')
       .eq('id', userId)
-      .maybeSingle()
+      .maybeSingle<LinhaPerfil>()
 
     if (error || !data) return null
-    return data as Perfil
+
+    return {
+      id: data.id,
+      usuario: data.usuario,
+      nome: data.nome,
+      ativo: data.ativo,
+      clienteId: data.cliente_id,
+      categoriaId: data.categoria_id,
+      categoriaNome: data.categorias?.nome ?? '',
+      nivel: data.categorias?.nivel ?? 'comum',
+    }
   }, [])
 
   useEffect(() => {
     let vivo = true
 
-    // Sessão guardada de um acesso anterior.
     supabase.auth.getSession().then(async ({ data }) => {
       if (!vivo) return
       const uid = data.session?.user?.id
@@ -53,7 +77,7 @@ export function useSessao() {
       email: usuarioParaEmail(usuario),
       password: senha,
     })
-    // Mensagem escrita para ser lida por quem usa (CORE-24).
+    // Mensagem escrita para ser lida por quem usa (P-18).
     if (error) return 'Usuário ou senha inválidos.'
 
     const uid = data.user?.id

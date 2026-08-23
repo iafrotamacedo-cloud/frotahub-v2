@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 13 · **Fase aberta: 0 (concluída)**
+> Última atualização: **23/08/2026** · Rodada 17 · **Fases 0 e 1 concluídas**
 
 ---
 
@@ -40,8 +40,8 @@ Roda 100% na nuvem, em serviços de plano gratuito, com acesso por computador e 
 7. **Assinatura do projeto:** Igor Tostes — NorthCore.
 
 > Estas sete são as regras da **nossa colaboração** — como trabalhamos. As regras do
-> **sistema** ficam no **Anexo A — Tenets**, organizadas em cinco níveis (Core, Block,
-> Module, Routine, Skill), com códigos permanentes para referência.
+> **sistema** ficam no **Anexo A — Tenets** (declarados pelo dono, em cinco níveis) e no
+> **Anexo B — Práticas de construção** (o padrão de quem escreve o código).
 
 ---
 ---
@@ -348,99 +348,17 @@ frotahub-v2/
 `baleryan/interno/dominio/preco.go`. Para mexer na tela de lançamento, abre
 `web/src/telas/manutencao/LancarTrilogo.tsx`. Cada assunto tem um lugar, e só um.
 
-### 4.2 Árvore de menus — **planejada**
+### 4.2 Árvore de menus
 
-Seis menus, 79 rotinas. O código em `crase` é a permissão que controla o acesso. O menu se
-ajusta sozinho: quem não tem a permissão não vê o item; rotina ainda não construída aparece
-desabilitada.
+**O FrotaHub novo não tem árvore de menus pré-definida.** Cada menu e cada rotina nascem
+quando são construídos — nada é prometido antes de existir.
 
-- Administrativo
-  - PCO
-    - Ordens de compra  `ENVIAR_PCO`
-    - Enviar PCO  `ENVIAR_PCO`
-    - Planilhas de Controle
-      - PCOs solicitados  `PCOS_ENVIADOS`
-      - O.C.s não enviadas  `OC_INVALIDA`
-  - Notas Fiscais
-    - Procurar nota  `PROCURAR_NOTA`
-    - Conferir nota (obra)  `CONFERIR_NOTA`
-    - Receber nota física  `RECEBER_NOTA`
-    - Visualizar notas entregues  `PROCURAR_NOTA`
-    - Protocolo  `GERAR_PROTOCOLO`
-    - Panorama
-      - Pendências  `PENDENCIAS_NOTA`
-      - Vencimentos  `VENCIMENTOS_NOTA`
-  - Locações
-    - Relação de locações  `RELACAO_LOCACOES`
-    - Nova locação  `NOVA_LOCACAO`
-    - Nova devolução  `NOVA_DEVOLUCAO`
-    - Procurar demonstrativos  `PROCURAR_DEMONSTRATIVO`
-    - Panorama financeiro  `FINANCEIRO_LOCACAO`
-  - Compras
-    - Equalizar orçamentos  `EQUALIZAR_ORCAMENTOS`
-- Manutenção
-  - Contrato São Luiz
-    - Lista do Trílogo  `CHAMADOS_TRILOGO`
-    - Treinamento  `TREINAMENTO`
-    - Expectativa × Realidade  `EXPECTATIVA_REAL`
-    - Indicadores de Qualidade  `INDICADORES_QUALIDADE`
-    - Orçamentos
-      - Notas e DAVs  `GERAR_ORCAMENTOS`
-      - Gerar orçamentos  `GERAR_ORCAMENTOS`
-      - Reprocessar pendentes (builder)  `GERAR_ORCAMENTOS`
-      - Lançar no Trílogo  `GERAR_ORCAMENTOS` · `LANCAR_TRILOGO`
-      - Orçamentos apagados  `AUDITORIA`
-      - Planilhas de Controle
-        - Orçamentos gerados  `ORCAMENTOS_GERADOS`
-        - Notas sem ticket  `SEM_TICKET`
-        - Ticket não associado  `TICKET_NAO_ASSOCIADO`
-        - Orçamentos anexados  `ORCAMENTOS_UPADOS`
-    - Estatística
-      - Dashboard  `DASHBOARD`
-      - Indicativos de Mau Uso  `DASHBOARD`
-      - Orçamentos extrapolados  `GERAR_ORCAMENTOS`
-      - Planilha de perdas  `FIN_A_PAGAR`
-      - Financeiro de materiais  `FINANCEIRO_MATERIAIS`
-    - Manutenção Preventiva
-      - Plano de Manutenção Preventiva  `MANUTENCAO_PREVENTIVA`
-      - Realizar inspeção (Check Lists)  `MANUTENCAO_PREVENTIVA`
-      - Calendário  `CALENDARIO_PREVENTIVA`
-      - Relatórios
-        - Relatório de loja  `RELATORIO_LOJA`
-        - Relatório mensal  `RELATORIO_MENSAL`
-        - Relatório geral  `RELATORIO_GERAL`
-    - Financeiro
-      - A Pagar  `FIN_A_PAGAR`
-      - A Receber  `FIN_A_RECEBER`
-      - Balanço  `FIN_BALANCO`
-  - Outros
-    - Em breve  `MANUT_OUTROS`
-- Engenharia
-  - Engenharia (em breve)  `ENGENHARIA_HOME`
-- SESMT
-  - APR — Análise Preliminar de Risco  `SESMT_APR`
-  - PT — Permissão de Trabalho  `SESMT_PT`
-- Auditoria
-  - Materiais comprados
-    - Lista de classificação  `AUDITORIA`
-    - Orçamentos para auditoria  `AUDITORIA`
-    - Abrir orçamento por ticket  `AUDITORIA`
-- Configuração
-  - Minha conta
-  - Usuários e Logins  `CONFIG_USUARIOS`
-  - Configurar logins  `CONFIG_CATEGORIAS`
-  - Política de PIN  `CONFIG_PIN`
-  - Agendamento de tarefas  `CONFIG_AGENDAMENTO`
-  - Configurações gerais  `CONFIG_GERAL`
-  - Ferramentas do Builder  `CONFIG_BUILDER`
+O que existe hoje está na Fase 1: dois menus, três itens, todos marcados como "em breve"
+menos a tela inicial.
 
-Existe também uma **árvore separada para contas de cliente** (permissão `CLIENTE_MSL`), com
-treinamento, preventiva e indicadores do contrato. O cliente entra no mesmo sistema e não
-enxerga nada de dentro de casa.
-
-**Sete níveis de login:** builder, gerente, encarregado/engenheiro, administrativo,
-manutenção, almoxarife e SESMT — mais o CEO, para auditoria. A permissão é **por rotina**,
-não por menu: dá para liberar "conferir nota" sem liberar "receber nota física".
+O menu do sistema antigo, com as suas 79 rotinas, está em `docs/referencia-sistema-antigo.md`.
+Ele serve de **consulta**, não de plano: quando quisermos trazer alguma coisa de lá, a
+decisão é explícita e vira rotina nova aqui.
 
 ---
 
@@ -558,9 +476,168 @@ tabela. Se divergirem, vale o comentário dentro do arquivo.
 
 ## Próximo passo
 
-**Passo 1 do sistema:** a casca (login e tela inicial em React) e o motor base em Go.
-Nada de rotina de negócio ainda — só o esqueleto que sobe, autentica e mostra o menu certo
-para cada login.
+A definir com o usuário. O sistema tem casca, login e os dois primeiros menus no ar; o
+motor `baleryan` ainda não foi construído, e nenhuma rotina de negócio existe.
+
+---
+---
+
+# FASE 1 — Site inicial, login e primeiros menus
+
+**O que é.** O sistema deixa de ser página de prova e passa a ser um app de verdade: uma
+pessoa entra com usuário e senha, e vê a casca do FrotaHub com os primeiros menus.
+
+**Escopo fechado pelo usuário — e nada além disso:** implementar o login (tabela de auth,
+um login builder genérico, autenticação configurada, **sem** tela de configuração de
+logins) e as primeiras funções (front no padrão do FrotaHub atual, com **apenas dois**
+menus: Manutenção — com os submenus "Contrato São Luiz" e "Serviços", ambos em breve — e
+Configurações, em breve).
+
+**Situação: CONSTRUÍDA E NO AR** em 23/08/2026.
+
+---
+
+## Step 1 — A marca
+
+**O problema.** O logo disponível tinha 200×100 pixels e compressão pesada. Recortar a
+figura dele produzia halos brancos e sujeira nas bordas — inaceitável num cabeçalho.
+
+**A primeira tentativa** foi redesenhar a marca em vetor: três barras dobradas com
+extrusão 3D. Ficou limpa e escalável, mas era uma reconstrução, não a marca da empresa. E
+o `viewBox` apertado demais cortava a figura embaixo, no site.
+
+**A solução.** O usuário mandou o logo em alta resolução — **já com fundo transparente**.
+Aí virou recorte puro, sem perda: os degradês, o relevo e as sombras são exatamente os do
+logo da empresa. Ficou em 710×640, nítida em tela densa e boa até de favicon.
+
+**O conjunto.** Figura + "FrotaHub" ao lado, repetindo o tratamento do logo original
+(primeira palavra pesada, segunda leve, como "FROTA MACEDO"), e "by NorthCore" embaixo,
+com o metálico da referência.
+
+Arquivo: `web/public/marca.png`.
+
+---
+
+## Step 2 — Login
+
+### 2.1 Banco
+
+Duas migrations, ambas testadas num PostgreSQL 16 antes de irem para o Supabase.
+
+**`001_tipos.sql`** — cria `schema_migrations` (o registro do que já rodou, **CORE-07**),
+o tipo `nivel_acesso` (`builder`, `ceo`, `gerente`, `comum`) e a função de carimbo de
+`atualizado_em`.
+
+**`002_perfis.sql`** — cria `perfis`: quem cada login é dentro do FrotaHub.
+
+- **Não guarda senha.** Quem guarda é o Supabase, na `auth.users`, que já vem pronta no
+  projeto — não fomos nós que criamos. A `perfis` só aponta para lá, e login apagado leva
+  o perfil junto.
+- Nasce com **leitura fechada** (**CORE-19**) e ganha **uma única política**: cada pessoa
+  enxerga a própria linha. Ninguém lista os outros usuários pelo navegador.
+- Escrita não tem política nenhuma — só o servidor grava.
+
+**`seed/001_perfil_builder.sql`** — liga o usuário criado no painel ao perfil. Não cria
+login nem guarda senha (**CORE-21** e a regra de que quem cria conta é gente).
+
+**O que deliberadamente NÃO foi criado:** categorias, matriz de permissões, log de
+atividades. Entram junto com a tela de configuração de logins, que o usuário pediu para
+deixar de fora.
+
+### 2.2 Supabase
+
+- Usuário `builder@frotahub.local` criado **pelo usuário**, no painel, com *Auto Confirm
+  User* ligado.
+- As três consultas rodadas no SQL Editor, na ordem, conferindo o resultado de cada uma.
+
+### 2.3 Front
+
+- Entrada por **usuário**, não por e-mail: o front acrescenta o domínio sozinho.
+- **Sem autocadastro e sem "esqueci minha senha"** — quem cria login é o administrador.
+- Erro escrito para ser lido (**CORE-24**): *"Usuário ou senha inválidos."*
+- Login que existe no Supabase mas não tem perfil, ou perfil desativado, é recusado com
+  explicação — e a sessão é desfeita.
+
+---
+
+## Step 3 — A casca e os menus
+
+**Arquivos criados** (`web/src/`):
+
+| Arquivo | O que faz |
+|---|---|
+| `main.tsx` | O ponto de partida |
+| `App.tsx` | A casca: barra lateral, cabeçalho com o caminho, área de trabalho |
+| `estilos/tokens.css` | A identidade num lugar só (**CORE-25**) |
+| `estilos/base.css` | O layout: barra lateral fixa, cartões, login, celular |
+| `supabase/cliente.ts` | A conexão e a conversão usuário → e-mail |
+| `sessao/tipos.ts` · `sessao/useSessao.ts` | Quem está logado (**CORE-17**) |
+| `menu/arvore.ts` | A árvore dos menus |
+| `componentes/Marca.tsx` | A marca |
+| `componentes/Icone.tsx` | Os ícones, desenhados à mão — sem biblioteca |
+| `telas/Login.tsx` · `telas/Inicio.tsx` · `telas/EmBreve.tsx` | As três telas |
+
+**Decisões de desenho:**
+
+- **Ícones desenhados à mão, não biblioteca.** São poucos, e assim herdam a cor e a
+  espessura do resto da interface em vez de trazerem estilo próprio (**CORE-25**).
+- **O que não existe aparece marcado como "breve"**, desabilitado (**CORE-23**) — dá a
+  medida do que falta sem prometer o que não funciona.
+- **O `App.tsx` não cresce junto com o sistema**: cada rotina futura entra como arquivo
+  próprio em `telas/` (**CORE-16**).
+
+**O motor não foi construído nesta fase, de propósito.** O login fala direto com o
+Supabase e a segurança de linha protege os dados. O `baleryan` entra quando existir rotina
+que precise dele.
+
+---
+
+## Step 4 — Publicação e teste
+
+Publicado por push, pela automação da Fase 0. Resultado conferido em
+`https://novo.frotamacedo.com.br`: entrou logado, menu funcionando, nome e nível na barra.
+
+**Tropeço registrado:** depois de publicar, a página continuava mostrando a versão antiga.
+Não era a publicação — era **cache do navegador**. Os arquivos de estilo e de programa
+levam um código no nome (`index-BYrLgD1G.css`), então mudança neles obriga o navegador a
+buscar; o `index.html` tem sempre o mesmo nome e fica guardado. Resolve com Ctrl+Shift+R.
+*Correção definitiva pendente: um `.htaccess` dizendo ao servidor para não guardar o
+`index.html` em cache.*
+
+---
+
+## Inventário da Fase 1
+
+| Arquivo | Hospedado | Rev |
+|---|---|---|
+| `web/public/marca.png` | repo · no ar | 1 |
+| `web/index.html` | repo · no ar | 3 |
+| `web/package.json` · `package-lock.json` · `tsconfig.json` · `vite.config.ts` | repo | 1–2 |
+| `web/src/main.tsx` · `App.tsx` | repo · no ar | 1 |
+| `web/src/estilos/tokens.css` · `base.css` | repo · no ar | 1 |
+| `web/src/supabase/cliente.ts` | repo · no ar | 1 |
+| `web/src/sessao/tipos.ts` · `useSessao.ts` | repo · no ar | 1 |
+| `web/src/menu/arvore.ts` | repo · no ar | 1 |
+| `web/src/componentes/Marca.tsx` | repo · no ar | 2 |
+| `web/src/componentes/Icone.tsx` | repo · no ar | 1 |
+| `web/src/telas/Login.tsx` · `Inicio.tsx` · `EmBreve.tsx` | repo · no ar | 1 |
+| `db/migrations/001_tipos.sql` | repo · **Supabase** | 1 |
+| `db/migrations/002_perfis.sql` | repo · **Supabase** | 1 |
+| `db/seed/001_perfil_builder.sql` | repo · **Supabase** | 1 |
+
+**Removidos:** `web/vite.config.js`, `web/public/logo.jpg`, `web/public/marca.svg`.
+
+---
+
+## Pendências da Fase 1
+
+| O quê | Situação |
+|---|---|
+| `.htaccess` para o `index.html` não ficar em cache | proposto, aguardando |
+| A sessão fica guardada e reabre sem pedir senha — ruim em computador compartilhado da obra | decidir junto com a tela de logins |
+| Senha do builder | o usuário escolheu; recomendado não usar `123456` |
+
+---
 
 ---
 ---
@@ -569,20 +646,25 @@ para cada login.
 
 > **O que são.** As regras de ouro do FrotaHub. Cada uma tem um código permanente, e sempre
 > que uma decisão se apoiar numa delas, o texto cita o código em vez de repetir o argumento
-> — por exemplo: *"o arquivo não se move quando o estado muda (**CORE-04**)"*.
+> — por exemplo: *"a nota é lida pelo parser antes de qualquer modelo (**CORE-01**)"*.
 >
-> **Um tenet só entra se tiver custado alguma coisa** — um erro real, uma decisão difícil,
-> um problema que voltou. Não é lista de boas intenções.
+> **Quem declara.** Os **Core** são declarados pelo dono do sistema. Não são extraídos de
+> conversa nem deduzidos de código: são escolhas conscientes de quem responde pelo sistema.
+> Os demais níveis nascem com o bloco, o módulo ou a rotina que eles governam.
+>
+> **A lista tem que caber na cabeça.** Uma lista de quarenta princípios fundamentais não é
+> um Core — ninguém decora, e na hora da pressão ninguém lembra. Se um candidato a Core não
+> for universal, imutável e caro de violar, ele desce para o Anexo B.
 
 ## Os cinco níveis
 
 | Nível | Abrangência | Sentido | Código |
 |---|---|---|---|
 | **Core** | O sistema como um todo | Princípios fundamentais e **imutáveis** | `CORE-01` |
-| **Block** | Um grupo de módulos (ex.: Manutenção) | Regras que valem para aquele bloco | `BLOCK-MNT-01` |
-| **Module** | Um módulo específico (ex.: Orçamentos) | Regras internas daquele módulo | `MOD-ORC-01` |
-| **Routine** | Uma função ou rota específica | Regras daquela ação | `ROT-LANCAR-01` |
-| **Skill** | Um robô ou automação | Regras daquela automação | `SKILL-TRILOGO-01` |
+| **Block** | Um grupo de módulos | Regras que valem para aquele bloco | `BLOCK-XXX-01` |
+| **Module** | Um módulo específico | Regras internas daquele módulo | `MOD-XXX-01` |
+| **Routine** | Uma função ou rota específica | Regras daquela ação | `ROT-XXX-01` |
+| **Skill** | Um robô ou automação | Regras daquela automação | `SKILL-XXX-01` |
 
 ## As três leis dos tenets
 
@@ -590,8 +672,8 @@ para cada login.
 uma rotina é escrever dentro dessa pilha — o que já está garantido acima não se reescreve.
 
 **Especificidade.** Quando dois tenets se cruzam, vale o mais específico — **exceto contra
-o Core**, que nunca é sobreposto. Se um módulo precisa violar um tenet Core, ou o desenho
-do módulo está errado, ou o tenet Core estava errado. Nos dois casos, para-se e discute-se;
+o Core**, que nunca é sobreposto. Se um módulo precisa violar um Core, ou o desenho do
+módulo está errado, ou o tenet Core estava errado. Nos dois casos, para-se e discute-se;
 não se contorna.
 
 **Permanência.** Código de tenet nunca é reaproveitado nem renumerado. Tenet revogado fica
@@ -600,233 +682,87 @@ continuar significando a mesma coisa.*
 
 ---
 
-# CORE — o sistema como um todo
+# CORE
 
-*Imutáveis. Valem para toda linha de código do FrotaHub, hoje e depois.*
+*Nove. Declarados pelo dono do sistema. Valem para toda linha de código do FrotaHub.*
 
-## Verdade e estado
+## Recurso
 
-**CORE-01 — O banco é a única fonte da verdade.**
+> No FrotaHub, o teto do plano gratuito **é o orçamento do projeto**. Estourar não deixa
+> caro: para o sistema.
+
+**CORE-01 — IA é o último recurso, nunca o primeiro.**
+Leitura, extração e classificação tentam primeiro o caminho determinístico — regra, parser,
+consulta. Só o que sobrar vai para um modelo, e no menor modelo **que resolva**. Toda
+chamada é contada. *A economia para onde começa o retrabalho: nota lida errado custa mais
+que token.*
+
+**CORE-02 — Guardar é decisão; nada é guardado duas vezes.**
+Arquivo tem uma cópia viva e uma de segurança, e só. Coluna que dá para calcular não é
+guardada. Histórico que ninguém consulta não é gravado.
+
+**CORE-03 — Automação só acorda quando tem trabalho.**
+Rotina automática dispara pelo que mudou, não por varredura de tempo em tempo. Toda
+automação declara quanto consome. *Origem: os robôs do Trílogo consumiram quase toda a cota
+mensal sem ninguém olhar, e derrubaram a primeira publicação do FrotaHub.*
+
+## Verdade
+
+**CORE-04 — O banco é a única fonte da verdade.**
 Fila de trabalho, estado e localização de arquivo saem do banco. Nenhuma rotina descobre o
-que fazer varrendo pasta.
-
-**CORE-02 — Arquivo é registro.**
-Toda escrita em nuvem gera linha na tabela de arquivos. Achar um documento é consulta, não
-busca por nome.
-
-**CORE-03 — Nada de estado na memória do servidor.**
-Tarefa demorada é linha no banco, com progresso. *Motivo: servidor que hiberna, reinicia ou
-roda em duas cópias perde tudo que estiver só na memória.*
-
-**CORE-04 — O estado não mora na pasta; o arquivo não se move.**
-Um orçamento lançado é uma coluna no banco, não um arquivo mudado de pasta. *Motivo: mover
-arquivo para representar estado gera arquivo perdido, movimentação pela metade e
-reconciliação — uma família inteira de defeitos que deixa de existir.*
-
-## Dados
+que fazer varrendo pasta. *Tudo o mais se apoia nisto: se cair, cai o modelo inteiro.*
 
 **CORE-05 — Nada é apagado de vez.**
-Remover é marcar. A garantia é do **banco**, não da disciplina de quem escreve o código.
+Remover é marcar. E a garantia é do **banco**, não da disciplina de quem escreve o código.
+*Regra da casa desde antes deste projeto.*
 
-**CORE-06 — O que é regra vira restrição.**
-Se a regra pode ser expressa como restrição do banco, ela é uma restrição — não um
-comentário nem uma condição no código. *Motivo: comentário não impede nada.*
-
-**CORE-07 — Mudança de estrutura é migração numerada.**
-Nunca comando solto. O banco guarda o que já rodou, e ninguém fica na dúvida sobre o estado.
-
-**CORE-08 — Item é linha, não bloco de texto.**
-O que precisa ser consultado, somado ou auditado é tabela. *Motivo: dado enterrado em texto
-não responde pergunta.*
-
-**CORE-09 — Sequência vem do banco.**
-Numeração de documento sai de sequência do próprio banco. *Motivo: contar o maior e somar
-um colide quando duas pessoas clicam junto.*
-
-**CORE-10 — Parâmetro de negócio mora no banco, não no ambiente.**
-Margem, teto e limites ficam em tabela com histórico de quem mudou e quando. *Motivo:
-variável de ambiente não deixa rastro, e valor de negócio precisa ser auditável.*
-
-## Código
-
-**CORE-11 — Cada regra existe uma vez só.**
-Margem, teto, duplicidade e roteio moram num lugar só, em código puro, sem banco e sem
-internet — e por isso testável de verdade.
-
-**CORE-12 — Falhe na largada, não no meio do expediente.**
-Configuração incompleta impede o programa de subir, e a reclamação lista **tudo** que falta
-de uma vez. *Motivo: programa que sobe quebrado transforma erro de configuração em problema
-do usuário, horas depois.*
-
-**CORE-13 — Erro estoura; não vira aviso no console.**
-Gravação que falhou não pode seguir como se tivesse gravado.
-
-**CORE-14 — Dinheiro é decimal, e meio centavo sobe.**
-Nunca número de ponto flutuante. *Motivo: o arredondamento padrão de várias linguagens manda
-2,675 para 2,67.*
-
-**CORE-15 — Comentário explica o porquê, não o quê.**
-O código já diz o que faz. O comentário guarda a decisão, a alternativa descartada e a
-armadilha.
-
-**CORE-16 — Um assunto, um lugar.**
-Mexer no cálculo é abrir um arquivo; mexer numa tela é abrir outro. Nunca rolar milhares de
-linhas procurando.
+**CORE-06 — Cada regra existe uma vez só.**
+Preço, teto, duplicidade, roteio: uma implementação, num lugar só, testável. *Origem: no
+sistema antigo o mesmo cálculo estava escrito onze vezes, de duas formas que divergiam em
+centavos — e a divergência foi para o cliente.*
 
 ## Segurança
 
-**CORE-17 — Uma porta de entrada só.**
-Um lugar diz **quem é**; outro diz **o que pode**. Nada além disso decide acesso.
+**CORE-07 — Nada é público por padrão.**
+Tabela nasce com leitura fechada; balde nasce sem endereço público. Abrir é decisão
+explícita, uma de cada vez.
 
-**CORE-18 — Na dúvida, nega.**
+**CORE-08 — Na dúvida, nega.**
 Falha ao verificar permissão resulta em acesso negado, nunca em acesso concedido.
 
-**CORE-19 — Nada é público por padrão.**
-Tabela nasce com leitura fechada; balde nasce sem endereço público.
-
-**CORE-20 — Credencial só enxerga o que precisa.**
-*Motivo: a pergunta certa não é "vai vazar?", é "se vazar, o estrago é onde?"*
-
-**CORE-21 — Segredo não passa pela conversa.**
-Senha de banco, chave de serviço e chave secreta vão direto no painel do serviço.
-
-**CORE-22 — O registro é auditável, não apagável.**
-O log de atividades não se reescreve. E falha no registro nunca desfaz a operação já feita.
-
-## Interface
-
-**CORE-23 — O menu se ajusta ao login.**
-Quem não tem a permissão não vê o item. Rotina ainda não construída aparece desabilitada,
-para dar a medida do que falta.
-
-**CORE-24 — Mensagem de erro é escrita para ser lida.**
-"Sessão expirada", não "401 unauthorized". *Motivo: quem lê o erro é o usuário.*
-
-**CORE-25 — A identidade da casa é a mesma em todo lugar.**
-Sidebar escura, `#A11F22` como acento, Inter, ícones. Nada de biblioteca com visual próprio.
-
-## Operação
-
-**CORE-26 — O motor não serve arquivo.**
-Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
-
-**CORE-27 — O que está no ar continua no ar.**
-Sistema novo convive com o antigo em endereço separado até a virada, e a virada tem volta.
-
-**CORE-28 — Perto é rápido.**
-Motor, banco e arquivos ficam geograficamente próximos. *Origem: ~12 ms entre Ohio e
-Virgínia contra ~120 ms até São Paulo — a mesma tela, dez vezes mais rápida, de graça.*
-
-**CORE-29 — Publicar é apertar um botão, não seguir um roteiro.**
-Nenhum passo manual entre o código aprovado e o ar.
-
-**CORE-30 — Publicação vazia é pior que publicação falha.**
-Antes de enviar, confere-se que a compilação gerou algo. *Motivo: envio "bem-sucedido" de
-pasta vazia apaga o que estava no ar.*
-
-**CORE-31 — Grátis tem conta.**
-Todo plano gratuito tem um limite que um dia chega, e alguém precisa estar olhando.
-*Origem: a cota de Actions estourada pelos robôs do Trílogo derrubou a primeira publicação.*
-
-**CORE-32 — Quem executa é gente.**
-Arquivo que roda código no repositório é criado por uma pessoa. *Origem: a escrita remota em
-`.github/workflows/` é bloqueada de propósito — e a regra faz sentido.*
+**CORE-09 — Segredo nunca chega ao navegador.**
+Chave de serviço, senha de banco e chave secreta ficam no servidor. Sem exceção, sem
+"só neste caso".
 
 ---
 
 # BLOCK — por bloco de módulos
 
-*Preenchido conforme cada bloco é construído. Herda todo o Core.*
-
-## BLOCK-ADM · Administrativo
-> PCO, Notas Fiscais, Locações, Compras.
-
-**BLOCK-ADM-01 — A O.C. tem quatro marcos, e nenhum se pula.**
-PCO solicitado → nota conferida → nota entregue → nota protocolada. Uma ordem de compra
-pode gerar várias notas (recebimento parcial).
-
-**BLOCK-ADM-02 — Recebimento de nota física é marco restrito.**
-Só gerência alcança. *Motivo: é o marco que confirma posse do documento fiscal.*
-
-## BLOCK-MNT · Manutenção
-> Chamados, Orçamentos, Rateio, Preventiva, Financeiro do contrato.
-
-**BLOCK-MNT-01 — O ticket é do cliente; o `id` é nosso.**
-O sistema é governado pelo identificador interno, nunca pelo número do ticket — ticket muda
-quando uma nota sem-ticket é corrigida.
-
-**BLOCK-MNT-02 — Nada vai para o cliente sem conferência de valor.**
-Toda escrita no sistema do cliente passa pelas travas de status e de teto.
-
-## BLOCK-ENG · Engenharia
-*A definir quando o bloco começar.*
-
-## BLOCK-SST · SESMT
-*A definir quando o bloco começar.*
-
-## BLOCK-AUD · Auditoria
-**BLOCK-AUD-01 — Quem audita não opera.**
-A auditoria é restrita a builder e CEO; gerência não audita. *Motivo: separação de funções —
-quem aprova a compra não pode ser quem julga se ela era permitida.*
-
-## BLOCK-CFG · Configuração
-**BLOCK-CFG-01 — Permissão é por rotina, não por menu.**
-Dá para liberar "conferir nota" sem liberar "receber nota física".
+*Nenhum ainda. O primeiro entra quando o primeiro grupo de módulos for construído.*
 
 ---
 
 # MODULE — por módulo
 
-*Preenchido conforme cada módulo é construído. Herda o Core e o seu Block.*
-
-## MOD-ORC · Orçamentos
-**MOD-ORC-01 — A duplicidade é da NOTA, não do ticket.**
-Um ticket pode ter vários orçamentos de notas diferentes; a mesma nota nunca gera dois.
-
-**MOD-ORC-02 — O total é a soma do que está impresso.**
-Arredonda-se o valor unitário e o total é a soma das linhas do papel. *Motivo: quem confere
-é gente, com calculadora, olhando o documento.*
-
-**MOD-ORC-03 — Um documento é nota fiscal ou DAV, nunca os dois.**
-
-## MOD-PCO · PCO
-*A definir quando o módulo começar.*
-
-## MOD-NF · Notas Fiscais
-*A definir quando o módulo começar.*
+*Nenhum ainda.*
 
 ---
 
 # ROUTINE — por rotina
 
-*Preenchido conforme cada rotina é construída. Herda tudo acima.*
-
-## ROT-LANCAR · Lançar orçamento no Trílogo
-**ROT-LANCAR-01 — Só lança em ticket Executado ou Vistoriado.**
-
-**ROT-LANCAR-02 — A soma dos custos do ticket mais o novo não passa do teto.**
-Se passar, aborta e o orçamento vira extrapolado, à espera de aprovação.
-
-**ROT-LANCAR-03 — Suspeito não lança sem liberação do CEO.**
+*Nenhuma ainda.*
 
 ---
 
 # SKILL — por robô ou automação
 
-*Preenchido conforme cada automação é construída.*
-
 ## SKILL-PUBLICAR · Publicação do front
 **SKILL-PUBLICAR-01 — Confere antes de enviar.**
-Se a compilação não gerou o arquivo, aborta sem publicar (aplicação de **CORE-30**).
+Se a compilação não gerou o arquivo, aborta sem publicar. *Motivo: envio "bem-sucedido" de
+pasta vazia apaga o que estava no ar.*
 
 **SKILL-PUBLICAR-02 — Envio nunca concorre com envio.**
 Dois disparos ao mesmo tempo viram fila, não corrida.
-
-## SKILL-TRILOGO · Robô do Trílogo
-**SKILL-TRILOGO-01 — Toda operação destrutiva tem ensaio.**
-Roda primeiro em modo relatório, sem aplicar, e o padrão é o modo seguro.
-
-**SKILL-TRILOGO-02 — Robô não lança arquivo sem registro no banco.**
 
 ---
 
@@ -834,9 +770,113 @@ Roda primeiro em modo relatório, sem aplicar, e o padrão é o modo seguro.
 
 No diário, no código e nas conversas, cite o código entre parênteses:
 
-> A fila de lançamento vem do banco, não da pasta (**CORE-01**, **CORE-04**).
-> A conta de FTP está trancada no subdomínio (**CORE-20**).
-> Este orçamento não pode ser lançado porque o ticket não está executado (**ROT-LANCAR-01**).
+> A fila vem do banco, não da pasta (**CORE-04**).
+> A conta de FTP está trancada no subdomínio (**P-15**).
+> Antes de enviar, confere-se que a compilação gerou algo (**SKILL-PUBLICAR-01**).
+
+---
+---
+
+# ANEXO B — Práticas de construção
+
+> **O que são.** O padrão de trabalho de quem escreve o código. Não são tenets: são
+> subordinados ao Anexo A e podem ser revistos sem cerimônia.
+>
+> **A diferença que importa.** Tenet é do dono do sistema; prática é de quem constrói. Se
+> uma prática um dia se mostrar universal, imutável e cara de violar, ela é candidata a
+> subir para o Core — e a promoção é decisão do dono, não de quem escreve.
+>
+> Código `P-01`, `P-02`… numeração própria e permanente.
+
+## Estado e arquivos
+
+**P-01 — Arquivo é registro.**
+Toda escrita em nuvem gera linha na tabela de arquivos. Achar um documento é consulta, não
+busca por nome.
+
+**P-02 — O estado não mora na pasta; o arquivo não se move.**
+Estado é coluna no banco, não pasta onde o arquivo está. *Mover arquivo para representar
+estado gera arquivo perdido, movimentação pela metade e reconciliação — uma família inteira
+de defeitos que deixa de existir.*
+
+**P-03 — Nada de estado na memória do servidor.**
+Tarefa demorada é linha no banco, com progresso. *Servidor que hiberna, reinicia ou roda em
+duas cópias perde tudo que estiver só na memória.*
+
+## Dados
+
+**P-04 — O que é regra vira restrição.**
+Se a regra pode ser expressa como restrição do banco, ela é uma restrição — não um
+comentário nem uma condição no código. *Comentário não impede nada.*
+
+**P-05 — Mudança de estrutura é migração numerada.**
+Nunca comando solto. O banco guarda o que já rodou.
+
+**P-06 — Item é linha, não bloco de texto.**
+O que precisa ser consultado, somado ou auditado é tabela. *Dado enterrado em texto não
+responde pergunta.*
+
+**P-07 — Sequência vem do banco.**
+*Contar o maior e somar um colide quando duas pessoas clicam junto.*
+
+**P-08 — Parâmetro de negócio mora no banco, não no ambiente.**
+Com histórico de quem mudou e quando. *Variável de ambiente não deixa rastro.*
+
+## Código
+
+**P-09 — Falhe na largada, não no meio do expediente.**
+Configuração incompleta impede o programa de subir, e a reclamação lista **tudo** que falta
+de uma vez. *Programa que sobe quebrado transforma erro de configuração em problema do
+usuário, horas depois.*
+
+**P-10 — Erro estoura; não vira aviso no console.**
+Gravação que falhou não pode seguir como se tivesse gravado.
+
+**P-11 — Dinheiro é decimal, e meio centavo sobe.**
+Nunca ponto flutuante. *O arredondamento padrão de várias linguagens manda 2,675 para 2,67.*
+
+**P-12 — Comentário explica o porquê, não o quê.**
+O código já diz o que faz. O comentário guarda a decisão, a alternativa descartada e a
+armadilha.
+
+**P-13 — Um assunto, um lugar.**
+Mexer no cálculo é abrir um arquivo; mexer numa tela é abrir outro.
+
+## Segurança
+
+**P-14 — Uma porta de entrada só.**
+Um lugar diz **quem é**; outro diz **o que pode**. Nada além disso decide acesso.
+
+**P-15 — Credencial só enxerga o que precisa.**
+*A pergunta certa não é "vai vazar?", é "se vazar, o estrago é onde?"*
+
+**P-16 — Registro não se reescreve.**
+Onde houver registro de atividade, ele é acrescentado e nunca editado. E falha ao registrar
+nunca desfaz a operação já feita.
+
+## Interface
+
+**P-17 — O menu se ajusta ao login.**
+Quem não tem a permissão não vê o item. O que ainda não existe aparece desabilitado, para
+dar a medida do que falta.
+
+**P-18 — Mensagem de erro é escrita para ser lida.**
+"Sessão expirada", não "401 unauthorized".
+
+**P-19 — A identidade da casa é a mesma em todo lugar.**
+Sem biblioteca de componentes com visual próprio.
+
+## Operação
+
+**P-20 — O motor não serve arquivo.**
+Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
+
+**P-21 — Publicação vazia é pior que publicação falha.**
+Antes de enviar, confere-se que a compilação gerou algo.
+
+**P-22 — Quem executa é gente.**
+Arquivo que roda código no repositório é criado por uma pessoa. *Origem: a escrita remota
+em `.github/workflows/` é bloqueada de propósito — e a regra faz sentido.*
 
 ---
 
