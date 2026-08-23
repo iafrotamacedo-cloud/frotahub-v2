@@ -1,0 +1,85 @@
+# rev 1 — publicação automática do front no HostGator
+#
+# O QUE FAZ
+#   A cada push que mexa em alguma coisa dentro de web/, o GitHub compila o front e
+#   envia SÓ o resultado compilado para a hospedagem, por FTPS. Ninguém copia arquivo
+#   à mão, e o código-fonte não vai para o servidor.
+#
+# ONDE PUBLICA
+#   Na pasta que a conta de FTP `deploy` enxerga, que é o diretório do subdomínio
+#   novo.frotamacedo.com.br. Essa conta está trancada lá dentro pelo próprio servidor:
+#   ela NÃO alcança o public_html nem o FrotaHub que está no ar hoje. A trava é do lado
+#   do HostGator, não desta configuração.
+#
+# O QUE PRECISA ESTAR CONFIGURADO (Settings > Secrets and variables > Actions)
+#   Secrets:   FTP_SERVIDOR · FTP_USUARIO · FTP_SENHA
+#   Variables: VITE_MOTOR_URL  (opcional por enquanto; endereço do baleryan no Render)
+
+name: Publicar front
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'                          # só acorda se o front mudou
+      - '.github/workflows/publicar-front.yml'
+  workflow_dispatch:                       # botão de disparo manual na aba Actions
+
+# Se dois pushes acontecerem juntos, o segundo espera o primeiro. Nunca dois envios
+# ao mesmo tempo para a mesma pasta.
+concurrency:
+  group: publicar-front
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Pegar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar as dependências
+        working-directory: web
+        run: npm ci
+
+      - name: Compilar
+        working-directory: web
+        env:
+          # Não é segredo: aparece no navegador de qualquer forma. É variável porque
+          # muda conforme o ambiente.
+          VITE_MOTOR_URL: ${{ vars.VITE_MOTOR_URL }}
+        run: npm run build
+
+      - name: Conferir se compilou
+        run: |
+          test -f web/dist/index.html || { echo "::error::A compilação não gerou web/dist/index.html"; exit 1; }
+          echo "Arquivos gerados:"
+          ls -lah web/dist
+
+      - name: Enviar para o HostGator
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVIDOR }}
+          username: ${{ secrets.FTP_USUARIO }}
+          password: ${{ secrets.FTP_SENHA }}
+          protocol: ftps                   # FTP com criptografia; senha não trafega aberta
+          port: 21
+          local-dir: ./web/dist/           # a barra no fim importa: envia o CONTEÚDO da pasta
+          server-dir: ./                   # a raiz que a conta deploy enxerga
+          # Envia só o que mudou. O controle fica num arquivo no próprio servidor.
+          state-name: .publicacao-estado.json
+          # Nunca subir estas, mesmo que apareçam por engano na pasta compilada:
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.env
