@@ -1,0 +1,16 @@
+# dependências (baixadas por quem compila, nunca versionadas)
+node_modules/
+
+# resultado da compilação (é gerado pela automação, não guardado aqui)
+dist/
+web/dist/
+
+# arquivos locais e de sistema
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# binário compilado do motor
+baleryan
+baleryan.exe

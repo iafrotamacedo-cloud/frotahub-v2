@@ -1,0 +1,98 @@
+<!doctype html>
+<!--
+  rev 1 — página de prova do caminho de publicação.
+
+  Esta página não faz nada, e é esse o objetivo. Ela existe para provar que o caminho
+  inteiro funciona antes de o sistema de verdade ser construído em cima:
+
+      push no GitHub  →  Actions compila  →  envia por FTPS  →  HostGator serve
+
+  Se ela aparecer em novo.frotamacedo.com.br, o encanamento está bom e qualquer erro
+  daqui pra frente é do sistema, não da publicação.
+
+  Ela será substituída pelo FrotaHub assim que o front começar.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>FrotaHub — em construção</title>
+  <link rel="icon" href="/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --red:#A11F22; --red-d:#7A1517;
+      --ink:#1E2227; --txt:#343A42; --gray:#697077; --mut:#8A9099;
+      --line:#E4E7EB; --bg:#F4F5F7; --card:#FFFFFF;
+      --side-bg:#1B1416; --side-bg2:#241A1C;
+      --f:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    body{
+      font-family:var(--f); background:var(--bg); color:var(--txt);
+      display:flex; align-items:center; justify-content:center; padding:24px;
+      -webkit-font-smoothing:antialiased;
+    }
+    .cartao{
+      width:100%; max-width:520px; background:var(--card);
+      border:1px solid var(--line); border-radius:14px; overflow:hidden;
+      box-shadow:0 6px 24px rgba(16,24,40,.08);
+    }
+    .topo{
+      background:linear-gradient(180deg,var(--side-bg2),var(--side-bg));
+      padding:26px 28px; display:flex; align-items:center; gap:14px;
+    }
+    .topo img{height:44px; border-radius:8px; background:#fff; padding:3px}
+    .topo .n{color:#fff; font-weight:800; font-size:21px; letter-spacing:.2px; line-height:1.1}
+    .topo .n small{
+      display:block; font-weight:500; font-size:10px; letter-spacing:.14em;
+      color:#8E8587; text-transform:uppercase; margin-top:3px;
+    }
+    .corpo{padding:26px 28px 28px}
+    .selo{
+      display:inline-block; background:#FBF2F2; color:var(--red);
+      border:1px solid #F4DEDE; border-radius:999px;
+      padding:4px 11px; font-size:11.5px; font-weight:700;
+      letter-spacing:.06em; text-transform:uppercase;
+    }
+    h1{margin:14px 0 8px; font-size:22px; font-weight:800; color:var(--ink); letter-spacing:-.02em}
+    p{margin:0 0 14px; font-size:14px; color:var(--gray); line-height:1.55}
+    .linha{height:1px; background:var(--line); margin:20px 0 16px}
+    .pe{display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--mut)}
+    .pe b{color:var(--txt); font-weight:600}
+    @media (max-width:520px){ .pe{flex-direction:column; gap:4px} }
+  </style>
+</head>
+<body>
+  <main class="cartao">
+    <div class="topo">
+      <img src="/logo.jpg" alt="Frota Macedo Engenharia">
+      <div class="n">FrotaHub<small>Frota Macedo Engenharia</small></div>
+    </div>
+
+    <div class="corpo">
+      <span class="selo">Em construção</span>
+      <h1>O caminho de publicação está funcionando.</h1>
+      <p>
+        Esta página foi compilada no GitHub e enviada para a hospedagem automaticamente,
+        sem ninguém copiar arquivo. Se você está lendo isto, o encanamento entre o
+        repositório e o servidor está pronto.
+      </p>
+      <p>
+        O sistema de verdade entra aqui por cima. Enquanto isso, o FrotaHub atual segue
+        no ar, intocado, no endereço de sempre.
+      </p>
+
+      <div class="linha"></div>
+      <div class="pe">
+        <span>Ambiente de <b>testes</b></span>
+        <span>Igor Tostes · <b>NorthCore</b></span>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
