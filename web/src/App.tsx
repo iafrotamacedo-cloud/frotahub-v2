@@ -1,0 +1,155 @@
+// rev 1 — a casca do FrotaHub
+//
+// Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
+// caminho, e a área de trabalho. Quando as rotinas existirem, cada uma entra como
+// um arquivo próprio em telas/ — este arquivo não cresce junto (CORE-16).
+import { useState } from 'react'
+import { useSessao } from './sessao/useSessao'
+import { ARVORE, type ItemMenu } from './menu/arvore'
+import { Icone, Seta, Menu } from './componentes/Icone'
+import { Marca } from './componentes/Marca'
+import { Login } from './telas/Login'
+import { Inicio } from './telas/Inicio'
+import { EmBreve } from './telas/EmBreve'
+
+export default function App() {
+  const { carregando, perfil, entrar, sair } = useSessao()
+  // O caminho aberto: [] é a tela inicial; [Manutenção] é o bloco; [Manutenção, Serviços] é a rotina.
+  const [caminho, setCaminho] = useState<ItemMenu[]>([])
+  const [abertos, setAbertos] = useState<string[]>([])
+  const [navAberta, setNavAberta] = useState(false)
+
+  if (carregando) return <div className="auth" />
+  if (!perfil) return <Login entrar={entrar} />
+
+  const atual = caminho[caminho.length - 1]
+  const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
+
+  function navegar(novo: ItemMenu[]) {
+    setCaminho(novo)
+    setNavAberta(false)
+    document.body.classList.remove('nav-aberta')
+  }
+
+  function alternar(titulo: string) {
+    setAbertos(a => (a.includes(titulo) ? a.filter(t => t !== titulo) : [...a, titulo]))
+  }
+
+  function alternarNav() {
+    const aberta = !navAberta
+    setNavAberta(aberta)
+    document.body.classList.toggle('nav-aberta', aberta)
+  }
+
+  return (
+    <div className="lay">
+      <div className="sd-back" onClick={alternarNav} />
+
+      <aside className="side">
+        <div className="sd-topo">
+          <button
+            onClick={() => navegar([])}
+            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
+            aria-label="Ir para o início"
+          >
+            <Marca assinatura />
+          </button>
+        </div>
+
+        <nav className="sd-nav">
+          <div className="nv-sec">Menu</div>
+
+          {ARVORE.map(item => {
+            const temFilhos = !!item.sub?.length
+            const aberto = abertos.includes(item.t)
+            const ativo = caminho[0]?.t === item.t && caminho.length === 1
+
+            return (
+              <div key={item.t}>
+                <button
+                  className={'nv-it' + (aberto ? ' aberto' : '') + (ativo ? ' ativo' : '') + (item.breve && !temFilhos ? ' breve' : '')}
+                  onClick={() => (temFilhos ? alternar(item.t) : item.breve ? navegar([item]) : navegar([item]))}
+                  type="button"
+                >
+                  <Icone nome={item.icone} />
+                  <span className="lb">{item.t}</span>
+                  {temFilhos ? <Seta /> : item.breve ? <span className="tag">breve</span> : null}
+                </button>
+
+                {temFilhos && aberto && (
+                  <div className="nv-sub">
+                    {item.sub!.map(filho => (
+                      <button
+                        key={filho.t}
+                        className={'nv-it' + (filho.breve ? ' breve' : '') + (atual?.t === filho.t ? ' ativo' : '')}
+                        onClick={() => navegar([item, filho])}
+                        type="button"
+                      >
+                        <Icone nome={filho.icone} />
+                        <span className="lb">{filho.t}</span>
+                        {filho.breve && <span className="tag">breve</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </nav>
+
+        <div className="sd-user">
+          <div className="av">{iniciais}</div>
+          <div className="i">
+            <b>{perfil.nome}</b>
+            <span>{perfil.nivel}</span>
+          </div>
+          <button onClick={sair} type="button">Sair</button>
+        </div>
+      </aside>
+
+      <div className="main">
+        <header className="top">
+          <button className="burger" onClick={alternarNav} type="button" aria-label="Abrir menu">
+            <Menu />
+          </button>
+          <div className="tp-info">
+            <div className="crumb">
+              {caminho.length === 0 ? 'FrotaHub' : ['FrotaHub', ...caminho.map(c => c.t)].join(' › ')}
+            </div>
+            <div className="titulo">{atual ? atual.t : 'Início'}</div>
+          </div>
+        </header>
+
+        <main className="content">
+          {caminho.length === 0 ? (
+            <Inicio nome={perfil.nome} abrir={navegar} />
+          ) : atual?.sub?.length ? (
+            <>
+              <header className="hero">
+                <h1>{atual.t}</h1>
+                <p>{atual.desc}</p>
+              </header>
+              <div className="mods">
+                {atual.sub.map(filho => (
+                  <button
+                    key={filho.t}
+                    className={'mod' + (filho.breve ? ' breve' : '')}
+                    onClick={() => navegar([...caminho, filho])}
+                    type="button"
+                  >
+                    <div className="ic"><Icone nome={filho.icone} /></div>
+                    <h3>{filho.t}</h3>
+                    <p>{filho.desc}</p>
+                    {filho.breve && <p style={{ marginTop: 10 }}><span className="selo">Em breve</span></p>}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <EmBreve titulo={atual!.t} />
+          )}
+        </main>
+      </div>
+    </div>
+  )
+}
