@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 18 · **Fases 0 e 1 concluídas · Fase 2a no ar**
+> Última atualização: **23/08/2026** · Rodada 19 · **Fases 0 e 1 concluídas · Fase 2a no ar · 2b entrega 1 pronta**
 
 ---
 
@@ -651,7 +651,7 @@ próprio sistema, sem passar por código.
 **Como foi partida.** Em duas metades, para nada subir de uma vez:
 **2a** — banco, motor e as rotinas de servidor. **2b** — as telas.
 
-**Situação: 2a NO AR** em 23/08/2026. **2b não começou.**
+**Situação: 2a NO AR** em 23/08/2026. **2b: entrega 1 (motor e banco) pronta; telas não começaram.**
 
 ---
 
@@ -848,10 +848,116 @@ ano, e a falha é barulhenta, não silenciosa.*
 
 ---
 
-## Step 4 — As telas (2b)
+## Step 4 — Categorias, matriz e Minha conta (2b, entrega 1)
 
-**Não começou.** Previsto: tela de Usuários, tela da matriz de permissões, política de PIN
-e "Minha conta".
+**O que é.** As peças de servidor que faltavam para os logins fecharem. Nada aparece
+na tela ainda: esta entrega é só o motor e o banco.
+
+**Decisões do usuário que moldaram este step:**
+
+| Pergunta | Resposta |
+|---|---|
+| Como as categorias nascem? | Por tela, desde o começo — nenhuma presa em migração |
+| Usuário comum troca a própria senha? | Sim, pela tela Minha conta, exigindo a senha atual |
+| Sessão expira? | Sim: **3 horas parado**, **24 horas no total** |
+| Mexer na matriz deixa rastro? | Sim — nasce a `MOD-ACESSO-01` |
+
+### 4.1 Banco — migração `006`
+
+Uma coluna só: `ativo` nas categorias. Entrou agora porque a tela de categorias ia
+nascer nesta fase e alguém ia querer tirar uma de circulação — e, pela **CORE-05**,
+tirar de circulação é **marcar**, não apagar. Categoria apagada deixaria login
+antigo e histórico apontando para o nada.
+
+Acrescentar a coluna hoje, com uma categoria no banco, é trivial. Depois, com
+quinze categorias em uso e telas escritas em cima delas, não é.
+
+### 4.2 O rastro virou peça própria
+
+Na revisão anterior, gravar histórico era uma função privada dentro do módulo de
+usuários — e o diário registrava por quê: *desenhar a peça compartilhada com um
+usuário só é adivinhar como o segundo vai ser.*
+
+O segundo chegou. Com dois módulos gravando, o formato deixou de ser suposição, e
+a função subiu para `interno/historico/` (**CORE-06**). Os dois módulos usam a
+mesma, e o próximo usa também.
+
+*Isso não muda quem grava.* A peça existir continua não obrigando ninguém: quem
+obriga é a tenet do módulo.
+
+### 4.3 Motor — o módulo `acesso`
+
+| Rota | O que faz |
+|---|---|
+| `GET /categorias` | lista; só as em circulação, salvo pedido explícito |
+| `POST /categorias` | cria |
+| `PATCH /categorias/{id}` | renomeia, muda o nível, tira ou devolve à circulação |
+| `GET /categorias/{id}/permissoes` | o catálogo inteiro **mais** o que esta categoria alcança |
+| `PUT /categorias/{id}/permissoes` | grava a matriz |
+| `GET /categorias/{id}/historico` | o rastro daquela categoria |
+
+**Quatro travas, e o motivo de cada uma:**
+
+**`builder` não é opção de formulário.** Nem como código, nem como nível. A
+categoria builder é única, nasce protegida pela migração e é a trava anti-tranca do
+sistema inteiro. Se virasse item de lista suspensa, um clique distraído criaria um
+segundo dono — e o segundo dono pode desativar o primeiro.
+
+**A categoria protegida não se edita nem entra na matriz.** Marcar rotina para ela
+não teria efeito algum, já que o builder passa por construção. A tela recebe um
+aviso dizendo isso, para o quadro desabilitado não parecer defeito.
+
+**Categoria com gente dentro não sai de circulação.** A resposta diz **quantos**
+logins ativos ainda estão nela. Sem isso, essas pessoas ficariam num grupo que a
+tela não mostra mais — um problema invisível.
+
+**Rotina inventada é recusada com o nome dela.** A chave estrangeira do banco também
+barraria, mas o erro dela não explica nada para quem está na tela.
+
+### 4.4 A matriz grava o estado inteiro, não o clique
+
+A tela manda a lista **completa** do que deve ficar marcado, e o motor calcula a
+diferença. É mais simples de acertar do que mandar "marque isto, desmarque aquilo":
+se dois builders salvarem quase junto, o último grava um estado coerente inteiro, em
+vez de metade de dois estados.
+
+Retirar uma rotina grava `pode = false` — **não apaga a linha** (**CORE-05**). A
+linha que fica é o registro de que aquela rotina já esteve liberada.
+
+E o histórico é **uma linha por salvamento**, listando só o que mudou. Marcar trinta
+rotinas de uma vez gera uma linha com trinta campos, não trinta linhas.
+
+### 4.5 Trocar a própria senha
+
+`POST /minha-conta/senha` é a única rota de login que **não** é exclusiva do builder.
+
+Ela exige a senha atual, e o motivo é concreto: o computador da obra deixado aberto.
+Sem essa confirmação, quem passar pela cadeira troca a senha de quem esqueceu de
+sair, e o dono do login perde a própria conta.
+
+**Quem confere a senha atual é o Supabase, não o motor.** O motor não guarda senha
+nenhuma (**CORE-09**): ele pergunta ao Supabase se aquele par usuário+senha entra, e
+descarta a sessão que a pergunta cria. Só o sim ou o não interessa.
+
+E grava histórico igual. A **MOD-USUARIOS-01** não abre exceção para "foi a própria
+pessoa" — o valor do rastro está justamente em ele ser completo.
+
+---
+
+## Step 5 — As telas (2b, entregas 2 e 3)
+
+**Não começou.**
+
+- **Entrega 2:** Configurações deixa de ser "em breve" — lista de usuários com busca
+  e paginação, criar, editar, trocar senha, ativar/desativar, e o histórico de cada
+  login.
+- **Entrega 3:** categorias, o quadro da matriz, a tela Minha conta e o desligamento
+  por inatividade.
+
+**Sobre a sessão:** cronômetro só no navegador é enfeite — ele desloga a tela, mas a
+credencial guardada continua valendo. A trava de verdade é configuração do Supabase,
+no painel, e é o usuário quem mexe lá. O navegador entra só para levar a pessoa à
+tela de login de forma limpa, em vez de quebrar no meio de um clique.
 
 ---
 
@@ -862,14 +968,18 @@ e "Minha conta".
 | `db/migrations/003_acesso.sql` | repo · **Supabase** | 1 |
 | `db/migrations/004_perfis_acesso.sql` | repo · **Supabase** | 1 |
 | `db/migrations/005_historico.sql` | repo · **Supabase** | 1 |
+| `db/migrations/006_categorias_ativo.sql` | repo · **Supabase** | 1 |
 | `baleryan/go.mod` · `Dockerfile` | repo · **Render** | 1 |
-| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 3 |
+| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 4 |
 | `baleryan/interno/config/config.go` | repo · **Render** | 2 |
-| `baleryan/interno/banco/cliente.go` | repo · **Render** | 1 |
+| `baleryan/interno/banco/cliente.go` | repo · **Render** | 2 |
 | `baleryan/interno/web/web.go` | repo · **Render** | 1 |
 | `baleryan/interno/seguranca/seguranca.go` | repo · **Render** | 2 |
 | `baleryan/interno/permissao/permissao.go` | repo · **Render** | 2 |
-| `baleryan/interno/modulos/usuarios/usuarios.go` | repo · **Render** | 2 |
+| `baleryan/interno/historico/historico.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/usuarios/usuarios.go` | repo · **Render** | 3 |
+| `baleryan/interno/modulos/acesso/acesso.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/*/prova_test.go` | repo (não vai para o Render) | 1 |
 | `web/src/sessao/tipos.ts` · `useSessao.ts` | repo · no ar | 2 |
 | `.gitignore` | repo | 2 |
 
@@ -890,6 +1000,13 @@ nível da categoria.
 | 6 | Histórico sem chaves estrangeiras | Retrato do passado não se atualiza quando o presente muda. |
 | 7 | Histórico trancado pelo banco | Regra que depende de disciplina um dia falha. |
 | 8 | Falha de histórico vira aviso, não erro | A operação aconteceu; mentir sobre isso causa dano maior. |
+| 9 | Categorias por tela, nenhuma semeada | Mudar um nome vira clique, não envio de código. |
+| 10 | `builder` fora dos formulários | Um clique distraído criaria um segundo dono do sistema. |
+| 11 | Categoria com gente dentro não sai de circulação | Evita gente presa num grupo que a tela não mostra. |
+| 12 | A matriz grava o estado inteiro | Dois builders salvando junto não geram meio estado. |
+| 13 | Retirar rotina grava `pode = false` | A linha que fica registra que já esteve liberada (CORE-05). |
+| 14 | Senha atual conferida pelo Supabase | O motor não guarda senha nenhuma (CORE-09). |
+| 15 | Sessão: 3 h parado, 24 h no total | Escolha do usuário, pensada no computador compartilhado da obra. |
 
 ---
 
@@ -899,8 +1016,8 @@ nível da categoria.
 |---|---|
 | `AMBIENTE=producao` no Render | **só depois do R2**: em produção o motor exige R2 e Dropbox configurados, e hoje não estão |
 | `CORS_ORIGENS` no Render | está no padrão `*`; fechar em `https://novo.frotamacedo.com.br` |
-| Telas da 2b | não começaram |
-| Arquivo de testes automáticos do módulo de usuários | escrito e passando aqui; **não enviado** — aguardando o usuário decidir se entra no repositório |
+| Configurar a sessão no painel do Supabase | 3 h de inatividade e 24 h no total — é o usuário quem mexe lá |
+| Telas das entregas 2 e 3 | não começaram |
 | Apagar `builder_list` | tabela de teste do R2, ainda no banco |
 
 ---
@@ -1036,6 +1153,17 @@ pedaço, nem o tamanho. O histórico é **só-inserção**: não se edita e não
 garantia é do banco, não da disciplina de quem escreve o código. *Declarada pelo dono do
 sistema em 23/08/2026. Verbos deste módulo: `criou`, `alterou`, `desativou`, `reativou`,
 `trocou_senha`.*
+
+## MOD-ACESSO · Categorias e matriz de permissões
+
+**MOD-ACESSO-01 — Mexer em permissão deixa rastro.**
+Criar e alterar categoria, tirá-la ou devolvê-la à circulação, e cada salvamento da
+matriz gravam histórico com data, hora, quem executou e o que mudou. A matriz gera
+**uma linha por salvamento**, listando só as rotinas que mudaram de estado. Vale a
+mesma tranca: só-inserção, garantida pelo banco. *Declarada pelo dono do sistema em
+23/08/2026. Motivo: mexer em permissão é mais sensível que mexer em login — é ali que
+alguém ganha ou perde acesso. Verbos deste módulo: `criou`, `alterou`, `desativou`,
+`reativou`, `alterou_permissoes`.*
 
 ---
 

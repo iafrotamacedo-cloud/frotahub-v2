@@ -1,4 +1,4 @@
-// rev 3 — baleryan, o motor do FrotaHub
+// rev 4 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -24,6 +24,8 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -31,7 +33,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "3"
+const Revisao = "4"
 
 type motor struct {
 	cfg  *config.Config
@@ -58,8 +60,13 @@ func main() {
 	mux.HandleFunc("GET /saude", m.saude)
 	mux.HandleFunc("GET /api/eu", m.eu)
 
-	// Os módulos trazem as suas rotas.
-	usuarios.Novo(cfg, bd, seg).Montar(mux)
+	// O rastro é peça compartilhada: os módulos que gravam usam a mesma.
+	hist := historico.Novo(bd)
+
+	// Os módulos trazem as suas rotas. O arquivo principal não conhece nenhuma
+	// delas — só monta o módulo (P-13).
+	usuarios.Novo(cfg, bd, seg, hist).Montar(mux)
+	acesso.Novo(bd, seg, hist).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".

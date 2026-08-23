@@ -1,4 +1,4 @@
-// rev 1 — a conversa com o banco (Supabase / PostgREST)
+// rev 2 — a conversa com o banco (Supabase / PostgREST)
 //
 // Um cliente só, com tempo-limite e erro que ESTOURA. Nada de gravar e seguir em
 // frente sem saber se gravou: se o banco recusou, quem chamou fica sabendo.
@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,6 +101,26 @@ func (c *Cliente) Inserir(ctx context.Context, tabela string, linhas any, destin
 		cab["Prefer"] = "return=representation"
 	}
 	return c.executar(ctx, http.MethodPost, tabela, linhas, cab, destino)
+}
+
+// Gravar insere, e atualiza o que já existir com a mesma chave primária.
+//
+// Serve para conjuntos que se reescrevem inteiros — a matriz de permissões é o
+// caso: marcar uma rotina já marcada não pode virar erro de chave duplicada.
+func (c *Cliente) Gravar(ctx context.Context, tabela string, linhas any) error {
+	return c.executar(ctx, http.MethodPost, tabela, linhas,
+		map[string]string{"Prefer": "resolution=merge-duplicates,return=minimal"}, nil)
+}
+
+// Duplicado diz se o erro é de chave repetida — o que quase sempre significa que
+// a pessoa tentou criar algo com um código que já existe, e merece uma frase
+// específica em vez de "erro no banco".
+func Duplicado(err error) bool {
+	var e *Erro
+	if !errors.As(err, &e) {
+		return false
+	}
+	return e.Status == http.StatusConflict || strings.Contains(e.Corpo, "23505")
 }
 
 // Atualizar altera as linhas que casarem com o filtro (sintaxe do PostgREST).

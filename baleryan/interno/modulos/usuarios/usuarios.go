@@ -1,4 +1,4 @@
-// rev 2 — usuários e logins
+// rev 3 — usuários e logins
 //
 // A primeira função de verdade do baleryan, e ela existe aqui por um motivo técnico:
 // criar login exige a API de administração do Supabase, que exige a chave de serviço.
@@ -22,6 +22,16 @@
 //     correspondente não é erro para o banco.
 //
 //  2. Nasceu a rota GET /usuarios/{id}/historico.
+//
+// O QUE MUDOU NA REVISÃO 3 --------------------------------------------------
+//
+//  1. A gravação de histórico saiu daqui e virou peça própria
+//     (`interno/historico`), porque agora existe um segundo módulo que grava.
+//     Com dois, o formato deixou de ser suposição (CORE-06).
+//
+//  2. Nasceu POST /minha-conta/senha — a única rota deste arquivo que NÃO é
+//     exclusiva do builder. Ela exige a senha atual, e grava histórico igual:
+//     trocar a própria senha não é exceção à MOD-USUARIOS-01.
 package usuarios
 
 import (
@@ -30,7 +40,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,6 +47,7 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
@@ -60,11 +70,12 @@ type Modulo struct {
 	cfg  *config.Config
 	bd   *banco.Cliente
 	seg  *seguranca.Servico
+	hist *historico.Servico
 	http *http.Client
 }
 
-func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico) *Modulo {
-	return &Modulo{cfg: cfg, bd: bd, seg: seg, http: &http.Client{Timeout: 20 * time.Second}}
+func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico, hist *historico.Servico) *Modulo {
+	return &Modulo{cfg: cfg, bd: bd, seg: seg, hist: hist, http: &http.Client{Timeout: 20 * time.Second}}
 }
 
 // Montar registra as rotas deste módulo. O arquivo principal não conhece nenhuma
@@ -75,6 +86,9 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /usuarios/{id}", m.editar)
 	mux.HandleFunc("POST /usuarios/{id}/senha", m.trocarSenha)
 	mux.HandleFunc("GET /usuarios/{id}/historico", m.historico)
+
+	// Não é builder-only: é a conta da própria pessoa.
+	mux.HandleFunc("POST /minha-conta/senha", m.trocarMinhaSenha)
 }
 
 // quemEBuilder resolve as duas perguntas de toda rota daqui: quem é, e se pode.
@@ -97,45 +111,6 @@ func (m *Modulo) quemEBuilder(w http.ResponseWriter, r *http.Request) *seguranca
 // Toda criação, alteração, mudança de situação e troca de senha grava uma linha.
 // Senha nunca entra no conteúdo — nem cifrada, nem em pedaço.
 // ---------------------------------------------------------------------------
-
-// mudanca é o par de/para de um campo. Os dois lados aparecem sempre, inclusive
-// na criação (onde o "de" é nulo), para a tela ter um formato só para desenhar.
-type mudanca struct {
-	De   any `json:"de"`
-	Para any `json:"para"`
-}
-
-// A frase que vai para a tela quando a alteração deu certo mas o histórico não.
-// Não é erro de HTTP de propósito: a operação ACONTECEU, e responder "deu errado"
-// faria o usuário tentar de novo, o que criaria um segundo login ou desfaria o
-// que ele acabou de fazer. Mentir sobre o resultado é pior do que avisar.
-const avisoHistorico = "Feito, mas o histórico NÃO foi gravado. Anote o que você fez e avise o responsável pelo sistema."
-
-// registrar grava uma linha de histórico.
-//
-// Devolve o erro em vez de engoli-lo: quem chama decide o que dizer na tela, mas
-// ninguém tem licença para fingir que gravou.
-func (m *Modulo) registrar(ctx context.Context, p *seguranca.Principal, registroID, acao string, mudancas map[string]mudanca) error {
-	linha := map[string]any{
-		"cliente_id":    p.ClienteID,
-		"modulo":        moduloHistorico,
-		"registro_id":   registroID,
-		"acao":          acao,
-		"autor_id":      p.UserID,
-		"autor_usuario": p.Usuario,
-	}
-	if len(mudancas) > 0 {
-		linha["mudancas"] = mudancas
-	}
-
-	if err := m.bd.Inserir(ctx, "historico", []map[string]any{linha}, nil); err != nil {
-		// Segunda trilha. Se o banco recusou, pelo menos o console do servidor
-		// guarda o que aconteceu — é de onde a informação será resgatada.
-		log.Printf("[historico] FALHOU: %s %s/%s por %s: %v", acao, moduloHistorico, registroID, p.Usuario, err)
-		return err
-	}
-	return nil
-}
 
 // semCancelar desliga o histórico do tempo de vida da requisição. Se o navegador
 // desistir no meio, a alteração já foi feita — o registro dela não pode ir junto.
@@ -313,13 +288,13 @@ func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
 	// histórico é para ser lido por gente, e daqui a dois anos o id não diz nada.
 	// A senha, obviamente, não entra de forma nenhuma.
 	resposta := map[string]any{"id": uid, "usuario": pedido.Usuario}
-	err = m.registrar(semCancelar(r), p, uid, "criou", map[string]mudanca{
+	err = m.hist.Registrar(semCancelar(r), p, moduloHistorico, uid, "criou", map[string]historico.Mudanca{
 		"usuario":   {De: nil, Para: pedido.Usuario},
 		"nome":      {De: nil, Para: pedido.Nome},
 		"categoria": {De: nil, Para: categoriaNome},
 	})
 	if err != nil {
-		resposta["aviso"] = avisoHistorico
+		resposta["aviso"] = historico.Aviso
 	}
 
 	web.Responder(w, http.StatusCreated, resposta)
@@ -453,7 +428,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	campos := map[string]any{}
-	mudancasDados := map[string]mudanca{}
+	mudancasDados := map[string]historico.Mudanca{}
 
 	if pedido.Nome != nil {
 		nome := strings.TrimSpace(*pedido.Nome)
@@ -465,7 +440,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 		// histórico: rastro cheio de "mudou de X para X" é rastro que ninguém lê.
 		if nome != atual.Nome {
 			campos["nome"] = nome
-			mudancasDados["nome"] = mudanca{De: atual.Nome, Para: nome}
+			mudancasDados["nome"] = historico.Mudanca{De: atual.Nome, Para: nome}
 		}
 	}
 
@@ -476,7 +451,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		campos["categoria_id"] = *pedido.CategoriaID
-		mudancasDados["categoria"] = mudanca{De: atual.categoriaNome(), Para: nomeNovo}
+		mudancasDados["categoria"] = historico.Mudanca{De: atual.categoriaNome(), Para: nomeNovo}
 	}
 
 	situacaoMudou := pedido.Ativo != nil && *pedido.Ativo != atual.Ativo
@@ -503,7 +478,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 	falhou := false
 
 	if len(mudancasDados) > 0 {
-		if err := m.registrar(ctx, p, alvo, "alterou", mudancasDados); err != nil {
+		if err := m.hist.Registrar(ctx, p, moduloHistorico, alvo, "alterou", mudancasDados); err != nil {
 			falhou = true
 		}
 	}
@@ -512,7 +487,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 		if *pedido.Ativo {
 			acao = "reativou"
 		}
-		if err := m.registrar(ctx, p, alvo, acao, map[string]mudanca{
+		if err := m.hist.Registrar(ctx, p, moduloHistorico, alvo, acao, map[string]historico.Mudanca{
 			"ativo": {De: atual.Ativo, Para: *pedido.Ativo},
 		}); err != nil {
 			falhou = true
@@ -521,7 +496,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 
 	resposta := map[string]any{"ok": true}
 	if falhou {
-		resposta["aviso"] = avisoHistorico
+		resposta["aviso"] = historico.Aviso
 	}
 	web.Responder(w, http.StatusOK, resposta)
 }
@@ -556,34 +531,18 @@ func (m *Modulo) trocarSenha(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	corpo, _ := json.Marshal(map[string]any{"password": pedido.Senha})
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPut,
-		m.cfg.Supabase.Auth()+"/admin/users/"+alvo, strings.NewReader(string(corpo)))
-	if err != nil {
-		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar o pedido.")
-		return
-	}
-	req.Header.Set("apikey", m.cfg.Supabase.ChaveServico)
-	req.Header.Set("Authorization", "Bearer "+m.cfg.Supabase.ChaveServico)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := m.http.Do(req)
-	if err != nil {
-		web.Falhar(w, http.StatusBadGateway, "Não consegui falar com o serviço de login.")
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		bruto, _ := io.ReadAll(resp.Body)
-		web.Falhar(w, http.StatusBadGateway, "O serviço de login recusou: "+strings.TrimSpace(string(bruto)))
+	// A gravação em si é a mesma da tela "Minha conta" — uma implementação só
+	// (CORE-06). O que muda é quem pode pedir, e isso já foi resolvido lá em cima.
+	if err := m.definirSenha(r.Context(), alvo, pedido.Senha); err != nil {
+		web.Falhar(w, http.StatusBadGateway, err.Error())
 		return
 	}
 
 	// Registra o FATO, e só o fato. Nenhum pedaço da senha, nem antiga nem nova,
 	// nem tamanho, nem resumo criptográfico. Por isso `mudancas` vai vazio.
 	resposta := map[string]any{"ok": true}
-	if err := m.registrar(semCancelar(r), p, alvo, "trocou_senha", nil); err != nil {
-		resposta["aviso"] = avisoHistorico
+	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, alvo, "trocou_senha", nil); err != nil {
+		resposta["aviso"] = historico.Aviso
 	}
 	web.Responder(w, http.StatusOK, resposta)
 }
@@ -591,14 +550,6 @@ func (m *Modulo) trocarSenha(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 // histórico
 // ---------------------------------------------------------------------------
-
-type linhaHistorico struct {
-	ID           int64           `json:"id"`
-	Acao         string          `json:"acao"`
-	AutorUsuario string          `json:"autor_usuario"`
-	Quando       string          `json:"quando"`
-	Mudancas     json.RawMessage `json:"mudancas"`
-}
 
 // GET /usuarios/{id}/historico?pagina=1&por_pagina=25
 func (m *Modulo) historico(w http.ResponseWriter, r *http.Request) {
@@ -615,19 +566,8 @@ func (m *Modulo) historico(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pagina, porPagina, inicio := paginacao(r)
-
-	// A ordem das condições acompanha o índice `historico_por_registro`.
-	// O desempate por id existe porque dois eventos da mesma alteração nascem
-	// com o mesmo carimbo de tempo — sem ele, a ordem entre eles seria sorteio.
-	caminho := "historico?cliente_id=eq." + banco.Escapar(p.ClienteID) +
-		"&modulo=eq." + moduloHistorico +
-		"&registro_id=eq." + banco.Escapar(alvo) +
-		"&select=id,acao,autor_usuario,quando,mudancas" +
-		"&order=quando.desc,id.desc" +
-		"&limit=" + strconv.Itoa(porPagina) + "&offset=" + strconv.Itoa(inicio)
-
-	var linhas []linhaHistorico
-	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
+	linhas, err := m.hist.Listar(r.Context(), p.ClienteID, moduloHistorico, alvo, porPagina, inicio)
+	if err != nil {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar o histórico.")
 		return
 	}
@@ -638,6 +578,123 @@ func (m *Modulo) historico(w http.ResponseWriter, r *http.Request) {
 		"por_pagina": porPagina,
 		"tem_mais":   len(linhas) == porPagina,
 	})
+}
+
+// ---------------------------------------------------------------------------
+// minha conta — trocar a PRÓPRIA senha
+//
+// A única rota deste arquivo que não é exclusiva do builder, e a única que pede a
+// senha atual. Pede porque o cenário real é o computador da obra deixado aberto:
+// sem essa confirmação, quem passar pela cadeira troca a senha de quem esqueceu
+// de sair, e o dono do login perde a própria conta.
+//
+// O motor não confere a senha atual sozinho — ele não guarda senha nenhuma
+// (CORE-09). Quem confere é o Supabase: se ele aceitar entrar com o par
+// usuário + senha atual, a senha está certa.
+// ---------------------------------------------------------------------------
+
+func (m *Modulo) trocarMinhaSenha(w http.ResponseWriter, r *http.Request) {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return
+	}
+	// Robô não tem conta própria para trocar.
+	if p.Tipo != seguranca.TipoUsuario {
+		web.Falhar(w, http.StatusForbidden, "Esta ação é de usuário, não de robô.")
+		return
+	}
+
+	var pedido struct {
+		SenhaAtual string `json:"senha_atual"`
+		SenhaNova  string `json:"senha_nova"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&pedido); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não entendi os dados enviados.")
+		return
+	}
+	if pedido.SenhaAtual == "" {
+		web.Falhar(w, http.StatusBadRequest, "Digite a sua senha atual.")
+		return
+	}
+	if len(pedido.SenhaNova) < senhaMinima {
+		web.Falhar(w, http.StatusBadRequest,
+			fmt.Sprintf("A senha nova precisa de pelo menos %d caracteres.", senhaMinima))
+		return
+	}
+	if pedido.SenhaNova == pedido.SenhaAtual {
+		web.Falhar(w, http.StatusBadRequest, "A senha nova tem que ser diferente da atual.")
+		return
+	}
+
+	email := p.Usuario + "@" + m.cfg.DominioLogin
+	if err := m.conferirSenha(r.Context(), email, pedido.SenhaAtual); err != nil {
+		web.Falhar(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	if err := m.definirSenha(r.Context(), p.UserID, pedido.SenhaNova); err != nil {
+		web.Falhar(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	// Trocar a própria senha grava igual. A MOD-USUARIOS-01 não abre exceção para
+	// "foi a própria pessoa": o valor do rastro está justamente em ele ser completo.
+	resposta := map[string]any{"ok": true}
+	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, p.UserID, "trocou_senha", nil); err != nil {
+		resposta["aviso"] = historico.Aviso
+	}
+	web.Responder(w, http.StatusOK, resposta)
+}
+
+// conferirSenha pergunta ao Supabase se este par usuário+senha entra. Nada da
+// resposta é aproveitado: a sessão criada aqui é descartada, só interessa o sim
+// ou o não.
+func (m *Modulo) conferirSenha(ctx context.Context, email, senha string) error {
+	corpo, _ := json.Marshal(map[string]any{"email": email, "password": senha})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		m.cfg.Supabase.Auth()+"/token?grant_type=password", strings.NewReader(string(corpo)))
+	if err != nil {
+		return fmt.Errorf("Não consegui montar o pedido.")
+	}
+	req.Header.Set("apikey", m.cfg.Supabase.ChavePublica)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("Não consegui falar com o serviço de login.")
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("A senha atual não confere.")
+	}
+	return nil
+}
+
+// definirSenha grava a senha nova pela API de administração.
+func (m *Modulo) definirSenha(ctx context.Context, uid, senha string) error {
+	corpo, _ := json.Marshal(map[string]any{"password": senha})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut,
+		m.cfg.Supabase.Auth()+"/admin/users/"+uid, strings.NewReader(string(corpo)))
+	if err != nil {
+		return fmt.Errorf("Não consegui montar o pedido.")
+	}
+	req.Header.Set("apikey", m.cfg.Supabase.ChaveServico)
+	req.Header.Set("Authorization", "Bearer "+m.cfg.Supabase.ChaveServico)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("Não consegui falar com o serviço de login.")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		bruto, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("O serviço de login recusou: %s", strings.TrimSpace(string(bruto)))
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
