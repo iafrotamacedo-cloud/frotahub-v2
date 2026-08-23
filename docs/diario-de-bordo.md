@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 24 · **Fases 0, 1 e 2 concluídas**
+> Última atualização: **23/08/2026** · Rodada 25 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1335,13 +1335,259 @@ nível da categoria.
 
 ## Próximo passo
 
-**Fase 2 fechada.** Falta só uma coisa desta fase, e ela é do dono: configurar a sessão no
-painel do Supabase (3 h paradas, 24 h no total). Enquanto isso não for feito, o navegador
-leva a pessoa ao login no prazo certo, mas a credencial em si continua válida do lado do
-servidor.
+**Fase 3, Step 3: o robô.** As tabelas estão de pé; falta quem as preencha.
 
-A **Fase 3** começa quando o dono mandar, e é onde nasce a primeira rotina de negócio —
-e, com ela, a primeira linha do catálogo de rotinas, que hoje está vazio de propósito.
+Continua pendente da Fase 2, e é do dono: configurar a sessão no painel do Supabase
+(3 h paradas, 24 h no total).
+
+---
+---
+
+# FASE 3 — Os dados do Trílogo
+
+**O que é.** O FrotaHub deixa de olhar o Trílogo por cima e passa a ter os dados
+dentro de casa: chamado, timeline completa, custos e arquivos, das duas contas.
+É a base de tudo que vem depois — métricas, orçamentos, relatórios.
+
+**Escopo fechado pelo dono:**
+
+- **Menu:** Manutenção › Contrato São Luiz › **Dados do Trílogo** (antes se chamava
+  "Lista do Trílogo").
+- **Uma carga inicial** desde 01/07/2026, feita **uma vez**, pelo Actions, sem
+  aparecer no front.
+- Depois, um **robô de atualização**, que aparece no front, roda no botão e
+  agendado.
+- Tudo em **Go**, com o máximo de agilidade. A versão antiga era boa, mas em Python
+  e com navegador.
+- Dados no **Supabase**, arquivos no **R2**.
+- **Cuidado com os orçamentos:** nós mesmos vamos gerar e subir orçamentos no
+  Trílogo. Ler de volta não pode duplicar arquivo.
+- **Dedup:** na carga vem tudo; na leitura rotineira, só o que mudou.
+- **Fora do escopo:** 4 lojas (Crato, Juazeiro, Lagoa Seca, Novo Juazeiro).
+
+**Situação: Step 1 e 2 concluídos.** O robô ainda não foi escrito.
+
+---
+
+## Step 1 — O reconhecimento da API do Trílogo
+
+Antes de desenhar qualquer coisa, li o robô antigo inteiro e depois mapeei a API
+pelo navegador do dono, com a sessão dele já aberta. Sem isso, cada endereço
+errado seria um ciclo de escrever, publicar, falhar e refazer.
+
+### 1.1 O robô antigo não tinha API — tinha um navegador
+
+Ele abria um Chrome, fazia login como gente e **roubava o token** que o site usa
+nas próprias chamadas. Conhecia dois endereços, e só. Nada de timeline, nada de
+anexos, nada de ambiente.
+
+### 1.2 O que existe de verdade
+
+| Chamada | O que traz |
+|---|---|
+| `POST /api/Login/SignIn` | **o token, direto** — e-mail e senha, sem navegador |
+| `POST /api/Ticket/ListTicketsByUser` | a lista paginada, 99 campos por chamado |
+| `GET /api/Ticket/GetTicketDetail?id=` | o chamado completo, 81 campos |
+| `GET /api/Ticket/GetTicketCosts/?ticketId=` | os custos e os arquivos de nota |
+
+**Um chamado inteiro cabe numa chamada só.** `GetTicketDetail` já traz
+`attachments` e `activity` (a timeline) dentro.
+
+O achado que mais pesa é o primeiro: **`Login/SignIn` mata o Playwright.** O robô
+antigo gastava mais tempo abrindo o Chrome do que lendo os dados.
+
+**Onde cada coisa dos prints está:** *Ambiente* é `department`, e já vem com o
+caminho montado. *Tipo predial* é `buildingServiceType`. *Natureza*, *Tipo*,
+*Tags*, *Empresa prestadora com CNPJ* e *Criado por* estão todos no detalhe.
+
+### 1.3 Os arquivos são públicos
+
+Fotos, vídeos e PDFs ficam no `s3.amazonaws.com`, **sem autenticação e sem
+assinatura na URL**. Para o robô, ótimo: baixar é um GET simples.
+
+Como aviso: **qualquer pessoa com o endereço abre o arquivo**, sem estar logada no
+Trílogo. Não é coisa nossa e não dá para consertar de fora — mas reforça que o
+nosso R2 nasça fechado (**CORE-07**), para não repetirmos o problema aqui.
+
+### 1.4 Os números, medidos e não estimados
+
+| | Instalações | Civil | Total |
+|---|---|---|---|
+| Chamados desde 01/07/2026 | 970 | 460 | **1.430** |
+| Anexos por chamado | 2,8 | 2,9 | **~4.050 arquivos** |
+| Deles, vídeo | 22% | 9% | **~720 vídeos** |
+| Eventos de timeline | 9,1 | 9,6 | **~13.200 eventos** |
+| Chamados com custo | 13% | 5% | ~150 |
+
+Aparecem também áudios (`.ogg`, `.m4a`), `.zip` e PDFs soltos: o robô precisa
+aguentar qualquer tipo, não só foto.
+
+Os metadados cabem folgados no Supabase. **O peso está inteiro nos arquivos**, e a
+estimativa passa dos 10 GB do R2 grátis. Por isso a carga foi partida em duas
+passadas — ver o Step 2.
+
+### 1.5 As 4 unidades fora do escopo, por id
+
+| id | Loja |
+|---|---|
+| 94 | LOJA 07 — CRATO |
+| 95 | LOJA 12 — JUAZEIRO |
+| 96 | LOJA 25 — LAGOA SECA |
+| 300 | LOJA 31 — MERCADÃO NOVO JUAZEIRO |
+
+Existem **38 unidades** no histórico; sobram 34 no escopo — e três delas não são
+loja: **CD**, **EMPÓRIO** e **ESCRITÓRIO**.
+
+O robô antigo excluía procurando as palavras "juazeiro", "lagoa seca" e "crato" no
+nome, o que excluiria por acidente qualquer loja futura com essas palavras. Aqui é
+pelo **id**, que é exato.
+
+### 1.6 Três defeitos herdados que não serão repetidos
+
+**A prioridade está trocada no sistema antigo.** Ele grava `1 = Baixa, 2 = Média`.
+Cruzando código com tela em seis chamados: é **`1 = Média, 2 = Baixa`**. Qualquer
+relatório de prioridade tirado da base antiga está errado. Existe ainda um código
+`0`, em 64 chamados, que ninguém rotulou.
+
+**O status está certo, mas os dois arquivos do robô antigo discordam entre si.**
+Um diz `5 = Executado`, o outro diz `5 = Vistoriado`. O certo é **5 = Executado,
+6 = Vistoriado, 7 = Em execução, 1 = Aberto** (conferido contra a tela).
+
+**A chave "número + conta" cria duplicatas.** A timeline tem o evento *"Nova
+empresa prestadora"*: um chamado **troca de conta** ao longo da vida. Com aquela
+chave, a troca cria dois registros do mesmo chamado, os dois parecendo válidos.
+
+---
+
+## Step 2 — As tabelas (migração 007)
+
+### 2.1 As três decisões que moldaram o desenho
+
+**A chave do chamado é o NÚMERO, sozinho.** A conta é atributo, não identidade —
+pelo motivo do item 1.6.
+
+**Guarda-se o código cru do Trílogo junto com o rótulo.** Depois de encontrar uma
+prioridade invertida e dois arquivos discordando sobre status, guardar só o rótulo
+seria apostar que acertamos de primeira. Com o número ao lado, um erro de tradução
+se corrige com um `UPDATE` — sem reler 1.430 chamados.
+
+**O arquivo e a aparição dele são coisas diferentes.** `arquivos` é o conteúdo,
+identificado pelo **sha256**; `chamado_anexos` é cada vez que aquele conteúdo
+aparece num chamado.
+
+### 2.2 É isto que impede o orçamento de duplicar
+
+O ciclo temido: o FrotaHub gera o orçamento, guarda no R2, sobe no Trílogo, e o
+robô lê de volta.
+
+Com a separação acima, o robô reconhece o conteúdo e grava só uma **aparição
+nova** apontando para o arquivo que já existe. **Um arquivo, duas aparições.**
+
+E existe um atalho antes disso: ao subir, o FrotaHub guarda **o id que o Trílogo
+devolveu**. Na leitura seguinte o robô reconhece o id e **nem baixa**. O sha256
+fica como rede de segurança, para quando alguém subir o mesmo arquivo pela tela do
+Trílogo, onde não temos o id.
+
+Ajuda ainda que **os orçamentos não ficam junto das fotos**: eles moram em
+`invoiceFiles`, dentro do custo. São listas separadas — por isso a coleção entra na
+chave da aparição.
+
+### 2.3 A timeline tem um evento sem id
+
+Quase todo evento traz id próprio. **Um tipo vem com `id = 0`.** Se a chave fosse
+só o id, esses eventos entrariam de novo a cada leitura, para sempre. Para eles a
+identidade é uma impressão digital do conteúdo (tipo + data-hora + autor + texto),
+gravada com o prefixo `h:`.
+
+### 2.4 As sete tabelas
+
+| Tabela | Chave de dedup |
+|---|---|
+| `unidades` | cliente + id do Trílogo · carrega a marca **no escopo** |
+| `chamados` | cliente + **número** |
+| `chamado_eventos` | chamado + chave (id, ou impressão digital) |
+| `chamado_custos` | chamado + id do custo |
+| `arquivos` | **o sha256 do conteúdo** |
+| `chamado_anexos` | chamado + coleção + id do anexo |
+| `robo_execucoes` | o andamento de cada rodada |
+
+Todas as chaves são **restrições do banco**, não disciplina de quem escreve o
+código (**P-04**). Duplicar não é "evitado": é recusado.
+
+### 2.5 A permissão chega ao dado, não só ao menu
+
+Nasceu a função `posso('CODIGO_DA_ROTINA')`, e as políticas de leitura a usam.
+Esconder o item na barra lateral seria teatro: bastaria pedir a tabela direto.
+
+Como a rotina ainda não existe no catálogo, **hoje só o builder enxerga** — o
+"nasce fechado" acontece sozinho, sem ninguém lembrar de fechar (**CORE-07**).
+
+A tabela `arquivos` fica **sem política nenhuma**, de propósito: ela guarda o
+caminho no R2 de todo arquivo do sistema. Quem precisa de um arquivo pede ao
+motor, que confere o acesso e devolve um endereço temporário (**P-20**).
+
+### 2.6 Só 4 unidades semeadas, não 38
+
+As outras 34 o robô cria sozinho quando as encontra. Semear 38 linhas à mão seria
+trabalho repetido, com risco de erro de digitação e de ficar velho no dia em que
+abrir uma loja nova. As quatro fora do escopo precisam existir **antes**, porque a
+regra depende delas.
+
+### 2.7 Como foi conferido
+
+As sete migrações aplicadas do zero, em ordem, num PostgreSQL de verdade. Depois,
+cada regra exercitada contra o banco:
+
+| Prova | Resultado |
+|---|---|
+| Mesmo chamado gravado como se fosse de outra conta | **recusado** |
+| Chamado **trocando** de conta | aceito, e continua sendo **uma** linha |
+| Reler a timeline inteira de novo | **recusada**, inclusive o evento sem id |
+| Subir o orçamento e lê-lo de volta pelo id | **recusado** |
+| O mesmo PDF chegando pela outra coleção | vira **2ª aparição** do **mesmo** arquivo |
+| Apagar um arquivo ainda referenciado | **recusado** |
+| Um login comum, sem a rotina na matriz | não enxerga nada |
+| O mesmo login, depois de liberar a rotina | enxerga os chamados |
+| Qualquer login pedindo a tabela `arquivos` | zero linhas |
+
+---
+
+## Step 3 — O robô
+
+**Não começou.** Três modos, um código só:
+
+- **Levantamento** — lê tudo desde 01/07/2026 e grava chamados, timeline, custos e
+  a ficha de cada arquivo **com o tamanho real**, obtido do cabeçalho HTTP, **sem
+  baixar nada**. No fim, o número exato de GB, por tipo, antes de gastar o primeiro
+  byte de R2.
+- **Cópia** — busca os bytes do que o dono escolher, transmitindo direto para o R2
+  e calculando o sha256 no caminho.
+- **Atualização** — a mesma leitura, com marca d'água: só os chamados cujo
+  `dateOfLastChange` passou da última rodada concluída.
+
+**Onde roda:** levantamento e cópia no Actions, no botão. A atualização mora no
+motor, picotada e retomável — cada chamada processa um lote e anota onde parou,
+o que protege contra o Render adormecer no meio. Dois gatilhos, uma implementação:
+o botão do front e um agendamento no Actions chamando o mesmo endereço.
+
+---
+
+## Inventário da Fase 3
+
+| Arquivo | Hospedado | Rev |
+|---|---|---|
+| `db/migrations/007_trilogo.sql` | repo · **Supabase** | 1 |
+
+---
+
+## Pendências da Fase 3
+
+| O quê | Situação |
+|---|---|
+| Escrever o robô (3 modos) | próximo passo |
+| Rodar o levantamento e decidir o que copiar para o R2 | depende do robô |
+| Tela "Dados do Trílogo" e o cadastro da rotina no catálogo | depois do robô |
+| Estimar o custo do R2 acima de 10 GB | ~US$ 0,015 por GB/mês, sem cobrança de saída |
 
 ---
 ---
