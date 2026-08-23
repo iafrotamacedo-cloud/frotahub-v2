@@ -1,4 +1,4 @@
-// rev 4 — a árvore de menus
+// rev 5 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -21,10 +21,10 @@ export interface ItemMenu {
   sub?: ItemMenu[]
 }
 
-export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado'
+export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela = 'usuarios' | 'categorias'
+export type Tela = 'usuarios' | 'categorias' | 'minha-conta'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
@@ -58,6 +58,17 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         desc: 'Os grupos de acesso e o que cada um alcança',
         tela: 'categorias',
         soBuilder: true,
+      },
+      {
+        // Sem `soBuilder`: é a porta de todo mundo. E é ela que faz Configurações
+        // existir para quem não é builder — antes, tudo ali dentro era do dono do
+        // sistema, então o bloco inteiro sumia, e quem quisesse trocar a própria
+        // senha não tinha para onde ir.
+        t: 'Minha conta',
+        rota: 'minha-conta',
+        icone: 'pessoa',
+        desc: 'Os seus dados e a sua senha',
+        tela: 'minha-conta',
       },
     ],
   },

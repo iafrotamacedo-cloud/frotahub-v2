@@ -1,4 +1,4 @@
-// rev 4 — a casca do FrotaHub
+// rev 5 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -42,7 +42,6 @@ export default function App() {
     if (grupoAberto) setAbertos(a => (a.includes(grupoAberto) ? a : [...a, grupoAberto]))
   }, [grupoAberto])
   const [navAberta, setNavAberta] = useState(false)
-  const [minhaConta, setMinhaConta] = useState(false)
   const [expirou, setExpirou] = useState(false)
 
   // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
@@ -60,6 +59,16 @@ export default function App() {
     irPara(novo)
     setNavAberta(false)
     document.body.classList.remove('nav-aberta')
+  }
+
+  // O caminho até Minha conta é procurado na árvore, não escrito à mão: assim
+  // ele continua certo se o item mudar de lugar amanhã.
+  function irParaMinhaConta() {
+    for (const bloco of arvore) {
+      const filho = bloco.sub?.find(f => f.tela === 'minha-conta')
+      if (filho) return navegar([bloco, filho])
+      if (bloco.tela === 'minha-conta') return navegar([bloco])
+    }
   }
 
   function alternar(titulo: string) {
@@ -129,10 +138,11 @@ export default function App() {
         </nav>
 
         <div className="sd-user">
-          {/* O bloco inteiro abre Minha conta. É onde a pessoa procura a própria
-              conta — e evita mais um item de menu para uma tela que se usa duas
-              vezes por ano. */}
-          <button className="sd-eu" type="button" onClick={() => setMinhaConta(true)} title="Minha conta">
+          {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
+              Quem pensa "minhas configurações" acha no menu; quem pensa "minha
+              conta" clica no próprio nome. Nenhuma das duas obriga a lembrar da
+              outra (P-29). */}
+          <button className="sd-eu" type="button" onClick={irParaMinhaConta} title="Minha conta">
             <span className="av">{iniciais}</span>
             <span className="i">
               <b>{perfil.nome}</b>
@@ -185,13 +195,14 @@ export default function App() {
             <Usuarios perfil={perfil} />
           ) : atual?.tela === 'categorias' ? (
             <Categorias />
+          ) : atual?.tela === 'minha-conta' ? (
+            <MinhaConta perfil={perfil} />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}
         </main>
       </div>
 
-      {minhaConta && <MinhaConta perfil={perfil} aoFechar={() => setMinhaConta(false)} />}
     </div>
   )
 }

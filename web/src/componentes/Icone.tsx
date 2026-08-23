@@ -1,4 +1,4 @@
-// rev 2 — os ícones do sistema, desenhados à mão
+// rev 3 — os ícones do sistema, desenhados à mão
 //
 // Sem biblioteca de ícones: são poucos, e assim eles herdam a cor e a espessura do
 // resto da interface em vez de trazerem um estilo próprio (CORE-25).
@@ -51,6 +51,12 @@ const CAMINHOS: Record<NomeIcone, JSX.Element> = {
       <rect x="4.2" y="10.3" width="15.6" height="10" rx="2.2" />
       <path d="M8 10.3V7.4a4 4 0 0 1 8 0v2.9" />
       <path d="M12 14.4v2.1" />
+    </>
+  ),
+  'pessoa': (
+    <>
+      <path d="M19.5 20v-1.9a4 4 0 0 0-4-4h-7a4 4 0 0 0-4 4V20" />
+      <circle cx="12" cy="7.4" r="3.7" />
     </>
   ),
 }

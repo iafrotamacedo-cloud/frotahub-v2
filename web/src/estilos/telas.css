@@ -1,4 +1,4 @@
-/* rev 2 — as peças das rotinas: tabela, janela, botões, avisos
+/* rev 3 — as peças das rotinas: tabela, janela, botões, avisos
    Nenhuma cor escrita à mão: tudo vem de tokens.css (P-19). */
 
 /* ---------- botões ---------- */
@@ -220,3 +220,25 @@
 .sd-eu .i{flex:1;min-width:0;display:block}
 .sd-eu .i b{display:block;color:#fff;font-size:12.8px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sd-eu .i span{display:block;font-size:11px;color:var(--side-mut);text-transform:capitalize}
+
+/* ---------- cartões de uma tela ---------- */
+.cartoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
+.cartao{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  padding:20px;box-shadow:var(--sh-1);
+}
+.cartao h2{margin:0 0 14px;font-size:15px;font-weight:700;color:var(--ink)}
+.cartao label{display:block;font-size:12.5px;font-weight:600;color:var(--txt);margin:0 0 5px}
+.cartao input{
+  width:100%;font-family:var(--f);font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:9px 11px;
+  margin:0 0 14px;background:#fff;
+  transition:border-color var(--transicao),box-shadow var(--transicao);
+}
+.cartao input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100)}
+.cartao .dica{margin:-9px 0 15px;font-size:11.8px;color:var(--mut)}
+.cartao .ficha{margin-bottom:12px}
+.cartao .ficha + .dica{margin-top:0}
+
+/* Aviso que aparece enquanto a pessoa digita, em vez de só depois de salvar. */
+.dica-alerta{color:var(--err)}

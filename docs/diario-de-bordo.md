@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 22 · **Fases 0, 1 e 2 concluídas**
+> Última atualização: **23/08/2026** · Rodada 24 · **Fases 0, 1 e 2 concluídas**
 
 ---
 
@@ -1174,7 +1174,20 @@ recarregar numa tela interna, abrir por link colado (com o grupo certo já abert
 lateral), endereço inventado caindo no início, e — o ponto de partida de tudo — "voltar" do
 início **não** saindo mais para a página visitada antes do FrotaHub.
 
-### 7.2 Dois arquivos fantasmas quebraram a publicação da entrega 3
+### 7.2 Nova prática declarada pelo dono: P-29
+
+> **Facilidade de operação é requisito, não acabamento.**
+> Quando a escolha for entre o que é simples de programar e o que é simples de operar,
+> ganha operar.
+
+Ela entra no Anexo B, na seção **Interface**, e vale daqui para a frente e para trás: o que
+já está construído passa a ser lido também por esta régua.
+
+*Observação de escala, para o dono decidir quando quiser:* pelo texto — "tudo deve ser
+pensado assim" — ela tem tamanho de **Core**, não de prática. Ficou como P-29 porque foi
+assim que foi pedida. Promover depois é trocar o código nas citações; o texto não muda.
+
+### 7.3 Dois arquivos fantasmas quebraram a publicação da entrega 3
 
 Na entrega 3, duas peças mudaram de lugar: `Carregando.tsx` e `Historico.tsx` saíram de
 `telas/usuarios/` para `componentes/`. As cópias novas foram entregues; **as antigas
@@ -1188,6 +1201,44 @@ mostrando a entrega 2, sem erro visível para quem estava usando.
 *A publicação falhar aqui foi o sistema funcionando* (**P-21**): melhor não publicar do que
 publicar pela metade. O defeito foi não perceber que mover arquivo pede uma remoção
 explícita do outro lado. Virou **P-28**.
+
+### 7.4 Configurações passou a existir para todo mundo
+
+**O problema.** Tudo o que morava em Configurações era do builder, e a árvore de menus
+esconde um bloco cujos filhos todos sumiram. Resultado: quem não é builder não via
+Configurações **nenhuma** — e, portanto, não tinha por onde trocar a própria senha. A
+tela existia, mas só abria clicando no próprio nome na barra lateral, o que ninguém
+adivinha.
+
+**A correção.** *Minha conta* virou um item de Configurações, **sem** marca de builder. É
+ele que faz o bloco existir para qualquer login.
+
+**Ela deixou de ser janela e virou tela.** Item de menu que abre janela sobreposta é
+inconsistente com o resto do sistema, e não teria endereço próprio — não daria para voltar
+nem recarregar nela.
+
+**As duas portas continuam.** O item no menu e o clique no próprio nome levam à mesma tela,
+pelo mesmo endereço. Quem pensa "minhas configurações" acha no menu; quem pensa "minha
+conta" clica no nome. Nenhuma das duas obriga a lembrar da outra (**P-29**) — e é uma
+implementação só (**CORE-06**).
+
+*Detalhe de implementação que evita dor:* o clique no nome **procura** o caminho até a tela
+dentro da árvore, em vez de tê-lo escrito à mão. Se o item mudar de lugar amanhã, o atalho
+continua certo sozinho.
+
+**O que a P-29 mudou nesta tela, na prática:**
+
+- As conferências aparecem **enquanto se digita** — senha curta, senhas diferentes, senha
+  nova igual à atual — em vez de só depois de clicar em salvar e esperar o servidor.
+- O botão fica travado enquanto os dados não fecham, então não há clique que só serve para
+  descobrir que faltava algo.
+- A ficha diz **quem muda cada coisa**: nome, usuário e categoria são de quem administra; a
+  senha é sua. Isso poupa a pergunta e a espera por uma resposta que não viria.
+
+**Conferido em navegador, com os dois tipos de login.** Treze verificações: o que cada um
+vê no menu, abrir pelo menu e pelo nome, o endereço em cada caso, senha atual errada
+recusada com frase clara, senha certa trocada com aviso, os avisos que aparecem antes de
+salvar, o botão travado, e o botão voltar continuando a funcionar.
 
 ---
 
@@ -1214,17 +1265,17 @@ explícita do outro lado. Virou **P-28**.
 | `web/src/motor/cliente.ts` | repo | 1 |
 | `web/src/vite-env.d.ts` | repo | 1 |
 | `web/src/componentes/Janela.tsx` | repo | 1 |
-| `web/src/componentes/Icone.tsx` | repo | 2 |
-| `web/src/menu/arvore.ts` | repo | 4 |
+| `web/src/componentes/Icone.tsx` | repo | 3 |
+| `web/src/menu/arvore.ts` | repo | 5 |
 | `web/src/menu/navegacao.ts` | repo | 1 |
-| `web/src/App.tsx` | repo | 4 |
+| `web/src/App.tsx` | repo | 5 |
 | `web/src/main.tsx` · `telas/Inicio.tsx` | repo | 2 |
-| `web/src/estilos/telas.css` | repo | 2 |
+| `web/src/estilos/telas.css` | repo | 3 |
 | `web/src/telas/usuarios/` (4 arquivos) | repo | 1–2 |
 | `web/src/componentes/Carregando.tsx` | repo | 2 |
 | `web/src/componentes/Historico.tsx` | repo | 2 |
 | `web/src/telas/categorias/` (4 arquivos) | repo | 1 |
-| `web/src/telas/MinhaConta.tsx` | repo | 1 |
+| `web/src/telas/MinhaConta.tsx` | repo | 2 |
 | `web/src/sessao/inatividade.ts` | repo | 1 |
 | `web/src/sessao/useSessao.ts` | repo | 3 |
 | `web/src/telas/Login.tsx` | repo | 2 |
@@ -1265,6 +1316,8 @@ nível da categoria.
 | 24 | O login do dono passou a ser `igor` | Pedido do dono; feito no banco, fora do sistema, de propósito. |
 | 25 | O caminho mora no endereço, com `#` | "Voltar" volta uma tela; e não exige regra nenhuma no servidor. |
 | 26 | O endereço vem de um `rota` escrito à mão | Título muda; endereço não pode mudar junto. |
+| 27 | Minha conta é tela, não janela | Item de menu precisa de endereço próprio, para voltar e recarregar. |
+| 28 | Duas portas para Minha conta | Menu e clique no nome; ninguém precisa lembrar da outra (P-29). |
 
 ---
 
@@ -1547,6 +1600,14 @@ dar a medida do que falta.
 
 **P-19 — A identidade da casa é a mesma em todo lugar.**
 Sem biblioteca de componentes com visual próprio.
+
+**P-29 — Facilidade de operação é requisito, não acabamento.**
+Toda tela, mensagem e fluxo é desenhada a partir de quem vai usar: menos passos na tarefa
+do dia a dia, as coisas com o nome que quem trabalha usa, o caminho certo sendo o mais
+fácil de seguir, e nada que dependa de decorar. Quando a escolha for entre o que é simples
+de programar e o que é simples de operar, **ganha operar**. *Sistema que funciona mas custa
+esforço todo dia é sistema que as pessoas contornam — e o contorno vira a verdade, não o
+sistema. Declarada pelo dono em 23/08/2026.*
 
 ## Operação
 
