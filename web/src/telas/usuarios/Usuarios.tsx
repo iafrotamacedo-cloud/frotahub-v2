@@ -1,4 +1,4 @@
-// rev 1 — Usuários e Logins
+// rev 2 — Usuários e Logins
 //
 // A primeira rotina de verdade do FrotaHub novo. Tudo aqui passa pelo motor, e não
 // direto pelo banco, porque criar login e trocar senha exigem a chave de serviço,
@@ -10,10 +10,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import type { Perfil } from '../../sessao/tipos'
-import { Carregando } from './Carregando'
+import { Carregando } from '../../componentes/Carregando'
 import { FormUsuario } from './FormUsuario'
 import { TrocarSenha } from './TrocarSenha'
-import { Historico } from './Historico'
+import { Historico } from '../../componentes/Historico'
 import type { Categoria, LinhaUsuario } from './tipos'
 
 type Janelinha =
@@ -211,7 +211,12 @@ export function Usuarios({ perfil }: { perfil: Perfil }) {
         />
       )}
       {janela.tipo === 'historico' && (
-        <Historico usuario={janela.alvo} aoFechar={() => setJanela({ tipo: 'nenhuma' })} />
+        <Historico
+          caminho={`/usuarios/${janela.alvo.id}/historico`}
+          titulo="Histórico"
+          descricao={`${janela.alvo.nome} · ${janela.alvo.usuario}`}
+          aoFechar={() => setJanela({ tipo: 'nenhuma' })}
+        />
       )}
     </>
   )

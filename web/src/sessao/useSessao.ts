@@ -1,4 +1,4 @@
-// rev 2 — a sessão do usuário
+// rev 3 — a sessão do usuário
 //
 // Uma responsabilidade só: dizer QUEM está logado.
 //
@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, usuarioParaEmail } from '../supabase/cliente'
 import type { Nivel, Perfil } from './tipos'
+import { limparMarcasDeSessao, marcarInicioDeSessao } from './inatividade'
 
 interface LinhaPerfil {
   id: string
@@ -90,11 +91,14 @@ export function useSessao() {
       await supabase.auth.signOut()
       return 'Este login está desativado.'
     }
+    // Os carimbos de sessão nascem aqui, no único ponto em que alguém entra.
+    marcarInicioDeSessao()
     setEstado({ carregando: false, perfil })
     return null
   }, [carregarPerfil])
 
   const sair = useCallback(async () => {
+    limparMarcasDeSessao()
     await supabase.auth.signOut()
     setEstado({ carregando: false, perfil: null })
   }, [])

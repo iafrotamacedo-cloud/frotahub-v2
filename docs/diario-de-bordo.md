@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 20 · **Fases 0 e 1 concluídas · Fase 2a no ar · 2b entregas 1 e 2 prontas**
+> Última atualização: **23/08/2026** · Rodada 21 · **Fases 0, 1 e 2 concluídas**
 
 ---
 
@@ -651,7 +651,7 @@ próprio sistema, sem passar por código.
 **Como foi partida.** Em duas metades, para nada subir de uma vez:
 **2a** — banco, motor e as rotinas de servidor. **2b** — as telas.
 
-**Situação: 2a NO AR** em 23/08/2026. **2b: entregas 1 (motor e banco) e 2 (tela de usuários) prontas; falta a entrega 3.**
+**Situação: CONSTRUÍDA** em 23/08/2026. Falta só a configuração de sessão no painel do Supabase, que é do dono.
 
 ---
 
@@ -1032,17 +1032,110 @@ Dois defeitos apareceram aí e foram corrigidos antes da entrega:
 
 ---
 
-## Step 6 — O que falta (2b, entrega 3)
+## Step 6 — Categorias, matriz, Minha conta e sessão (2b, entrega 3)
 
-**Não começou.**
+**O que fecha aqui.** Com esta entrega o ciclo de logins fica completo: dá para criar
+grupos, dizer o que cada grupo alcança, criar pessoas dentro deles, e cada um cuida da
+própria senha.
 
-- Tela de **Categorias** — hoje só existe a do dono do sistema, e ela é protegida.
-  Enquanto não houver outra, o formulário de criar login abre sem opção de categoria
-  e avisa isso. **É por aqui que a próxima entrega precisa começar.**
-- O quadro da **matriz de permissões** — vai abrir vazio até existir a primeira
-  rotina de negócio no catálogo.
-- **Minha conta**, para trocar a própria senha.
-- **Sessão por inatividade** — 3 horas parado, 24 horas no total.
+### 6.1 O login do dono mudou de nome
+
+A pedido do dono, o login `builder` passou a ser **`igor`**. A troca foi feita direto no
+banco, em três lugares que precisam concordar: `perfis.usuario`, o e-mail interno em
+`auth.users`, e a identidade do provedor de e-mail. Se um dos três ficasse para trás, o
+login pararia de funcionar sem explicação.
+
+**A categoria continua se chamando `builder`** — ela é o cargo, não a pessoa, e é ela que
+carrega a trava anti-tranca.
+
+*Nota de coerência:* a tela de usuários não permite editar o nome curto de um login, e
+isso continua valendo. Esta troca foi feita **fora do sistema**, no banco, por quem
+responde por ele — que é exatamente a forma como uma exceção deve acontecer: deliberada,
+e não a um clique de distância. O histórico não perdeu nada, porque ainda não havia
+nenhuma linha gravada.
+
+### 6.2 Tela de Categorias
+
+Lista, cria, edita, arquiva e devolve à circulação. Mostra também as arquivadas — quem
+administra precisa enxergá-las para poder trazê-las de volta; quem só vai escolher uma
+categoria ao criar um login recebe apenas as ativas, e esse filtro é do motor.
+
+**O código não se edita depois de criado**, pela mesma razão que o nome curto de um login
+não se edita: ele é a identidade do registro no histórico. O nome, esse sim, muda à
+vontade — é ele que aparece nas telas.
+
+**A categoria protegida tem Editar e Arquivar desabilitados**, com a explicação no próprio
+botão. As mesmas travas existem no motor; as da tela são só para a pessoa não descobrir
+pelo erro.
+
+### 6.3 A matriz
+
+Quadro de rotinas por módulo, com caixas de marcar. Salva o **estado inteiro**, não o
+clique — se dois builders salvarem quase junto, o último grava um estado coerente em vez
+de metade de dois.
+
+Três estados, e cada um diz o que está acontecendo:
+
+| Situação | O que a tela mostra |
+|---|---|
+| Categoria comum, catálogo com rotinas | o quadro, marcável |
+| Categoria comum, **catálogo vazio** | explica que cada rotina se cadastra quando o módulo dela é construído |
+| Categoria protegida | explica que ela alcança tudo por construção, e desabilita o quadro |
+
+Hoje o segundo caso é o normal: **o catálogo está vazio**, e vai ficar até o primeiro
+módulo de negócio existir. Isso é o desenho funcionando, não tela quebrada — e a mensagem
+diz isso com todas as letras para ninguém procurar defeito onde não tem.
+
+No histórico, mexer em permissão não aparece como "de inativo para ativo", que não é como
+se fala de uma rotina. Aparece como **"Liberou: A, B"** e **"Retirou: C"**.
+
+### 6.4 Minha conta
+
+Abre clicando no próprio nome, na barra lateral — é onde a pessoa procura a própria conta,
+e evita mais um item de menu para uma tela que se usa duas vezes por ano.
+
+Mostra usuário, categoria e nível, e troca a senha exigindo a atual. Grava histórico
+igual: a **MOD-USUARIOS-01** não abre exceção para "foi a própria pessoa".
+
+### 6.5 A sessão acaba por tempo
+
+**3 horas parado, 24 horas no total** — números escolhidos pelo dono, pensando no
+computador compartilhado da obra.
+
+**Leia isto antes de confiar na peça do navegador.** Cronômetro de navegador é
+conveniência, não tranca: ele fecha a tela, mas a credencial guardada continuaria valendo
+se alguém a pegasse por fora. A trava de verdade é a **configuração de sessão do Supabase**,
+no painel, e é o dono quem mexe lá. O navegador entra para levar a pessoa ao login de forma
+limpa, com a frase *"a sua sessão foi encerrada por tempo"*, em vez de ela descobrir que
+expirou por um erro no meio de um clique.
+
+**Os carimbos ficam guardados no navegador**, e não só na memória. Um cronômetro em memória
+morre junto com a aba: quem fechasse o navegador às 18h e voltasse às 8h encontraria a
+sessão aberta, porque nenhum cronômetro chegou a disparar. Com os carimbos, a conta também
+é feita na hora de abrir.
+
+### 6.6 O rastro virou peça compartilhada também na tela
+
+Na entrega 2, a janela de histórico morava dentro da tela de usuários. Com o segundo módulo
+gravando, ela subiu para `componentes/` e passou a receber o caminho e o vocabulário
+(**CORE-06**) — o mesmo movimento que a função de gravar fez do lado do motor na entrega 1,
+e pela mesma razão: com dois usos, o formato deixa de ser suposição.
+
+### 6.7 Três defeitos encontrados na prova em navegador
+
+Nenhum apareceu na compilação nem na verificação de tipos:
+
+1. **A matriz saiu sem espaçamento e em negrito.** A regra de estilo da linha era menos
+   específica que a regra geral de rótulo de formulário, que manda `display:block`. A linha
+   nunca chegou a ser flex, e a caixinha ficou colada no texto.
+2. **Carimbo de sessão renascendo depois da saída.** Ao expirar, o próprio rearme do
+   cronômetro gravava um "usei agora" logo após a limpeza, e a marca ficava no navegador de
+   quem já tinha sido deslogado. Corrigido com uma trava: encerrou, ninguém mais escreve.
+3. *(da entrega 2, registrado aqui por completude)* pontos vermelhos vazando na linha do
+   tempo e cabeçalho de tabela órfão no erro.
+
+O item 2 só apareceu porque o teste **conferia o conteúdo do armazenamento depois de sair**,
+e não apenas se a tela certa tinha aparecido. Olhar só o que se vê teria deixado passar.
 
 ---
 
@@ -1070,10 +1163,18 @@ Dois defeitos apareceram aí e foram corrigidos antes da entrega:
 | `web/src/vite-env.d.ts` | repo | 1 |
 | `web/src/componentes/Janela.tsx` | repo | 1 |
 | `web/src/componentes/Icone.tsx` | repo | 2 |
-| `web/src/estilos/telas.css` | repo | 1 |
-| `web/src/menu/arvore.ts` | repo | 2 |
-| `web/src/App.tsx` · `main.tsx` · `telas/Inicio.tsx` | repo | 2 |
-| `web/src/telas/usuarios/` (6 arquivos) | repo | 1 |
+| `web/src/menu/arvore.ts` | repo | 3 |
+| `web/src/App.tsx` | repo | 3 |
+| `web/src/main.tsx` · `telas/Inicio.tsx` | repo | 2 |
+| `web/src/estilos/telas.css` | repo | 2 |
+| `web/src/telas/usuarios/` (4 arquivos) | repo | 1–2 |
+| `web/src/componentes/Carregando.tsx` | repo | 2 |
+| `web/src/componentes/Historico.tsx` | repo | 2 |
+| `web/src/telas/categorias/` (4 arquivos) | repo | 1 |
+| `web/src/telas/MinhaConta.tsx` | repo | 1 |
+| `web/src/sessao/inatividade.ts` | repo | 1 |
+| `web/src/sessao/useSessao.ts` | repo | 3 |
+| `web/src/telas/Login.tsx` | repo | 2 |
 | `.gitignore` | repo | 2 |
 
 **Alterados por causa da fase:** `perfis` perdeu a coluna `nivel`; o front passou a ler o
@@ -1104,6 +1205,11 @@ nível da categoria.
 | 17 | Senha fora do formulário de edição | Salvamento distraído trancaria outra pessoa para fora. |
 | 18 | Endereço do motor vem da compilação | O mesmo código serve teste e definitivo sem editar arquivo. |
 | 19 | A espera do motor é explicada na tela | Tela em branco parece defeito, e quem acha isso recarrega. |
+| 20 | Código da categoria não se edita | É a identidade dela no histórico. |
+| 21 | A matriz salva o estado inteiro | Dois builders salvando junto não geram meio estado. |
+| 22 | Minha conta abre pelo próprio nome na barra | É onde a pessoa procura, e não vira item de menu. |
+| 23 | Carimbos de sessão guardados no navegador | Cronômetro em memória morre com a aba e não conta o tempo fechado. |
+| 24 | O login do dono passou a ser `igor` | Pedido do dono; feito no banco, fora do sistema, de propósito. |
 
 ---
 
@@ -1113,17 +1219,21 @@ nível da categoria.
 |---|---|
 | `AMBIENTE=producao` no Render | **só depois do R2**: em produção o motor exige R2 e Dropbox configurados, e hoje não estão |
 | `CORS_ORIGENS` no Render | está no padrão `*`; fechar em `https://novo.frotamacedo.com.br` |
-| Configurar a sessão no painel do Supabase | 3 h de inatividade e 24 h no total — é o usuário quem mexe lá |
 | Conferir a variável `VITE_MOTOR_URL` no GitHub | tem que valer `https://baleryan.onrender.com`; sem ela a tela avisa e não carrega |
-| Tela de Categorias (entrega 3) | é o que destrava criar login |
+| **Configurar a sessão no painel do Supabase** | 3 h de inatividade e 24 h no total. É a única trava real; o navegador só leva ao login de forma limpa |
 | Apagar `builder_list` | tabela de teste do R2, ainda no banco |
 
 ---
 
 ## Próximo passo
 
-Fase 2b — as telas de Usuários e Logins, a matriz de permissões e "Minha conta" — quando o
-usuário mandar.
+**Fase 2 fechada.** Falta só uma coisa desta fase, e ela é do dono: configurar a sessão no
+painel do Supabase (3 h paradas, 24 h no total). Enquanto isso não for feito, o navegador
+leva a pessoa ao login no prazo certo, mas a credencial em si continua válida do lado do
+servidor.
+
+A **Fase 3** começa quando o dono mandar, e é onde nasce a primeira rotina de negócio —
+e, com ela, a primeira linha do catálogo de rotinas, que hoje está vazio de propósito.
 
 ---
 ---
@@ -1415,6 +1525,11 @@ defeito, e quem acha que é defeito recarrega a página — o que reinicia a esp
 Não basta compilar. *Origem: os dois defeitos visuais da entrega 2 — pontos vermelhos
 vazando para dentro dos itens e um cabeçalho de tabela órfão no erro — passaram por
 compilação e verificação de tipos sem uma reclamação.*
+
+**P-27 — O teste confere o estado, não só a tela.**
+Depois de uma ação, verifica-se também o que ficou guardado. *Origem: ao expirar a sessão,
+a tela certa aparecia — e, atrás dela, o carimbo de uso era regravado logo após a limpeza.
+Um teste que olhasse só a tela teria dado tudo certo.*
 
 ---
 

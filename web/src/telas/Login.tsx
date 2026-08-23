@@ -1,4 +1,4 @@
-// rev 1 — a tela de entrada
+// rev 2 — a tela de entrada
 //
 // Não existe autocadastro nem "esqueci minha senha": quem cria login é o administrador.
 import { useState } from 'react'
@@ -6,9 +6,11 @@ import { Marca } from '../componentes/Marca'
 
 interface Props {
   entrar: (usuario: string, senha: string) => Promise<string | null>
+  /** Verdadeiro quando a pessoa caiu aqui por tempo, não por ter clicado em Sair. */
+  expirou?: boolean
 }
 
-export function Login({ entrar }: Props) {
+export function Login({ entrar, expirou }: Props) {
   const [usuario, setUsuario] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -39,6 +41,12 @@ export function Login({ entrar }: Props) {
         <form className="auth-card" onSubmit={submeter}>
           <h3>Entrar</h3>
           <p className="d">Use o usuário e a senha fornecidos pelo administrador.</p>
+
+          {expirou && (
+            <div className="aviso-caixa" role="status">
+              A sua sessão foi encerrada por tempo. Entre de novo para continuar.
+            </div>
+          )}
 
           <label htmlFor="usuario">Usuário</label>
           <input

@@ -1,9 +1,9 @@
-// rev 2 — a casca do FrotaHub
+// rev 3 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
 // arquivo não cresce junto (CORE-16): ele só sabe QUAL abrir, nunca o que ela faz.
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useSessao } from './sessao/useSessao'
 import { ehBuilder } from './sessao/tipos'
 import { arvoreVisivel, type ItemMenu } from './menu/arvore'
@@ -13,6 +13,9 @@ import { Login } from './telas/Login'
 import { Inicio } from './telas/Inicio'
 import { EmBreve } from './telas/EmBreve'
 import { Usuarios } from './telas/usuarios/Usuarios'
+import { Categorias } from './telas/categorias/Categorias'
+import { MinhaConta } from './telas/MinhaConta'
+import { useExpiracao } from './sessao/inatividade'
 
 export default function App() {
   const { carregando, perfil, entrar, sair } = useSessao()
@@ -20,9 +23,16 @@ export default function App() {
   const [caminho, setCaminho] = useState<ItemMenu[]>([])
   const [abertos, setAbertos] = useState<string[]>([])
   const [navAberta, setNavAberta] = useState(false)
+  const [minhaConta, setMinhaConta] = useState(false)
+  const [expirou, setExpirou] = useState(false)
+
+  // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
+  // alguém dentro — na tela de login não há sessão para expirar.
+  const expirar = useCallback(() => { setExpirou(true); void sair() }, [sair])
+  useExpiracao(!!perfil, expirar)
 
   if (carregando) return <div className="auth" />
-  if (!perfil) return <Login entrar={entrar} />
+  if (!perfil) return <Login entrar={entrar} expirou={expirou} />
 
   const atual = caminho[caminho.length - 1]
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
@@ -102,11 +112,16 @@ export default function App() {
         </nav>
 
         <div className="sd-user">
-          <div className="av">{iniciais}</div>
-          <div className="i">
-            <b>{perfil.nome}</b>
-            <span>{perfil.nivel}</span>
-          </div>
+          {/* O bloco inteiro abre Minha conta. É onde a pessoa procura a própria
+              conta — e evita mais um item de menu para uma tela que se usa duas
+              vezes por ano. */}
+          <button className="sd-eu" type="button" onClick={() => setMinhaConta(true)} title="Minha conta">
+            <span className="av">{iniciais}</span>
+            <span className="i">
+              <b>{perfil.nome}</b>
+              <span>{perfil.nivel}</span>
+            </span>
+          </button>
           <button onClick={sair} type="button">Sair</button>
         </div>
       </aside>
@@ -151,11 +166,15 @@ export default function App() {
             </>
           ) : atual?.tela === 'usuarios' ? (
             <Usuarios perfil={perfil} />
+          ) : atual?.tela === 'categorias' ? (
+            <Categorias />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}
         </main>
       </div>
+
+      {minhaConta && <MinhaConta perfil={perfil} aoFechar={() => setMinhaConta(false)} />}
     </div>
   )
 }

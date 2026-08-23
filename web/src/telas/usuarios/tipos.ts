@@ -1,4 +1,4 @@
-// rev 1 — o que a tela de usuários manipula
+// rev 2 — o que a tela de usuários manipula
 import type { Nivel } from '../../sessao/tipos'
 
 export interface LinhaUsuario {
@@ -17,19 +17,6 @@ export interface Categoria {
   nivel: Nivel
   protegida: boolean
   ativo: boolean
-}
-
-export interface Par {
-  de: unknown
-  para: unknown
-}
-
-export interface Evento {
-  id: number
-  acao: string
-  autor_usuario: string
-  quando: string
-  mudancas: Record<string, Par> | null
 }
 
 export interface Pagina<T> {

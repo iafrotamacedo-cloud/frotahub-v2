@@ -1,4 +1,4 @@
-/* rev 1 — as peças das rotinas: tabela, janela, botões, avisos
+/* rev 2 — as peças das rotinas: tabela, janela, botões, avisos
    Nenhuma cor escrita à mão: tudo vem de tokens.css (P-19). */
 
 /* ---------- botões ---------- */
@@ -168,3 +168,55 @@
   .hero-linha{flex-direction:column;align-items:stretch}
   .hero-linha .bt{align-self:flex-start}
 }
+
+/* ---------- matriz de permissões ---------- */
+.matriz{
+  border:1px solid var(--line);border-radius:var(--r-s);
+  padding:10px 12px 12px;margin:0 0 12px;
+}
+.matriz legend{
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);padding:0 6px;
+}
+/* A regra precisa ser MAIS específica que `.jn-corpo label`, que declara
+   display:block e negrito para os rótulos de formulário. Sem isso a linha da
+   matriz não vira flex, o espaço entre a caixinha e o texto some, e tudo fica em
+   negrito. Aconteceu — foi visto na primeira prova em navegador. */
+.jn-corpo .mx-linha{
+  display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:6px;
+  cursor:pointer;margin:0;font-weight:400;
+}
+.jn-corpo .mx-linha:hover{background:var(--red-050)}
+.jn-corpo .mx-linha input{width:auto;margin:0;accent-color:var(--red);flex:0 0 auto}
+.mx-nome{flex:1;font-size:13.2px;color:var(--ink)}
+.jn-corpo .mx-linha code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+  color:var(--mut);background:var(--bg);border:1px solid var(--line-2);
+  border-radius:5px;padding:1px 6px;
+}
+
+/* ---------- ficha (pares rótulo/valor) ---------- */
+.ficha{margin:0 0 18px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s)}
+.ficha div{display:flex;gap:10px;padding:2px 0}
+.ficha dt{flex:0 0 82px;color:var(--mut);font-size:12.4px}
+.ficha dd{margin:0;font-size:12.8px;color:var(--ink)}
+.ficha code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.4px;
+  background:var(--card);border:1px solid var(--line-2);border-radius:5px;padding:1px 6px;
+}
+
+/* ---------- o bloco da própria conta, na barra lateral ---------- */
+.sd-eu{
+  display:flex;align-items:center;gap:10px;flex:1;min-width:0;
+  background:none;border:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;
+  cursor:pointer;text-align:left;font-family:var(--f);color:inherit;
+  transition:background var(--transicao);
+}
+.sd-eu:hover{background:rgba(255,255,255,.06)}
+.sd-eu .av{
+  width:34px;height:34px;border-radius:50%;background:var(--red);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 34px;
+}
+.sd-eu .i{flex:1;min-width:0;display:block}
+.sd-eu .i b{display:block;color:#fff;font-size:12.8px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sd-eu .i span{display:block;font-size:11px;color:var(--side-mut);text-transform:capitalize}
