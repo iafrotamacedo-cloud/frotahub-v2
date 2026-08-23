@@ -1,12 +1,13 @@
-// rev 3 — a casca do FrotaHub
+// rev 4 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
 // arquivo não cresce junto (CORE-16): ele só sabe QUAL abrir, nunca o que ela faz.
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSessao } from './sessao/useSessao'
 import { ehBuilder } from './sessao/tipos'
 import { arvoreVisivel, type ItemMenu } from './menu/arvore'
+import { useNavegacao } from './menu/navegacao'
 import { Icone, Seta, Menu } from './componentes/Icone'
 import { Marca } from './componentes/Marca'
 import { Login } from './telas/Login'
@@ -19,9 +20,27 @@ import { useExpiracao } from './sessao/inatividade'
 
 export default function App() {
   const { carregando, perfil, entrar, sair } = useSessao()
-  // O caminho aberto: [] é a tela inicial; [Manutenção] é o bloco; [Manutenção, Serviços] é a rotina.
-  const [caminho, setCaminho] = useState<ItemMenu[]>([])
+
+  // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
+  // Fica memorizado porque a navegação depende dele: uma árvore nova a cada
+  // desenho faria o caminho ser recalculado sem necessidade.
+  const arvore = useMemo(() => arvoreVisivel(ehBuilder(perfil)), [perfil])
+
+  // O caminho aberto mora no ENDEREÇO, não na memória da página. É o que faz o
+  // botão "voltar" do navegador voltar uma tela em vez de sair do sistema.
+  // [] é o início; [Manutenção] é o bloco; [Manutenção, Serviços] é a rotina.
+  const { caminho, navegar: irPara } = useNavegacao(arvore)
+
   const [abertos, setAbertos] = useState<string[]>([])
+
+  // Chegar por endereço tem que abrir o grupo certo na barra lateral. Sem isto,
+  // quem colasse `#/configuracoes/usuarios` veria a tela certa com o menu fechado,
+  // e o item marcado como ativo escondido dentro de uma pasta.
+  // Continua sendo possível fechar o grupo depois, à mão.
+  const grupoAberto = caminho[0]?.t
+  useEffect(() => {
+    if (grupoAberto) setAbertos(a => (a.includes(grupoAberto) ? a : [...a, grupoAberto]))
+  }, [grupoAberto])
   const [navAberta, setNavAberta] = useState(false)
   const [minhaConta, setMinhaConta] = useState(false)
   const [expirou, setExpirou] = useState(false)
@@ -36,11 +55,9 @@ export default function App() {
 
   const atual = caminho[caminho.length - 1]
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
-  // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
-  const arvore = arvoreVisivel(ehBuilder(perfil))
 
   function navegar(novo: ItemMenu[]) {
-    setCaminho(novo)
+    irPara(novo)
     setNavAberta(false)
     document.body.classList.remove('nav-aberta')
   }

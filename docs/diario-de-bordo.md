@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 21 · **Fases 0, 1 e 2 concluídas**
+> Última atualização: **23/08/2026** · Rodada 22 · **Fases 0, 1 e 2 concluídas**
 
 ---
 
@@ -1139,6 +1139,58 @@ e não apenas se a tela certa tinha aparecido. Olhar só o que se vê teria deix
 
 ---
 
+## Step 7 — Ajustes depois da Fase 2
+
+### 7.1 O botão "voltar" do navegador
+
+**O problema.** A tela aberta vivia só na memória da página, e o endereço nunca mudava.
+O navegador não sabia que alguém tinha andado dentro do sistema: apertar "voltar" saía do
+FrotaHub e ia para o site anterior. É o tipo de coisa que faz perder o que se estava vendo
+por um reflexo — e todo mundo tem esse reflexo.
+
+**A correção.** O caminho passou a morar no endereço:
+`novo.frotamacedo.com.br/#/configuracoes/usuarios`. Com isso, "voltar" volta uma tela,
+"avançar" avança, recarregar cai no mesmo lugar, e um endereço colado numa conversa abre
+onde deve.
+
+**Por que com `#`.** O sistema é um arquivo só, servido pelo HostGator. Com endereço sem
+`#`, quem recarregasse numa tela interna receberia um 404 do servidor, porque aquela pasta
+não existe lá — só existe dentro do programa. Consertar isso pede uma regra de reescrita no
+servidor: mais uma peça para configurar, e mais uma para quebrar em silêncio. O `#` não vai
+ao servidor, funciona sem configurar nada, e o dia em que a regra existir ele some sem
+mudar mais nada.
+
+**O endereço não é derivado do título.** Cada item de menu carrega um `rota` escrito à mão.
+Título é texto de tela e muda quando alguém acha uma palavra melhor; se o endereço
+acompanhasse, todo favorito e todo link colado apontariam para o vazio no dia seguinte.
+
+**De brinde, uma proteção.** A árvore de menus já vem filtrada pelo que aquele login
+alcança, e é nela que o endereço é resolvido. Um endereço para uma tela que a pessoa não
+pode ver simplesmente não resolve, e ela cai no início — sem precisar conferir permissão
+outra vez.
+
+**Conferido em navegador**, com dez verificações: ir e voltar entre telas, avançar,
+recarregar numa tela interna, abrir por link colado (com o grupo certo já aberto na barra
+lateral), endereço inventado caindo no início, e — o ponto de partida de tudo — "voltar" do
+início **não** saindo mais para a página visitada antes do FrotaHub.
+
+### 7.2 Dois arquivos fantasmas quebraram a publicação da entrega 3
+
+Na entrega 3, duas peças mudaram de lugar: `Carregando.tsx` e `Historico.tsx` saíram de
+`telas/usuarios/` para `componentes/`. As cópias novas foram entregues; **as antigas
+ficaram**, porque a ponte que escreve na máquina do dono não apaga arquivo.
+
+O `git add -A` recolheu os dois fantasmas, e eles subiram junto. O `Historico.tsx` antigo
+importava tipos que a mudança tinha removido, então a compilação passou a falhar — e, como
+a publicação compila antes de enviar, **ela parou e não enviou nada**. O site continuou
+mostrando a entrega 2, sem erro visível para quem estava usando.
+
+*A publicação falhar aqui foi o sistema funcionando* (**P-21**): melhor não publicar do que
+publicar pela metade. O defeito foi não perceber que mover arquivo pede uma remoção
+explícita do outro lado. Virou **P-28**.
+
+---
+
 ## Inventário da Fase 2
 
 | Arquivo | Hospedado | Rev |
@@ -1163,8 +1215,9 @@ e não apenas se a tela certa tinha aparecido. Olhar só o que se vê teria deix
 | `web/src/vite-env.d.ts` | repo | 1 |
 | `web/src/componentes/Janela.tsx` | repo | 1 |
 | `web/src/componentes/Icone.tsx` | repo | 2 |
-| `web/src/menu/arvore.ts` | repo | 3 |
-| `web/src/App.tsx` | repo | 3 |
+| `web/src/menu/arvore.ts` | repo | 4 |
+| `web/src/menu/navegacao.ts` | repo | 1 |
+| `web/src/App.tsx` | repo | 4 |
 | `web/src/main.tsx` · `telas/Inicio.tsx` | repo | 2 |
 | `web/src/estilos/telas.css` | repo | 2 |
 | `web/src/telas/usuarios/` (4 arquivos) | repo | 1–2 |
@@ -1210,6 +1263,8 @@ nível da categoria.
 | 22 | Minha conta abre pelo próprio nome na barra | É onde a pessoa procura, e não vira item de menu. |
 | 23 | Carimbos de sessão guardados no navegador | Cronômetro em memória morre com a aba e não conta o tempo fechado. |
 | 24 | O login do dono passou a ser `igor` | Pedido do dono; feito no banco, fora do sistema, de propósito. |
+| 25 | O caminho mora no endereço, com `#` | "Voltar" volta uma tela; e não exige regra nenhuma no servidor. |
+| 26 | O endereço vem de um `rota` escrito à mão | Título muda; endereço não pode mudar junto. |
 
 ---
 
@@ -1530,6 +1585,12 @@ compilação e verificação de tipos sem uma reclamação.*
 Depois de uma ação, verifica-se também o que ficou guardado. *Origem: ao expirar a sessão,
 a tela certa aparecia — e, atrás dela, o carimbo de uso era regravado logo após a limpeza.
 Um teste que olhasse só a tela teria dado tudo certo.*
+
+**P-28 — Arquivo que muda de lugar exige apagar o antigo, à mão.**
+A entrega escreve o novo; ninguém apaga o velho sozinho. *Origem: duas peças mudaram de
+pasta na entrega 3, as cópias antigas ficaram na máquina, o `git add -A` recolheu as duas,
+e a compilação quebrou. Toda entrega que MOVE arquivo vem acompanhada do comando que
+remove o original.*
 
 ---
 

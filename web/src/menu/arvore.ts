@@ -1,10 +1,18 @@
-// rev 3 — a árvore de menus
+// rev 4 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
 // para o dono do sistema — o menu se ajusta ao login (P-17).
+//
+// SOBRE O CAMPO `rota`
+//   É o pedaço que aparece no endereço do navegador. Ele é escrito à mão, e não
+//   derivado do título, de propósito: título é texto de tela e muda quando alguém
+//   acha uma palavra melhor. Se o endereço acompanhasse o título, todo favorito e
+//   todo link colado numa conversa apontariam para o vazio no dia seguinte.
 export interface ItemMenu {
   t: string
+  /** O pedaço deste item no endereço. Curto, sem acento, e ESTÁVEL. */
+  rota: string
   icone: Icone
   desc?: string
   breve?: boolean
@@ -21,20 +29,23 @@ export type Tela = 'usuarios' | 'categorias'
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
     t: 'Manutenção',
+    rota: 'manutencao',
     icone: 'chave-inglesa',
     desc: 'Contratos, chamados e serviços',
     sub: [
-      { t: 'Contrato São Luiz', icone: 'loja', desc: 'Chamados, orçamentos e preventiva', breve: true },
-      { t: 'Serviços', icone: 'servicos', desc: 'Serviços avulsos e outros contratos', breve: true },
+      { t: 'Contrato São Luiz', rota: 'contrato-sao-luiz', icone: 'loja', desc: 'Chamados, orçamentos e preventiva', breve: true },
+      { t: 'Serviços', rota: 'servicos', icone: 'servicos', desc: 'Serviços avulsos e outros contratos', breve: true },
     ],
   },
   {
     t: 'Configurações',
+    rota: 'configuracoes',
     icone: 'engrenagem',
     desc: 'Usuários, permissões e ajustes do sistema',
     sub: [
       {
         t: 'Usuários e Logins',
+        rota: 'usuarios',
         icone: 'pessoas',
         desc: 'Quem entra no sistema e em que categoria',
         tela: 'usuarios',
@@ -42,6 +53,7 @@ const ARVORE_COMPLETA: ItemMenu[] = [
       },
       {
         t: 'Categorias',
+        rota: 'categorias',
         icone: 'cadeado',
         desc: 'Os grupos de acesso e o que cada um alcança',
         tela: 'categorias',
