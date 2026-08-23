@@ -1,16 +1,18 @@
-// rev 1 — a casca do FrotaHub
+// rev 2 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
-// caminho, e a área de trabalho. Quando as rotinas existirem, cada uma entra como
-// um arquivo próprio em telas/ — este arquivo não cresce junto (CORE-16).
+// caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
+// arquivo não cresce junto (CORE-16): ele só sabe QUAL abrir, nunca o que ela faz.
 import { useState } from 'react'
 import { useSessao } from './sessao/useSessao'
-import { ARVORE, type ItemMenu } from './menu/arvore'
+import { ehBuilder } from './sessao/tipos'
+import { arvoreVisivel, type ItemMenu } from './menu/arvore'
 import { Icone, Seta, Menu } from './componentes/Icone'
 import { Marca } from './componentes/Marca'
 import { Login } from './telas/Login'
 import { Inicio } from './telas/Inicio'
 import { EmBreve } from './telas/EmBreve'
+import { Usuarios } from './telas/usuarios/Usuarios'
 
 export default function App() {
   const { carregando, perfil, entrar, sair } = useSessao()
@@ -24,6 +26,8 @@ export default function App() {
 
   const atual = caminho[caminho.length - 1]
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
+  // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
+  const arvore = arvoreVisivel(ehBuilder(perfil))
 
   function navegar(novo: ItemMenu[]) {
     setCaminho(novo)
@@ -59,7 +63,7 @@ export default function App() {
         <nav className="sd-nav">
           <div className="nv-sec">Menu</div>
 
-          {ARVORE.map(item => {
+          {arvore.map(item => {
             const temFilhos = !!item.sub?.length
             const aberto = abertos.includes(item.t)
             const ativo = caminho[0]?.t === item.t && caminho.length === 1
@@ -122,7 +126,7 @@ export default function App() {
 
         <main className="content">
           {caminho.length === 0 ? (
-            <Inicio nome={perfil.nome} abrir={navegar} />
+            <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
           ) : atual?.sub?.length ? (
             <>
               <header className="hero">
@@ -145,6 +149,8 @@ export default function App() {
                 ))}
               </div>
             </>
+          ) : atual?.tela === 'usuarios' ? (
+            <Usuarios perfil={perfil} />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}

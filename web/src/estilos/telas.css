@@ -1,0 +1,170 @@
+/* rev 1 — as peças das rotinas: tabela, janela, botões, avisos
+   Nenhuma cor escrita à mão: tudo vem de tokens.css (P-19). */
+
+/* ---------- botões ---------- */
+.bt{
+  font-family:var(--f);font-size:13px;font-weight:600;cursor:pointer;
+  border-radius:var(--r-s);padding:8px 14px;border:1px solid transparent;
+  transition:background var(--transicao),border-color var(--transicao),color var(--transicao);
+  white-space:nowrap;
+}
+.bt:disabled{opacity:.5;cursor:default}
+.bt-forte{background:var(--red);color:#fff}
+.bt-forte:hover:not(:disabled){background:var(--red-h)}
+.bt-neutro{background:var(--card);color:var(--txt);border-color:var(--line)}
+.bt-neutro:hover:not(:disabled){border-color:var(--gray);color:var(--ink)}
+.bt-mini{
+  background:var(--card);color:var(--gray);border-color:var(--line);
+  font-size:12px;font-weight:600;padding:5px 9px;
+}
+.bt-mini:hover:not(:disabled){border-color:var(--gray);color:var(--ink)}
+.bt-perigo:hover:not(:disabled){border-color:var(--err);color:var(--err);background:var(--err-bg)}
+
+/* ---------- cabeçalho de rotina ---------- */
+.hero-linha{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+/* ---------- busca ---------- */
+.barra-busca{margin:0 0 14px}
+.barra-busca input{
+  width:100%;max-width:360px;font-family:var(--f);font-size:13.5px;color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:9px 12px;background:var(--card);
+  transition:border-color var(--transicao),box-shadow var(--transicao);
+}
+.barra-busca input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100)}
+
+/* ---------- tabela ---------- */
+/* O invólucro rola sozinho: em celular a tabela é mais larga que a tela, e é
+   preferível rolar a tabela a espremer as colunas até ficarem ilegíveis. */
+.tabela-rolo{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  box-shadow:var(--sh-1);overflow-x:auto;
+}
+.tabela{width:100%;border-collapse:collapse;font-size:13.2px;min-width:680px}
+.tabela th{
+  text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mut);padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+.tabela td{padding:11px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.tabela tbody tr:last-child td{border-bottom:0}
+.tabela tbody tr:hover{background:var(--red-050)}
+.tabela tr.inativa td{color:var(--mut)}
+.tabela code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+  background:var(--bg);border:1px solid var(--line-2);border-radius:5px;padding:2px 6px;color:var(--ink);
+}
+.tabela .voce{
+  margin-left:7px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--gray);border:1px solid var(--line);border-radius:999px;padding:1px 6px;
+}
+.acoes-col{text-align:right}
+.tabela td.acoes{text-align:right;white-space:nowrap}
+.tabela td.acoes .bt{margin-left:5px}
+
+.pino{
+  display:inline-block;border-radius:999px;padding:2px 9px;
+  font-size:11px;font-weight:700;letter-spacing:.02em;
+}
+.pino-ok{background:var(--ok-bg);color:var(--ok)}
+.pino-off{background:var(--bg);color:var(--gray);border:1px solid var(--line)}
+
+/* ---------- paginação ---------- */
+.paginas{display:flex;align-items:center;gap:12px;margin-top:14px;color:var(--gray);font-size:12.5px}
+
+/* ---------- avisos ---------- */
+.recado{
+  background:var(--ok-bg);color:var(--ok);border:1px solid #CBE7D5;border-radius:var(--r-s);
+  padding:10px 12px;font-size:13px;margin:0 0 14px;display:flex;align-items:center;gap:10px;
+}
+.recado button{
+  margin-left:auto;background:none;border:0;color:inherit;font-size:18px;line-height:1;
+  cursor:pointer;padding:0 2px;opacity:.6;
+}
+.recado button:hover{opacity:1}
+.erro-caixa{
+  color:var(--err);background:var(--err-bg);border:1px solid #F3D6D4;
+  border-radius:var(--r-s);font-size:12.8px;margin:14px 0 0;padding:9px 11px;
+}
+.aviso-caixa{
+  color:var(--warn);background:var(--warn-bg);border:1px solid #F0DDB5;
+  border-radius:var(--r-s);font-size:12.6px;margin:0 0 16px;padding:9px 11px;
+}
+.vazio{
+  background:var(--card);border:1px dashed var(--line);border-radius:var(--r-l);
+  padding:38px 24px;text-align:center;color:var(--gray);font-size:13.5px;
+}
+.vazio-inline{
+  background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s);
+  padding:10px 12px;color:var(--gray);font-size:12.6px;margin:0 0 14px;
+}
+
+/* ---------- espera ---------- */
+.carregando{display:flex;flex-direction:column;align-items:center;gap:12px;padding:44px 20px}
+.carregando p{margin:0;color:var(--gray);font-size:13px;text-align:center;max-width:40ch}
+.giro{
+  width:26px;height:26px;border-radius:50%;
+  border:2.5px solid var(--line);border-top-color:var(--red);
+  animation:girar .7s linear infinite;
+}
+@keyframes girar{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.giro{animation-duration:2s}}
+
+/* ---------- janela ---------- */
+.jn-fundo{
+  position:fixed;inset:0;z-index:60;background:rgba(20,14,15,.45);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:6vh 16px 24px;overflow-y:auto;
+}
+.jn{
+  width:100%;background:var(--card);border-radius:var(--r-l);
+  box-shadow:var(--sh-3);border:1px solid var(--line);
+}
+.jn-topo{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:18px 20px 14px;border-bottom:1px solid var(--line-2);
+}
+.jn-topo h3{margin:0;font-size:16.5px;font-weight:700;color:var(--ink)}
+.jn-topo p{margin:3px 0 0;font-size:12.5px;color:var(--gray)}
+.jn-x{
+  margin-left:auto;background:none;border:0;cursor:pointer;color:var(--mut);
+  width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:0 0 28px;
+}
+.jn-x:hover{background:var(--bg);color:var(--ink)}
+.jn-x svg{width:16px;height:16px}
+.jn-corpo{padding:18px 20px 20px}
+.jn-corpo label{display:block;font-size:12.5px;font-weight:600;color:var(--txt);margin:0 0 5px}
+.jn-corpo input,.jn-corpo select{
+  width:100%;font-family:var(--f);font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:9px 11px;
+  margin:0 0 14px;background:#fff;
+  transition:border-color var(--transicao),box-shadow var(--transicao);
+}
+.jn-corpo input:focus,.jn-corpo select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100)}
+.jn-corpo .dica{margin:-9px 0 15px;font-size:11.8px;color:var(--mut)}
+.jn-pe{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+
+/* ---------- linha do tempo ---------- */
+.linha-tempo{list-style:none;margin:0;padding:0}
+/* O sinal `>` é obrigatório: sem ele, a lista de mudanças DENTRO de cada evento
+   herdaria a bolinha e a linha vertical, e cada campo alterado ganharia um ponto
+   vermelho que não significa nada. */
+.linha-tempo > li{
+  position:relative;padding:0 0 16px 18px;border-left:2px solid var(--line-2);
+}
+.linha-tempo > li:last-child{border-left-color:transparent;padding-bottom:0}
+.linha-tempo > li::before{
+  content:"";position:absolute;left:-5px;top:5px;width:8px;height:8px;
+  border-radius:50%;background:var(--red);
+}
+.lt-topo{font-size:13px;color:var(--txt)}
+.lt-topo b{color:var(--ink)}
+.lt-quando{display:block;font-size:11.5px;color:var(--mut);margin-top:1px}
+.lt-mud{list-style:none;margin:7px 0 0;padding:0;font-size:12.4px;color:var(--gray)}
+.lt-mud li{padding:1px 0;border:0;position:static}
+.lt-mud .c{display:inline-block;min-width:74px;color:var(--mut)}
+.lt-mud s{color:var(--mut)}
+.lt-mud b{color:var(--ink);font-weight:600}
+
+@media (max-width:900px){
+  .hero-linha{flex-direction:column;align-items:stretch}
+  .hero-linha .bt{align-self:flex-start}
+}

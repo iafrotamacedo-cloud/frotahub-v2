@@ -1,8 +1,9 @@
-// rev 1 — o ponto de partida do front
+// rev 2 — o ponto de partida do front
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './estilos/tokens.css'
 import './estilos/base.css'
+import './estilos/telas.css'
 import App from './App'
 
 const raiz = document.getElementById('raiz')

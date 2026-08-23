@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 19 · **Fases 0 e 1 concluídas · Fase 2a no ar · 2b entrega 1 pronta**
+> Última atualização: **23/08/2026** · Rodada 20 · **Fases 0 e 1 concluídas · Fase 2a no ar · 2b entregas 1 e 2 prontas**
 
 ---
 
@@ -651,7 +651,7 @@ próprio sistema, sem passar por código.
 **Como foi partida.** Em duas metades, para nada subir de uma vez:
 **2a** — banco, motor e as rotinas de servidor. **2b** — as telas.
 
-**Situação: 2a NO AR** em 23/08/2026. **2b: entrega 1 (motor e banco) pronta; telas não começaram.**
+**Situação: 2a NO AR** em 23/08/2026. **2b: entregas 1 (motor e banco) e 2 (tela de usuários) prontas; falta a entrega 3.**
 
 ---
 
@@ -944,20 +944,105 @@ pessoa" — o valor do rastro está justamente em ele ser completo.
 
 ---
 
-## Step 5 — As telas (2b, entregas 2 e 3)
+## Step 5 — Usuários e Logins (2b, entrega 2)
+
+**A primeira rotina de verdade do FrotaHub novo.** Configurações deixou de ser "em
+breve" e passou a ter conteúdo.
+
+### 5.1 O que a tela faz
+
+| Ação | Onde |
+|---|---|
+| Listar, com busca e paginação | a própria tela |
+| Criar login | janela |
+| Editar nome e categoria | janela |
+| Trocar senha | janela separada, com confirmação |
+| Ativar / desativar | direto na linha |
+| Ver o histórico | janela |
+
+**Tudo passa pelo motor, nada vai direto ao banco.** Criar login e trocar senha
+exigem a chave de serviço, que não pode existir no navegador (**CORE-09**). O
+único atalho direto ao banco continua sendo a leitura do próprio perfil, que é o
+que faz a tela abrir sem esperar o motor acordar.
+
+### 5.2 Cinco decisões de tela, e o que cada uma evita
+
+**O usuário não se edita.** Ele é a identidade da pessoa no login e no histórico.
+Trocá-lo faria o rastro antigo apontar para um nome que não existe mais. Quem
+precisar mudar cria outro login e desativa o antigo: dois registros honestos em
+vez de um registro reescrito.
+
+**A senha não está no formulário de edição.** Quem abre aquela janela quase sempre
+quer corrigir um nome. Com a senha no meio, um salvamento distraído tranca outra
+pessoa para fora. É ação separada, com a senha digitada duas vezes e um aviso de
+que a antiga para de funcionar na hora.
+
+**A categoria do dono do sistema não aparece na lista de escolha.** Colocar alguém
+nela dá acesso total — e permite desativar quem está criando. Um segundo dono deve
+ser decisão deliberada, não um item de lista suspensa.
+
+**O próprio login não se desativa**, e o botão fica desabilitado explicando por quê.
+A mesma trava existe no motor; a da tela é só para a pessoa não descobrir pelo erro.
+
+**A busca espera a pessoa parar de digitar** (um terço de segundo). Cada tecla
+viraria uma ida ao banco, e banco também é recurso (**CORE-01**).
+
+### 5.3 A espera do motor é explicada, não escondida
+
+O Render gratuito **adormece** o motor depois de um tempo sem uso, e a primeira
+chamada do dia pode levar quase um minuto só para acordar o serviço.
+
+Uma tela em branco nesse intervalo parece defeito — e quem acha que é defeito
+recarrega a página, o que reinicia a espera. Por isso a mensagem muda depois de
+quatro segundos: sai o "carregando" genérico e entra *"acordando o servidor — a
+primeira vez do dia demora um pouco"* (**P-25**).
+
+### 5.4 O menu se ajusta ao login
+
+A árvore de menus deixou de ser fixa. Cada item pode ser marcado como exclusivo do
+dono do sistema, e um bloco cujos filhos todos sumiram some junto — menu com pasta
+vazia é pior que menu sem a pasta, porque parece defeito.
+
+Hoje isso não muda nada na prática, já que só existe o builder. Mas é a peça que a
+matriz de permissões vai usar quando existirem outras categorias, e ela precisa
+existir antes.
+
+### 5.5 O endereço do motor não está escrito no código
+
+Ele entra na compilação, vindo de uma variável do repositório (`VITE_MOTOR_URL`).
+Assim o mesmo código serve o endereço de teste e o definitivo sem ninguém editar
+arquivo.
+
+Se a variável faltar, a tela **diz exatamente isso** em vez de mostrar "falha de
+rede" — que mandaria qualquer um procurar o problema no lugar errado.
+
+### 5.6 Como foi conferido
+
+O front foi compilado e aberto num navegador de verdade, sem ninguém olhando, contra
+um Supabase e um motor de mentira montados só para o teste. Foram percorridos: entrar,
+abrir a rotina, buscar, abrir as três janelas, e a mesma tela em tamanho de celular.
+
+Dois defeitos apareceram aí e foram corrigidos antes da entrega:
+
+1. **Bolinhas onde não devia.** A linha do tempo marcava cada evento com um ponto
+   vermelho — e o ponto estava vazando para a lista de campos alterados dentro de
+   cada evento, porque a regra de estilo alcançava os itens aninhados.
+2. **Cabeçalho de tabela órfão.** Quando a lista falhava, a mensagem de erro aparecia
+   e, logo abaixo, uma tabela vazia com o cabeçalho. Agora, se falhou, não há tabela.
+
+---
+
+## Step 6 — O que falta (2b, entrega 3)
 
 **Não começou.**
 
-- **Entrega 2:** Configurações deixa de ser "em breve" — lista de usuários com busca
-  e paginação, criar, editar, trocar senha, ativar/desativar, e o histórico de cada
-  login.
-- **Entrega 3:** categorias, o quadro da matriz, a tela Minha conta e o desligamento
-  por inatividade.
-
-**Sobre a sessão:** cronômetro só no navegador é enfeite — ele desloga a tela, mas a
-credencial guardada continua valendo. A trava de verdade é configuração do Supabase,
-no painel, e é o usuário quem mexe lá. O navegador entra só para levar a pessoa à
-tela de login de forma limpa, em vez de quebrar no meio de um clique.
+- Tela de **Categorias** — hoje só existe a do dono do sistema, e ela é protegida.
+  Enquanto não houver outra, o formulário de criar login abre sem opção de categoria
+  e avisa isso. **É por aqui que a próxima entrega precisa começar.**
+- O quadro da **matriz de permissões** — vai abrir vazio até existir a primeira
+  rotina de negócio no catálogo.
+- **Minha conta**, para trocar a própria senha.
+- **Sessão por inatividade** — 3 horas parado, 24 horas no total.
 
 ---
 
@@ -981,6 +1066,14 @@ tela de login de forma limpa, em vez de quebrar no meio de um clique.
 | `baleryan/interno/modulos/acesso/acesso.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/*/prova_test.go` | repo (não vai para o Render) | 1 |
 | `web/src/sessao/tipos.ts` · `useSessao.ts` | repo · no ar | 2 |
+| `web/src/motor/cliente.ts` | repo | 1 |
+| `web/src/vite-env.d.ts` | repo | 1 |
+| `web/src/componentes/Janela.tsx` | repo | 1 |
+| `web/src/componentes/Icone.tsx` | repo | 2 |
+| `web/src/estilos/telas.css` | repo | 1 |
+| `web/src/menu/arvore.ts` | repo | 2 |
+| `web/src/App.tsx` · `main.tsx` · `telas/Inicio.tsx` | repo | 2 |
+| `web/src/telas/usuarios/` (6 arquivos) | repo | 1 |
 | `.gitignore` | repo | 2 |
 
 **Alterados por causa da fase:** `perfis` perdeu a coluna `nivel`; o front passou a ler o
@@ -1007,6 +1100,10 @@ nível da categoria.
 | 13 | Retirar rotina grava `pode = false` | A linha que fica registra que já esteve liberada (CORE-05). |
 | 14 | Senha atual conferida pelo Supabase | O motor não guarda senha nenhuma (CORE-09). |
 | 15 | Sessão: 3 h parado, 24 h no total | Escolha do usuário, pensada no computador compartilhado da obra. |
+| 16 | O nome curto do login não se edita | Editar faria o histórico antigo apontar para quem não existe mais. |
+| 17 | Senha fora do formulário de edição | Salvamento distraído trancaria outra pessoa para fora. |
+| 18 | Endereço do motor vem da compilação | O mesmo código serve teste e definitivo sem editar arquivo. |
+| 19 | A espera do motor é explicada na tela | Tela em branco parece defeito, e quem acha isso recarrega. |
 
 ---
 
@@ -1017,7 +1114,8 @@ nível da categoria.
 | `AMBIENTE=producao` no Render | **só depois do R2**: em produção o motor exige R2 e Dropbox configurados, e hoje não estão |
 | `CORS_ORIGENS` no Render | está no padrão `*`; fechar em `https://novo.frotamacedo.com.br` |
 | Configurar a sessão no painel do Supabase | 3 h de inatividade e 24 h no total — é o usuário quem mexe lá |
-| Telas das entregas 2 e 3 | não começaram |
+| Conferir a variável `VITE_MOTOR_URL` no GitHub | tem que valer `https://baleryan.onrender.com`; sem ela a tela avisa e não carrega |
+| Tela de Categorias (entrega 3) | é o que destrava criar login |
 | Apagar `builder_list` | tabela de teste do R2, ainda no banco |
 
 ---
@@ -1307,6 +1405,16 @@ existia.*
 Migração vai para um Postgres de verdade, do zero, na ordem. Motor compila e responde.
 *As duas falhas de desenho desta fase — a ordem das migrações e o histórico que travava a
 remoção de login — foram encontradas assim, e nenhuma chegou ao usuário.*
+
+**P-25 — Espera longa se explica.**
+Passou de alguns segundos, a tela diz o que está esperando. *Origem: o motor no plano
+gratuito adormece, e a primeira chamada do dia leva quase um minuto. Tela em branco parece
+defeito, e quem acha que é defeito recarrega a página — o que reinicia a espera.*
+
+**P-26 — Tela também se abre num navegador antes de entregar.**
+Não basta compilar. *Origem: os dois defeitos visuais da entrega 2 — pontos vermelhos
+vazando para dentro dos itens e um cabeçalho de tabela órfão no erro — passaram por
+compilação e verificação de tipos sem uma reclamação.*
 
 ---
 

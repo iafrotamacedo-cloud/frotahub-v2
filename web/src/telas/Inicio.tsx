@@ -1,16 +1,18 @@
-// rev 1 — a tela inicial
+// rev 2 — a tela inicial
 //
 // Mostra os blocos do sistema. O que ainda não existe aparece marcado, para dar a
 // medida do que falta (CORE-23).
-import { ARVORE, type ItemMenu } from '../menu/arvore'
+import { type ItemMenu } from '../menu/arvore'
 import { Icone } from '../componentes/Icone'
 
 interface Props {
   nome: string
+  /** A árvore que ESTE login enxerga — a mesma da barra lateral, nunca outra. */
+  arvore: ItemMenu[]
   abrir: (caminho: ItemMenu[]) => void
 }
 
-export function Inicio({ nome, abrir }: Props) {
+export function Inicio({ nome, arvore, abrir }: Props) {
   const primeiroNome = nome.split(' ')[0]
 
   return (
@@ -21,7 +23,7 @@ export function Inicio({ nome, abrir }: Props) {
       </header>
 
       <div className="mods">
-        {ARVORE.map(item => (
+        {arvore.map(item => (
           <button
             key={item.t}
             className={'mod' + (item.breve ? ' breve' : '')}
