@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 17 · **Fases 0 e 1 concluídas**
+> Última atualização: **23/08/2026** · Rodada 18 · **Fases 0 e 1 concluídas · Fase 2a no ar**
 
 ---
 
@@ -474,11 +474,6 @@ tabela. Se divergirem, vale o comentário dentro do arquivo.
 
 ---
 
-## Próximo passo
-
-A definir com o usuário. O sistema tem casca, login e os dois primeiros menus no ar; o
-motor `baleryan` ainda não foi construído, e nenhuma rotina de negócio existe.
-
 ---
 ---
 
@@ -642,6 +637,282 @@ buscar; o `index.html` tem sempre o mesmo nome e fica guardado. Resolve com Ctrl
 ---
 ---
 
+# FASE 2 — O motor, o modelo de acesso e os logins
+
+**O que é.** O FrotaHub ganha servidor próprio e o modelo que vai reger o acesso de todas
+as rotinas daqui para a frente: quem é cada login, a que grupo pertence, e o que esse grupo
+alcança.
+
+**Escopo fechado pelo usuário:** publicar o motor `baleryan`; construir o modelo de acesso
+(categorias e matriz de permissões); e as telas de usuários e logins. A matriz **nasce
+fechada** — por enquanto só o builder alcança alguma coisa, e o resto o usuário define pelo
+próprio sistema, sem passar por código.
+
+**Como foi partida.** Em duas metades, para nada subir de uma vez:
+**2a** — banco, motor e as rotinas de servidor. **2b** — as telas.
+
+**Situação: 2a NO AR** em 23/08/2026. **2b não começou.**
+
+---
+
+## Step 1 — O modelo de acesso no banco
+
+**A pergunta que este step responde:** *quem pode o quê?*
+
+A resposta tem uma regra e duas exceções, e só isso decide acesso no FrotaHub inteiro:
+
+> **A regra.** Cada login pertence a uma **categoria**. Cada categoria tem uma lista de
+> **rotinas** liberadas. Abrir uma rotina significa que a sua categoria a tem marcada.
+>
+> **Exceção 1.** O builder passa sempre — é a trava contra o dono se trancar para fora.
+> **Exceção 2.** Só o builder cria ou edita login — para ninguém se promover.
+
+### 1.1 O nível é da categoria, não da pessoa
+
+Esta é a mudança estrutural da fase, e vale explicar porque ela desfaz um problema do
+sistema antigo. Antes, o nível ficava gravado na pessoa **e** no grupo dela. Dois lugares
+guardando a mesma verdade é uma divergência esperando acontecer: basta alguém editar um e
+esquecer o outro, e o sistema passa a ter duas respostas para a mesma pergunta.
+
+Agora o nível mora só na categoria. Quem entra na categoria herda. Discordar virou
+impossível por construção, não por cuidado (**CORE-06**).
+
+Consequência prática: a coluna `nivel` **saiu** da tabela de perfis.
+
+### 1.2 Supabase — o que foi criado
+
+| Tabela | Para quê | Como nasceu |
+|---|---|---|
+| `clientes` | o titular de cada dado | 1 linha: Frota Macedo Engenharia |
+| `categorias` | o grupo de um login; **é aqui que mora o nível** | 1 linha: `builder`, protegida |
+| `rotinas` | o catálogo do que existe no sistema | **vazio** |
+| `categoria_permissoes` | a matriz categoria × rotina | **vazia** |
+| `historico` | o rastro de tudo que os módulos declaram registrar | vazio |
+
+**O catálogo nasce vazio, e isso é decisão, não pendência.** Nenhuma rotina do sistema
+antigo foi copiada. Cada rotina se cadastra na migração do módulo que a constrói — assim
+catálogo e realidade nunca divergem, e não existe permissão para algo que não existe.
+
+**As fechaduras.** Todas as tabelas nascem com leitura fechada (**CORE-07**) e são abertas
+uma de cada vez. Hoje um login enxerga: o próprio perfil, o próprio cliente, as categorias
+do seu cliente, as permissões da **própria** categoria, e o catálogo de rotinas. Não
+enxerga o que as outras categorias alcançam, e não enxerga histórico nenhum.
+
+**Escrever, ninguém escreve pelo navegador.** Toda gravação nessas tabelas passa pelo
+motor. As políticas do banco só abrem leitura.
+
+### 1.3 Um defeito encontrado antes de chegar ao usuário
+
+A primeira versão criava, na migração 003, uma função que lia uma coluna que só nasceria na
+004. Aplicada em ordem, quebraria. Foi encontrada rodando as migrações num Postgres de
+verdade, do zero, antes de qualquer entrega — e corrigida separando: **003 cria tabelas,
+004 acrescenta colunas, depois funções, depois políticas.**
+
+---
+
+## Step 2 — O motor no ar
+
+### 2.1 O que é o `baleryan`
+
+O servidor do FrotaHub, escrito inteiramente em Go, **sem uma única dependência externa**.
+Ele existe por uma razão que não tem volta: criar login exige a chave de serviço do
+Supabase, e essa chave não pode existir no navegador (**CORE-09**). Tudo que precisa dela
+é, por definição, do servidor.
+
+Por dentro, cada peça tem um assunto só:
+
+| Peça | Assunto |
+|---|---|
+| `cmd/baleryan` | liga o motor, monta os módulos, desliga com jeito |
+| `interno/config` | **toda** variável de ambiente do sistema, declarada num lugar só |
+| `interno/banco` | o único cliente de banco; ninguém mais fala com o Postgres |
+| `interno/seguranca` | quem está chamando |
+| `interno/permissao` | o que essa pessoa pode |
+| `interno/web` | resposta, erro, CORS, registro de chamada |
+| `interno/modulos/…` | um módulo por assunto de negócio |
+
+### 2.2 Duas escolhas que valem registro
+
+**O motor se recusa a ligar pela metade.** Ele lê toda a configuração antes de abrir a
+porta e, se faltar alguma coisa, imprime a lista **completa** do que falta e desliga.
+Não é rigidez: é a diferença entre descobrir o problema no arranque, com o nome dele
+escrito, e descobri-lo três dias depois numa tela que quebrou sem explicar por quê.
+
+**O CORS é a camada mais externa.** Quando um erro escapa sem esses cabeçalhos, o navegador
+não mostra o erro de verdade — mostra "Failed to fetch", que não diz nada. Envolvendo tudo,
+até a falha chega ao front como falha legível.
+
+### 2.3 Render
+
+- Serviço `baleryan`, Docker, região **Ohio**, plano gratuito, publicação automática a cada
+  push na `main`.
+- **Ohio e não São Paulo** de propósito: o Supabase deste projeto está na Virgínia. Ohio ↔
+  Virgínia é ida-e-volta de ~12 ms; São Paulo ↔ Virgínia, ~120 ms. Uma tela que faz cinco
+  consultas sente meio segundo de diferença.
+- Confirmado no ar em 23/08/2026 respondendo em `https://baleryan.onrender.com/saude`.
+
+### 2.4 Um tropeço que custou um deploy
+
+O Render falhou com *"Root directory 'baleryan' does not exist"*. A causa não estava no
+Render: estava numa linha do `.gitignore` escrita por mim, na Fase 0, com o nome do binário
+solto — `baleryan`. Um nome solto no `.gitignore` casa também com **pasta**. O Git excluiu
+a pasta inteira do motor do envio, **em silêncio**, sem aviso e sem erro.
+
+Corrigido para o caminho completo (`/baleryan/baleryan`), com o motivo escrito no próprio
+arquivo para não se repetir. *Lição registrada em P-23.*
+
+---
+
+## Step 3 — Usuários e logins pelo motor
+
+### 3.1 As rotas
+
+| Rota | O que faz |
+|---|---|
+| `GET /usuarios` | lista, paginada e filtrada **no banco** (**CORE-10**) |
+| `POST /usuarios` | cria login |
+| `PATCH /usuarios/{id}` | altera nome, categoria ou situação |
+| `POST /usuarios/{id}/senha` | troca a senha |
+| `GET /usuarios/{id}/historico` | o rastro daquele login |
+
+Todas exigem builder. Nenhuma existe no catálogo de rotinas, porque builder não passa pela
+matriz.
+
+### 3.2 Criar login acontece em dois lugares — e sabe desfazer
+
+Um login vive em dois sítios: a `auth.users` do Supabase, que guarda a senha, e a `perfis`,
+que diz quem a pessoa é aqui dentro. Se o segundo passo falhar, **o primeiro é desfeito**.
+Meio login é pior que nenhum: o nome fica ocupado, ninguém entende por quê, e a pessoa não
+entra.
+
+### 3.3 Histórico — a tenet MOD-USUARIOS-01
+
+Declarada pelo usuário nesta rodada: mexer em login deixa rastro. O texto completo está no
+Anexo A; o que importa aqui é como foi construído.
+
+**Uma tabela para o sistema inteiro, não uma por módulo.** Histórico é sempre a mesma
+pergunta — quem fez, quando, no quê, e o que mudou. Uma tabela por módulo repetiria a
+estrutura, o código de gravação e a tela de consulta a cada módulo novo. Com uma só, o
+próximo módulo declara a tenet dele e já grava.
+
+*Cuidado para não confundir:* a tabela existir **não** obriga ninguém a gravar. Quem obriga
+é a tenet do módulo.
+
+*E a tabela ser compartilhada não quer dizer que o código já seja.* A função que grava mora
+hoje **dentro** do módulo de usuários, porque é o único que grava. Ela sobe para uma peça
+própria (`interno/historico/`) quando existir o segundo — desenhar a peça compartilhada
+antes de ter dois usuários é adivinhar como o segundo vai ser.
+
+**Só o que mudou, no formato `{"campo": {"de": …, "para": …}}`.** Copiar a linha inteira a
+cada edição incharia a tabela e esconderia a informação útil no meio do resto (**CORE-02**).
+
+**O nome de quem fez fica congelado.** Se a pessoa for renomeada em 2028, o evento de 2026
+continua dizendo o nome de 2026. Histórico que se atualiza sozinho mente sem avisar.
+
+**Duas linhas quando duas coisas mudam.** Renomear e desativar na mesma tela geram
+`alterou` e `desativou` separados, para cada linha ter um significado só.
+
+**Campo reenviado igual não é alteração.** Não gera gravação nem linha. Rastro cheio de
+"mudou de X para X" é rastro que ninguém lê.
+
+**Senha nunca entra.** Nem cifrada, nem em pedaço, nem o tamanho. `trocou_senha` registra o
+fato e nada mais.
+
+**A tranca é do banco.** Alterar, apagar e esvaziar a tabela de histórico são recusados por
+gatilho — nem o motor, que usa a chave de serviço e passa por cima das políticas, consegue
+furar. Regra que depende de lembrança um dia é esquecida.
+
+### 3.4 Um segundo defeito, encontrado no teste da própria tranca
+
+A tabela nasceu com o autor apontando para a tabela de perfis com "apagar → põe nulo".
+Parecia certo. No teste, apagar um login fez o banco tentar **alterar** as linhas de
+histórico dele — e a tranca de imutabilidade recusou. Resultado: quem já tinha feito
+alguma coisa no sistema não podia mais ser removido, e a mensagem de erro não explicava
+por quê.
+
+A correção foi menos um remendo e mais uma conclusão: **histórico é retrato do passado, não
+relação viva.** Retrato não se atualiza quando o retratado muda. A tabela ficou sem chaves
+estrangeiras para autor e para registro; guarda o número e o rótulo da época.
+
+### 3.5 O que o motor faz quando a alteração dá certo e o histórico não
+
+São duas gravações separadas, e existe uma janela mínima em que a primeira funciona e a
+segunda falha. Nesse caso o motor **não** responde erro — a operação aconteceu, e dizer
+"deu errado" faria o usuário tentar de novo, criando um segundo login ou desfazendo o que
+acabou de fazer. Ele responde sucesso **com um aviso explícito na tela**, e escreve a falha
+no console do servidor como segunda trilha.
+
+*A alternativa — as duas gravações dentro de uma função única do banco, tudo ou nada — fica
+para o primeiro módulo de volume. Aqui, mexer em login é coisa de builder algumas vezes por
+ano, e a falha é barulhenta, não silenciosa.*
+
+---
+
+## Step 4 — As telas (2b)
+
+**Não começou.** Previsto: tela de Usuários, tela da matriz de permissões, política de PIN
+e "Minha conta".
+
+---
+
+## Inventário da Fase 2
+
+| Arquivo | Hospedado | Rev |
+|---|---|---|
+| `db/migrations/003_acesso.sql` | repo · **Supabase** | 1 |
+| `db/migrations/004_perfis_acesso.sql` | repo · **Supabase** | 1 |
+| `db/migrations/005_historico.sql` | repo · **Supabase** | 1 |
+| `baleryan/go.mod` · `Dockerfile` | repo · **Render** | 1 |
+| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 3 |
+| `baleryan/interno/config/config.go` | repo · **Render** | 2 |
+| `baleryan/interno/banco/cliente.go` | repo · **Render** | 1 |
+| `baleryan/interno/web/web.go` | repo · **Render** | 1 |
+| `baleryan/interno/seguranca/seguranca.go` | repo · **Render** | 2 |
+| `baleryan/interno/permissao/permissao.go` | repo · **Render** | 2 |
+| `baleryan/interno/modulos/usuarios/usuarios.go` | repo · **Render** | 2 |
+| `web/src/sessao/tipos.ts` · `useSessao.ts` | repo · no ar | 2 |
+| `.gitignore` | repo | 2 |
+
+**Alterados por causa da fase:** `perfis` perdeu a coluna `nivel`; o front passou a ler o
+nível da categoria.
+
+---
+
+## Decisões da Fase 2
+
+| # | Decisão | Por quê |
+|---|---|---|
+| 1 | Nível é propriedade da categoria | Dois lugares guardando a mesma verdade divergem. |
+| 2 | Catálogo de rotinas nasce vazio | Não existe permissão para o que não existe. |
+| 3 | Motor em Ohio | ~12 ms até o banco, contra ~120 ms de São Paulo. |
+| 4 | Motor não liga pela metade | Falta de configuração vira erro nomeado no arranque. |
+| 5 | Uma tabela de histórico para o sistema todo | O próximo módulo declara a tenet e já grava. |
+| 6 | Histórico sem chaves estrangeiras | Retrato do passado não se atualiza quando o presente muda. |
+| 7 | Histórico trancado pelo banco | Regra que depende de disciplina um dia falha. |
+| 8 | Falha de histórico vira aviso, não erro | A operação aconteceu; mentir sobre isso causa dano maior. |
+
+---
+
+## Pendências da Fase 2
+
+| O quê | Situação |
+|---|---|
+| `AMBIENTE=producao` no Render | **só depois do R2**: em produção o motor exige R2 e Dropbox configurados, e hoje não estão |
+| `CORS_ORIGENS` no Render | está no padrão `*`; fechar em `https://novo.frotamacedo.com.br` |
+| Telas da 2b | não começaram |
+| Arquivo de testes automáticos do módulo de usuários | escrito e passando aqui; **não enviado** — aguardando o usuário decidir se entra no repositório |
+| Apagar `builder_list` | tabela de teste do R2, ainda no banco |
+
+---
+
+## Próximo passo
+
+Fase 2b — as telas de Usuários e Logins, a matriz de permissões e "Minha conta" — quando o
+usuário mandar.
+
+---
+---
+
 # ANEXO A — Tenets
 
 > **O que são.** As regras de ouro do FrotaHub. Cada uma tem um código permanente, e sempre
@@ -684,7 +955,7 @@ continuar significando a mesma coisa.*
 
 # CORE
 
-*Nove. Declarados pelo dono do sistema. Valem para toda linha de código do FrotaHub.*
+*Onze. Declarados pelo dono do sistema. Valem para toda linha de código do FrotaHub.*
 
 ## Recurso
 
@@ -734,6 +1005,18 @@ Falha ao verificar permissão resulta em acesso negado, nunca em acesso concedid
 Chave de serviço, senha de banco e chave secreta ficam no servidor. Sem exceção, sem
 "só neste caso".
 
+## Escala
+
+**CORE-10 — Nada nasce com tamanho fixo.**
+Toda lista é paginada e filtrada **no banco**, nunca no navegador. Todo limite é parâmetro,
+não número solto no meio do código. Nenhuma tela é escrita supondo "são poucos". *Paginar
+uma lista de três itens custa zero; despaginar uma de trinta mil custa uma reescrita.*
+
+**CORE-11 — Todo dado de negócio tem um titular declarado.**
+Nenhuma tabela de negócio existe sem dizer a quem o dado pertence, e o filtro por titular
+mora na **política do banco**, não na consulta. *Filtro que depende de alguém lembrar de
+escrever é filtro que um dia falta.*
+
 ---
 
 # BLOCK — por bloco de módulos
@@ -744,7 +1027,15 @@ Chave de serviço, senha de banco e chave secreta ficam no servidor. Sem exceç�
 
 # MODULE — por módulo
 
-*Nenhum ainda.*
+## MOD-USUARIOS · Usuários e logins
+
+**MOD-USUARIOS-01 — Mexer em login deixa rastro.**
+Criar, alterar, mudar situação e trocar senha gravam histórico com data, hora, quem
+executou e o que mudou. Senha e PIN **nunca** entram no conteúdo — nem cifrados, nem em
+pedaço, nem o tamanho. O histórico é **só-inserção**: não se edita e não se apaga, e a
+garantia é do banco, não da disciplina de quem escreve o código. *Declarada pelo dono do
+sistema em 23/08/2026. Verbos deste módulo: `criou`, `alterou`, `desativou`, `reativou`,
+`trocou_senha`.*
 
 ---
 
@@ -878,6 +1169,17 @@ Antes de enviar, confere-se que a compilação gerou algo.
 Arquivo que roda código no repositório é criado por uma pessoa. *Origem: a escrita remota
 em `.github/workflows/` é bloqueada de propósito — e a regra faz sentido.*
 
+**P-23 — Regra de exclusão de arquivo aponta caminho, nunca nome solto.**
+No `.gitignore`, um nome sem barra casa com **pasta** também. *Origem: a linha `baleryan`,
+escrita para ignorar o binário, excluiu do envio a pasta inteira do motor — em silêncio,
+sem erro, e o defeito só apareceu no servidor de publicação dizendo que a pasta não
+existia.*
+
+**P-24 — Antes de entregar, roda.**
+Migração vai para um Postgres de verdade, do zero, na ordem. Motor compila e responde.
+*As duas falhas de desenho desta fase — a ordem das migrações e o histórico que travava a
+remoção de login — foram encontradas assim, e nenhuma chegou ao usuário.*
+
 ---
 
 ---
@@ -887,12 +1189,12 @@ em `.github/workflows/` é bloqueada de propósito — e a regra faz sentido.*
 | O quê | Onde | Existe? |
 |---|---|---|
 | Repositório | `github.com/iafrotamacedo-cloud/frotahub-v2` | sim, público |
-| Banco | `https://hltcngamdqabqlocufrv.supabase.co` (us-east-1) | sim, vazio |
+| Banco | `https://hltcngamdqabqlocufrv.supabase.co` (us-east-1) | sim, 6 tabelas |
 | Chave pública do banco | `sb_publishable_IyCf5yioEo-Ry8q5mB2boA__ekxvPIu` | é chave de navegador, não é segredo |
 | Arquivos | Cloudflare R2, balde `frotahub`, conta `99f23938821d056868ecef92c08eed7f` | sim, vazio |
 | Front | `https://novo.frotamacedo.com.br` | **no ar** |
 | Hospedagem | HostGator Plano P, servidor `br1000`, IP `162.241.203.77` | sim |
-| Motor | Render, workspace "IA's workspace", região Ohio | a criar |
+| Motor | `https://baleryan.onrender.com` — Render, região Ohio | **no ar** |
 | Arquivo-mestre | Dropbox | conta existente |
 
 A `service_role` do Supabase, a senha do banco e a chave secreta do R2 **não** ficam neste
