@@ -1,0 +1,136 @@
+/* rev 1 — Dados do Trílogo
+   Só o que é próprio desta tela. Tabela, botão, aviso e pino vêm do telas.css:
+   a identidade é a mesma em todo lugar (P-19), e uma tela que traz o próprio
+   visual é o começo de dois sistemas dentro do mesmo sistema. */
+
+/* ---------- cabeçalho: carimbo + botão ---------- */
+.tri-acoes{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tri-carimbo{
+  font-size:12px;color:var(--gray);background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:6px 10px;white-space:nowrap;
+}
+.tri-carimbo b{color:var(--ink);font-weight:600}
+
+/* ---------- filtros ---------- */
+/* Uma faixa só, que quebra sozinha em telas estreitas. O ticket vem primeiro e
+   com borda escura: é o caminho de quem já sabe o número, e é o mais usado. */
+.tri-filtros{
+  display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  box-shadow:var(--sh-1);padding:12px 14px;margin:0 0 12px;
+}
+.tri-campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tri-campo>span{
+  font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+}
+.tri-oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tri-campo input,.tri-campo select{
+  font-family:var(--f);font-size:12.8px;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:7px 9px;height:34px;
+  transition:border-color var(--transicao),box-shadow var(--transicao);
+}
+.tri-campo select{min-width:120px;cursor:pointer}
+.tri-campo input:focus,.tri-campo select:focus{
+  outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100);
+}
+.tri-ticket input{
+  min-width:210px;border-width:1.6px;border-color:var(--txt);font-weight:600;
+}
+.tri-ticket input::placeholder{font-weight:400;color:var(--mut)}
+.tri-periodo{display:flex;align-items:flex-end;gap:8px;flex-wrap:nowrap}
+.tri-ate{font-size:12px;color:var(--mut);padding-bottom:9px}
+.tri-limpar{
+  background:none;border:0;padding:0 0 10px;margin-left:2px;cursor:pointer;
+  font-family:var(--f);font-size:12px;color:var(--gray);text-decoration:underline;
+}
+.tri-limpar:hover{color:var(--red)}
+
+/* ---------- resumo ---------- */
+.tri-resumo{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.2px;color:var(--gray)}
+.tri-resumo b{color:var(--ink);font-weight:700}
+.tri-pt{width:3px;height:3px;border-radius:50%;background:var(--mut);display:inline-block}
+
+/* ---------- a tabela ---------- */
+/* Mais apertada que a tabela padrão: aqui são até 500 linhas na tela, e cada
+   pixel de altura custa uma linha a menos visível. */
+.tri-tabela{font-size:13px;min-width:1150px;table-layout:fixed}
+.tri-tabela th{padding:8px 9px;font-size:9.5px}
+.tri-tabela td{padding:0 9px;height:30px;white-space:nowrap;overflow:hidden}
+/* Reticências para o que nem encolhido cabe. Sem isto o texto era simplesmente
+   cortado no meio de uma palavra, e nada avisava que havia mais.
+   VALE SÓ PARA AS CÉLULAS QUE ENCOLHEM. Aplicado a todo `span` da tabela, ele
+   pegava também os pinos de status e prioridade — que são spans — e os
+   transformava em blocos da largura da coluna, com o texto cortado: "Em
+   execuç...", "Mé...". Um seletor largo demais, e três colunas quebradas. */
+.tri-tabela td[data-encolhe]>span{
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* As larguras são apertadas de propósito: cada pixel que sai daqui vai para a
+   Descrição, que é a única coluna cujo texto não tem tamanho previsível. */
+/* Medidas conferidas com a tela aberta, não estimadas (P-26): "Em execução"
+   precisa de 108 no pino, "22/08/2026 15:45" de 118 na data, e o nome de loja
+   mais longo do contrato — LOJA 13 - SANTOS DUMONT — de 162 para não virar
+   reticências. O que sobra vai todo para a Descrição. */
+.tri-tabela .c-ticket{width:66px}
+.tri-tabela .c-loja{width:168px}
+.tri-tabela .c-conta{width:92px}
+.tri-tabela .c-status{width:112px}
+.tri-tabela .c-prio{width:76px}
+.tri-tabela .c-resp{width:104px}
+.tri-tabela .c-data{width:118px}
+.tri-tabela .c-prazo{width:82px}
+.tri-tabela .c-num{width:76px;text-align:right;font-variant-numeric:tabular-nums}
+.tri-tabela .c-anexos{width:72px}
+
+.tri-num{font-weight:700;font-size:13px;letter-spacing:-.01em;color:var(--ink)}
+.tri-fraco{color:var(--mut);font-size:12px}
+.tri-vazio{color:var(--mut);font-weight:600}
+
+.tri-conta{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--gray)}
+.tri-conta::before{content:'';width:5px;height:5px;border-radius:50%;flex:0 0 5px}
+.ct-inst::before{background:#2B5CA8}
+.ct-civil::before{background:#8A6A3B}
+
+/* ---------- pinos de status e prioridade ---------- */
+/* Cinco status e três prioridades. O que não estiver aqui cai no neutro e a tela
+   continua funcionando — status novo no Trílogo não pode virar defeito aqui. */
+.st-aberto{background:#E8EFF9;color:#2B5CA8}
+.st-execucao{background:var(--warn-bg);color:var(--warn)}
+.st-executado{background:var(--ok-bg);color:var(--ok)}
+.st-vistoriado{background:#ECEAF6;color:#4A3B8C}
+.st-arquivado{background:var(--bg);color:var(--gray)}
+.st-outro{background:var(--bg);color:var(--gray)}
+
+.pr-alta{background:var(--err-bg);color:var(--err)}
+.pr-media{background:var(--warn-bg);color:var(--warn)}
+.pr-baixa{background:var(--bg);color:var(--gray)}
+.pr-outra{background:var(--bg);color:var(--mut)}
+
+/* ---------- rodapé: contagem, tamanho da página e navegação ---------- */
+.tri-rodape{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-top:12px;font-size:12.2px;color:var(--gray);
+}
+.tri-mostrando b{color:var(--ink);font-weight:700}
+.tri-porpagina{display:flex;align-items:center;gap:7px}
+.tri-porpagina select{
+  font-family:var(--f);font-size:12px;color:var(--ink);background:var(--card);
+  border:1px solid var(--line);border-radius:6px;padding:4px 7px;cursor:pointer;
+}
+.tri-navega{display:flex;align-items:center;gap:4px;margin-left:auto}
+.tri-navega button{
+  width:28px;height:26px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--f);font-size:13px;color:var(--txt);background:var(--card);
+  border:1px solid var(--line);border-radius:6px;cursor:pointer;
+  transition:border-color var(--transicao),color var(--transicao);
+}
+.tri-navega button:hover:not(:disabled){border-color:var(--gray);color:var(--ink)}
+.tri-navega button:disabled{color:#C7CCD3;cursor:default}
+.tri-pagina{padding:0 8px;color:var(--ink);font-weight:600;white-space:nowrap}
+
+@media (max-width:720px){
+  .tri-acoes{width:100%}
+  .tri-navega{margin-left:0}
+  .tri-ticket input{min-width:100%}
+}

@@ -1,4 +1,4 @@
-// rev 5 — a casca do FrotaHub
+// rev 6 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -16,6 +16,7 @@ import { EmBreve } from './telas/EmBreve'
 import { Usuarios } from './telas/usuarios/Usuarios'
 import { Categorias } from './telas/categorias/Categorias'
 import { MinhaConta } from './telas/MinhaConta'
+import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { useExpiracao } from './sessao/inatividade'
 
 export default function App() {
@@ -24,7 +25,10 @@ export default function App() {
   // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
   // Fica memorizado porque a navegação depende dele: uma árvore nova a cada
   // desenho faria o caminho ser recalculado sem necessidade.
-  const arvore = useMemo(() => arvoreVisivel(ehBuilder(perfil)), [perfil])
+  const arvore = useMemo(
+    () => arvoreVisivel(ehBuilder(perfil), perfil?.rotinas ?? []),
+    [perfil],
+  )
 
   // O caminho aberto mora no ENDEREÇO, não na memória da página. É o que faz o
   // botão "voltar" do navegador voltar uma tela em vez de sair do sistema.
@@ -197,6 +201,8 @@ export default function App() {
             <Categorias />
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
+          ) : atual?.tela === 'trilogo-dados' ? (
+            <DadosTrilogo />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}

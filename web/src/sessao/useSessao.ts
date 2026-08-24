@@ -1,4 +1,4 @@
-// rev 3 — a sessão do usuário
+// rev 4 — a sessão do usuário
 //
 // Uma responsabilidade só: dizer QUEM está logado.
 //
@@ -40,6 +40,19 @@ export function useSessao() {
 
     if (error || !data) return null
 
+    // As rotinas vêm do MESMO lugar que o perfil: o banco, direto, sem passar
+    // pelo motor. Se dependessem dele, o menu só apareceria depois de o serviço
+    // acordar no Render — e o primeiro acesso do dia abriria sem menu nenhum.
+    //
+    // A segurança de linha já limita a consulta à categoria de quem perguntou;
+    // o filtro explícito está aqui para quem lê o código não precisar ir
+    // conferir a política para entender o que volta.
+    const { data: permissoes } = await supabase
+      .from('categoria_permissoes')
+      .select('rotina')
+      .eq('categoria_id', data.categoria_id)
+      .eq('pode', true)
+
     return {
       id: data.id,
       usuario: data.usuario,
@@ -49,6 +62,7 @@ export function useSessao() {
       categoriaId: data.categoria_id,
       categoriaNome: data.categorias?.nome ?? '',
       nivel: data.categorias?.nivel ?? 'comum',
+      rotinas: (permissoes ?? []).map(p => p.rotina as string),
     }
   }, [])
 

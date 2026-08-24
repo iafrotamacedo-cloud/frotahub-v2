@@ -1,4 +1,4 @@
-// rev 5 — a árvore de menus
+// rev 6 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -17,14 +17,23 @@ export interface ItemMenu {
   desc?: string
   breve?: boolean
   soBuilder?: boolean
+  /**
+   * O código no catálogo de permissões. Item com `rotina` só aparece para quem
+   * a alcança — o menu se ajusta ao login (P-17).
+   *
+   * `soBuilder` continua existindo para o que NÃO passa pela matriz: mexer em
+   * login é exclusividade do dono, e isso não é uma linha de permissão que
+   * alguém possa marcar por engano.
+   */
+  rotina?: string
   tela?: Tela
   sub?: ItemMenu[]
 }
 
-export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa'
+export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela = 'usuarios' | 'categorias' | 'minha-conta'
+export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
@@ -33,7 +42,22 @@ const ARVORE_COMPLETA: ItemMenu[] = [
     icone: 'chave-inglesa',
     desc: 'Contratos, chamados e serviços',
     sub: [
-      { t: 'Contrato São Luiz', rota: 'contrato-sao-luiz', icone: 'loja', desc: 'Chamados, orçamentos e preventiva', breve: true },
+      {
+        t: 'Contrato São Luiz',
+        rota: 'contrato-sao-luiz',
+        icone: 'loja',
+        desc: 'Chamados, orçamentos e preventiva',
+        sub: [
+          {
+            t: 'Dados do Trílogo',
+            rota: 'dados-trilogo',
+            icone: 'lista',
+            desc: 'Os chamados do contrato, como o robô os trouxe',
+            tela: 'trilogo-dados',
+            rotina: 'CONTRATO_TRILOGO_DADOS',
+          },
+        ],
+      },
       { t: 'Serviços', rota: 'servicos', icone: 'servicos', desc: 'Serviços avulsos e outros contratos', breve: true },
     ],
   },
@@ -80,11 +104,16 @@ const ARVORE_COMPLETA: ItemMenu[] = [
  * Um bloco cujos filhos todos sumiram some junto: menu com pasta vazia é pior que
  * menu sem a pasta — parece defeito.
  */
-export function arvoreVisivel(ehBuilder: boolean): ItemMenu[] {
+export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = []): ItemMenu[] {
+  const alcanca = new Set(rotinas)
+
   function filtrar(itens: ItemMenu[]): ItemMenu[] {
     const fora: ItemMenu[] = []
     for (const item of itens) {
       if (item.soBuilder && !ehBuilder) continue
+      // O builder passa sempre, aconteça o que acontecer com a matriz — é a
+      // garantia de que uma configuração errada não tranca o dono para fora.
+      if (item.rotina && !ehBuilder && !alcanca.has(item.rotina)) continue
       if (item.sub) {
         const sub = filtrar(item.sub)
         if (sub.length === 0) continue
