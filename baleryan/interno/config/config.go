@@ -1,4 +1,4 @@
-// rev 3 — configuração do baleryan
+// rev 4 — configuração do baleryan
 //
 // Toda variável de ambiente que o motor usa é declarada AQUI, com tipo, valor padrão
 // (quando faz sentido ter um) e uma linha dizendo para que serve. Não existe leitura
@@ -150,9 +150,33 @@ type Trilogo struct {
 	// Quantos chamados o robô processa ao mesmo tempo. Mais que isso não acelera
 	// (o gargalo passa a ser o Trílogo) e começa a parecer abuso.
 	Paralelo int
+	// As extensões que NÃO vão para o armazém — fica só o endereço no Trílogo.
+	//
+	// É lista, e não regra fixa no código, porque isto é decisão de negócio e
+	// muda com o tamanho da conta (P-08). Hoje são os vídeos: 86% do peso do
+	// acervo em 13% dos arquivos.
+	SoLink []string
 	// Quantos chamados por lote na atualização. O motor do plano gratuito pode
 	// adormecer no meio; lote pequeno significa perder pouco e retomar rápido.
 	Lote int
+}
+
+// SoLinkPadrao é a lista que vale quando ninguém disse outra coisa.
+//
+// Mora aqui, e não escondida dentro da leitura do ambiente, para que os testes
+// usem EXATAMENTE a mesma lista da produção. Duas listas iguais escritas em dois
+// lugares viram duas listas diferentes na primeira vez que alguém mexe numa.
+var SoLinkPadrao = []string{"mp4", "mov", "avi", "3gp", "m4v", "mkv", "wmv", "webm"}
+
+// FicaSoOLink diz se aquele tipo de arquivo não vem para o nosso armazém.
+func (t Trilogo) FicaSoOLink(extensao string) bool {
+	e := strings.ToLower(strings.TrimPrefix(extensao, "."))
+	for _, x := range t.SoLink {
+		if e == strings.ToLower(x) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Trilogo) Ligado() bool {
@@ -254,6 +278,7 @@ func Carregar() (*Config, error) {
 		SenhaInstalacoes: l.segredo("TRILOGO_SENHA_INSTALACOES", false, 0, ""),
 		EmailCivil:       l.texto("TRILOGO_EMAIL_CIVIL", "", false, ""),
 		SenhaCivil:       l.segredo("TRILOGO_SENHA_CIVIL", false, 0, ""),
+		SoLink:           l.lista("TRILOGO_SO_LINK", SoLinkPadrao),
 		Paralelo:         l.inteiro("TRILOGO_PARALELO", 12, 1, 32),
 		Lote:             l.inteiro("TRILOGO_LOTE", 150, 10, 1000),
 	}

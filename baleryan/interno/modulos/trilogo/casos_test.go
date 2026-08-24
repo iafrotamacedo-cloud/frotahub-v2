@@ -423,3 +423,62 @@ func TestTiposDeEventoBatizados(t *testing.T) {
 		t.Errorf("código desconhecido tinha que aparecer, veio %q", got)
 	}
 }
+
+// A decisão do dono: vídeo não vem para o armazém, fica só o endereço no Trílogo.
+// 678 vídeos carregavam 86% do peso do acervo.
+func TestVideoFicaSoComOLink(t *testing.T) {
+	m := novoMundo(t)
+	m.chamado(1, 82, "", []map[string]any{
+		{"id": 1, "fileName": "obra.mp4", "image": m.arquivo.URL + "/v.mp4"},
+		{"id": 2, "fileName": "quadro.jpg", "image": m.arquivo.URL + "/f.jpg"},
+		{"id": 3, "fileName": "antes.MOV", "image": m.arquivo.URL + "/w.mov"},
+	}, nil)
+	m.conteudo[m.arquivo.URL+"/v.mp4"] = []byte(strings.Repeat("v", 5000))
+	m.conteudo[m.arquivo.URL+"/f.jpg"] = []byte(strings.Repeat("f", 100))
+	m.conteudo[m.arquivo.URL+"/w.mov"] = []byte(strings.Repeat("w", 3000))
+
+	r, err := m.servico().Rodar(context.Background(), ModoLevantamento, cliente, "teste")
+	if err != nil {
+		t.Fatal(err)
+	}
+	porNome := map[string]map[string]any{}
+	for _, f := range m.linhas("chamado_anexos") {
+		porNome[f["nome"].(string)] = f
+	}
+	if porNome["quadro.jpg"]["copiar"] != true {
+		t.Error("a foto tinha que ser copiada")
+	}
+	if porNome["obra.mp4"]["copiar"] != false {
+		t.Error("o vídeo NÃO podia ser marcado para cópia")
+	}
+	// maiúscula não pode enganar a regra
+	if porNome["antes.MOV"]["copiar"] != false {
+		t.Error(".MOV em maiúscula também é vídeo")
+	}
+	// o endereço do Trílogo continua guardado — é ele que a tela vai abrir
+	if porNome["obra.mp4"]["url_origem"] == nil || porNome["obra.mp4"]["url_origem"] == "" {
+		t.Error("o vídeo tem que manter o endereço no Trílogo")
+	}
+	// e o log tem que separar os dois números
+	if r.ArquivosSoLink != 4 { // 2 vídeos × 2 contas no mundo de mentira
+		t.Errorf("esperava 4 só-link, vieram %d", r.ArquivosSoLink)
+	}
+	if r.BytesSoLink != (5000+3000)*2 {
+		t.Errorf("o peso do que fica no Trílogo saiu errado: %d", r.BytesSoLink)
+	}
+}
+
+// A fila de cópia não pode carregar para sempre o que nunca vai ser copiado.
+func TestFilaDeCopiaIgnoraOQueFicaNoTrilogo(t *testing.T) {
+	m := novoMundo(t)
+	m.conteudo[m.arquivo.URL+"/f.jpg"] = []byte("foto")
+	m.pendentes = []map[string]any{
+		{"id": "a1", "url_origem": m.arquivo.URL + "/f.jpg", "nome": "f.jpg", "extensao": "jpg"},
+	}
+	if _, err := m.servico().Rodar(context.Background(), ModoCopia, cliente, "teste"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.ultimaConsulta, "copiar=is.true") {
+		t.Fatalf("a fila tinha que filtrar por copiar=is.true; consultou: %s", m.ultimaConsulta)
+	}
+}

@@ -1,4 +1,4 @@
-// rev 1 — o robô fora do motor
+// rev 2 — o robô fora do motor
 //
 // Este programa existe para as duas passadas pesadas — levantamento e cópia —
 // que rodam no GitHub Actions, no botão, e não no motor.
@@ -70,6 +70,8 @@ func main() {
 			total.EventosGravados += r.EventosGravados
 			total.ArquivosVistos += r.ArquivosVistos
 			total.BytesVistos += r.BytesVistos
+			total.ArquivosSoLink += r.ArquivosSoLink
+			total.BytesSoLink += r.BytesSoLink
 			total.ArquivosCopiados += r.ArquivosCopiados
 			total.BytesCopiados += r.BytesCopiados
 			log.Printf("volta %d · %s", volta, resumo(r))
@@ -89,7 +91,13 @@ func main() {
 	log.Printf("=== FIM em %s ===", time.Since(comeco).Round(time.Second))
 	log.Print(resumo(&total))
 	if total.BytesVistos > 0 {
-		log.Printf("PARA DECIDIR: os arquivos vistos somam %s", tamanhoLegivel(total.BytesVistos))
+		// Os dois números aparecem SEPARADOS de propósito: a diferença entre eles
+		// é a decisão que o dono tomou, e ela precisa estar visível toda vez.
+		log.Printf("catalogado: %s no total", tamanhoLegivel(total.BytesVistos))
+		log.Printf("  A COPIAR : %d arquivos · %s",
+			total.ArquivosVistos-total.ArquivosSoLink, tamanhoLegivel(total.BytesVistos-total.BytesSoLink))
+		log.Printf("  SÓ O LINK: %d arquivos · %s (ficam no Trílogo, por decisão)",
+			total.ArquivosSoLink, tamanhoLegivel(total.BytesSoLink))
 	}
 	if total.BytesCopiados > 0 {
 		log.Printf("copiados para o armazém: %s", tamanhoLegivel(total.BytesCopiados))

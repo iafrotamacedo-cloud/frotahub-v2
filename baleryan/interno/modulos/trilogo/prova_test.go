@@ -33,14 +33,15 @@ type mundo struct {
 	// o que subiu para o armazém: caminho -> bytes
 	enviado map[string][]byte
 
-	conteudo      map[string][]byte // url -> bytes do arquivo
-	lista         []map[string]any
-	detalhes      map[int]map[string]any
-	custos        map[int][]map[string]any
-	foraDoEscopo  []int
-	arquivosJaTem []string
-	pendentes     []map[string]any
-	logins        []string
+	conteudo       map[string][]byte // url -> bytes do arquivo
+	lista          []map[string]any
+	detalhes       map[int]map[string]any
+	custos         map[int][]map[string]any
+	foraDoEscopo   []int
+	arquivosJaTem  []string
+	pendentes      []map[string]any
+	ultimaConsulta string
+	logins         []string
 }
 
 func (m *mundo) registrar(tabela string, linhas []map[string]any) {
@@ -157,6 +158,9 @@ func novoMundo(t *testing.T) *mundo {
 				}
 				json.NewEncoder(w).Encode(fora)
 			case tabela == "chamado_anexos":
+				m.mu.Lock()
+				m.ultimaConsulta = q
+				m.mu.Unlock()
 				json.NewEncoder(w).Encode(m.pendentes)
 			default:
 				json.NewEncoder(w).Encode([]map[string]any{})
@@ -233,6 +237,7 @@ func (m *mundo) servico() *Servico {
 		Trilogo: config.Trilogo{
 			EmailInstalacoes: "jonas@x", SenhaInstalacoes: "certa",
 			EmailCivil: "humberto@x", SenhaCivil: "certa",
+			SoLink:   config.SoLinkPadrao, // a MESMA lista da produção
 			Paralelo: 4, Lote: 150,
 		},
 		Runtime: config.Runtime{Ambiente: "local"},

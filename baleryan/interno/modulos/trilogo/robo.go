@@ -92,6 +92,11 @@ type Resultado struct {
 	EventosGravados  int    `json:"eventos_gravados"`
 	ArquivosVistos   int    `json:"arquivos_vistos"`
 	BytesVistos      int64  `json:"bytes_vistos"`
+	// O que NÃO vem para o armazém: fica só o endereço no Trílogo. Aparece
+	// separado no log porque a diferença entre os dois é a decisão que o dono
+	// tomou — e ela precisa estar visível toda vez, não escondida numa soma.
+	ArquivosSoLink   int    `json:"arquivos_so_link"`
+	BytesSoLink      int64  `json:"bytes_so_link"`
 	ArquivosCopiados int    `json:"arquivos_copiados"`
 	BytesCopiados    int64  `json:"bytes_copiados"`
 	Completo         bool   `json:"completo"` // falso = sobrou trabalho; chame de novo
@@ -564,8 +569,11 @@ func (s *Servico) gravarFichas(ctx context.Context, cols []*colhido, ids map[int
 	}
 	for _, f := range fichas {
 		r.ArquivosVistos++
-		if n, ok := f["tamanho"].(int64); ok {
-			r.BytesVistos += n
+		n, _ := f["tamanho"].(int64)
+		r.BytesVistos += n
+		if copiar, _ := f["copiar"].(bool); !copiar {
+			r.ArquivosSoLink++
+			r.BytesSoLink += n
 		}
 	}
 	return nil
@@ -586,13 +594,14 @@ func (s *Servico) ficha(c *colhido, chamadoID, colecao string, idTrilogo int, no
 			tipo = m[1]
 		}
 	}
+	extensao := Extensao(nome)
 	f := map[string]any{
 		"chamado_id": chamadoID,
 		"colecao":    colecao,
 		"id_trilogo": idTrilogo,
 		"custo_id":   nil,
 		"nome":       nome,
-		"extensao":   Extensao(nome),
+		"extensao":   extensao,
 		"url_origem": url,
 		"tamanho":    tamanho,
 		"tipo":       tipo,
@@ -600,6 +609,10 @@ func (s *Servico) ficha(c *colhido, chamadoID, colecao string, idTrilogo int, no
 		"autor_id":   nil,
 		"quando":     nil,
 		"origem":     "trilogo",
+		// Falso = fica só o endereço no Trílogo. Sem esta marca, "ainda não
+		// copiei" e "nunca vou copiar" seriam a mesma coisa no banco, e a fila de
+		// cópia tentaria os vídeos para sempre.
+		"copiar": !s.cfg.Trilogo.FicaSoOLink(extensao),
 	}
 	if custoID != "" {
 		f["custo_id"] = custoID
@@ -658,7 +671,10 @@ func (s *Servico) copiar(ctx context.Context, clienteID string, r *Resultado) er
 
 	lote := s.cfg.Trilogo.Lote
 	var restam []pendente
-	caminho := "chamado_anexos?arquivo_sha256=is.null&select=id,url_origem,nome,extensao,tipo&limit=" + strconv.Itoa(lote)
+	// `copiar=is.true` é o que impede a fila de carregar para sempre os arquivos
+	// que o dono decidiu deixar no Trílogo.
+	caminho := "chamado_anexos?arquivo_sha256=is.null&copiar=is.true" +
+		"&select=id,url_origem,nome,extensao,tipo&limit=" + strconv.Itoa(lote)
 	if err := s.bd.Buscar(ctx, caminho, &restam); err != nil {
 		return fmt.Errorf("não consegui listar o que falta copiar: %w", err)
 	}

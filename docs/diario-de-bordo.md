@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **24/08/2026** · Rodada 29 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **24/08/2026** · Rodada 30 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1335,8 +1335,8 @@ nível da categoria.
 
 ## Próximo passo
 
-**Decidir o que vai para o R2.** O levantamento respondeu: são 8,7 GB, e 86% disso é
-vídeo. Cabe no plano gratuito, mas ocupando quase tudo.
+**Rodar a cópia.** Decidido: vão para o armazém 4.580 arquivos, 1,2 GB — 12% da cota.
+Os 678 vídeos ficam no Trílogo, guardados pelo endereço.
 
 Continua pendente da Fase 2, e é do dono: configurar a sessão no painel do Supabase
 (3 h paradas, 24 h no total).
@@ -1753,7 +1753,36 @@ para eles seria inventar.
 *Se o robô tivesse traduzido código desconhecido para vazio — como é o costume —
 esses 274 eventos teriam sumido sem ninguém notar.*
 
-### 3.10 Como foi conferido
+### 3.10 A decisão sobre o R2: vídeo fica no Trílogo
+
+Com o número medido na mesa, o dono decidiu: **copiar tudo menos os vídeos; dos
+vídeos, guardar só o endereço do Trílogo.**
+
+| | Arquivos | Peso | Cota do R2 grátis |
+|---|---|---|---|
+| Vão para o nosso armazém | **4.580** | **1,2 GB** | **12%** |
+| Ficam só como link | 678 | 7,3 GB | — |
+
+**O que isso custa, dito com todas as letras:** esses 678 vídeos passam a depender
+de o Trílogo continuar servindo os arquivos dele. Se um dia esse contrato acabar,
+eles vão junto. Foto, PDF e áudio — que é o que se consulta no dia a dia — ficam
+conosco.
+
+**Uma coluna nova, e ela não é detalhe.** Sem a marca `copiar`, *"ainda não
+copiei"* e *"nunca vou copiar"* seriam a mesma coisa no banco: `arquivo_sha256`
+nulo nos dois casos. Duas consequências, as duas ruins — a fila de cópia tentaria
+os 678 vídeos a cada rodada, para sempre; e ninguém, daqui a um ano, saberia dizer
+se um arquivo sem cópia é decisão ou pendência.
+
+**A lista de extensões é configuração, não regra no código** (**P-08**). Mudar de
+ideia depois é um `UPDATE` e uma rodada de cópia — nada precisa ser relido do
+Trílogo.
+
+**O log passou a mostrar os dois números separados.** A diferença entre eles é a
+decisão que o dono tomou, e ela fica visível toda vez, em vez de escondida numa
+soma.
+
+### 3.11 Como foi conferido
 
 Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra eles:
 
@@ -1773,9 +1802,11 @@ Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra el
 | Lote com chamados completos e pelados juntos | passa; o pelado grava nulo, não inventa |
 | Chamado da Instalações lido pela Civil | fica na Instalações |
 | Código de evento desconhecido | continua aparecendo como `codigo N` |
+| Vídeo (inclusive `.MOV` em maiúscula) | marcado para não copiar, com o link preservado |
+| Fila de cópia | ignora o que fica no Trílogo |
 | Assinatura do R2 | bate com a implementação em Python |
 
-Ao todo, **41 provas automáticas** no motor, e as duas telas de sempre: `go vet`
+Ao todo, **43 provas automáticas** no motor, e as duas telas de sempre: `go vet`
 limpo e os dois binários compilando.
 
 ---
@@ -1785,14 +1816,15 @@ limpo e os dois binários compilando.
 | Arquivo | Hospedado | Rev |
 |---|---|---|
 | `db/migrations/007_trilogo.sql` | repo · **Supabase** | 1 |
+| `db/migrations/008_anexos_copiar.sql` | repo · **Supabase** | 1 |
 | `baleryan/interno/armazem/r2.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/api.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/tipos.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/robo.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 1 |
-| `baleryan/cmd/robo/main.go` | repo · **Actions** | 1 |
+| `baleryan/cmd/robo/main.go` | repo · **Actions** | 2 |
 | `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 5 |
-| `baleryan/interno/config/config.go` | repo · **Render** | 3 |
+| `baleryan/interno/config/config.go` | repo · **Render** | 4 |
 | `baleryan/interno/banco/cliente.go` | repo · **Render** | 3 |
 | `.github/workflows/robo-trilogo.yml` | repo | 1 |
 
@@ -1802,9 +1834,9 @@ limpo e os dois binários compilando.
 
 | O quê | Situação |
 |---|---|
-| **Decidir o que copiar para o R2** | 8,7 GB no total, 87% do plano grátis — 1,2 GB sem os vídeos |
-| Rodar o levantamento de novo (corrige a conta dos 38) | antes da cópia |
+| Aplicar a migração 008 e rodar o levantamento de novo | corrige a conta dos 38 e marca os vídeos |
 | Cadastrar os segredos do R2 no GitHub | antes da cópia |
+| **Rodar a cópia** (1,2 GB) | depois dos dois acima |
 | Batizar os tipos de evento que vêm sem texto | quando aparecer um com conteúdo |
 | Rodar o levantamento e decidir o que copiar para o R2 | depende do robô |
 | Tela "Dados do Trílogo" e o cadastro da rotina no catálogo | depois do robô |
