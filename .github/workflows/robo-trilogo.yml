@@ -1,9 +1,13 @@
 name: Robô Trílogo
 # Lê os chamados das duas contas do Trílogo e grava no FrotaHub.
 #
-# É MANUAL, de propósito. Não tem agendamento: as duas passadas pesadas rodam uma
-# vez, no botão, e o dono decide quando. Quando quisermos a leitura diária, entra
-# um bloco `schedule` aqui — uma linha.
+# DUAS PORTAS, O MESMO CAMINHO
+#   Agendado: de 2 em 2 horas, das 6h às 20h de Fortaleza, todos os dias, sempre
+#             no modo `atualizacao`.
+#   Na mão:   qualquer um dos três modos, quando o dono quiser.
+#
+#   As duas passadas pesadas NUNCA entram no agendamento: o levantamento relê a
+#   base inteira e a cópia mexe em arquivo. São de botão, e de dono.
 #
 # MODOS
 #   levantamento — lê TUDO desde 01/07/2026 e grava chamado, timeline, custos e a
@@ -12,6 +16,18 @@ name: Robô Trílogo
 #   copia        — busca os bytes dos arquivos e manda para o R2.
 #   atualizacao  — só o que mudou desde a última rodada concluída.
 on:
+  # O cron do GitHub é em UTC, e Fortaleza é UTC−3. 6h daqui são 9h lá; 20h daqui
+  # são 23h lá. Por sorte a janela inteira cabe no mesmo dia em UTC, então não
+  # precisa mexer nos dias da semana — que é a pegadinha clássica deste campo.
+  #
+  #   6  8  10 12 14 16 18 20   (Fortaleza)
+  #   9  11 13 15 17 19 21 23   (UTC)
+  #
+  # São 8 rodadas por dia, todos os dias. O repositório é público, então minuto
+  # de Actions não é cobrado.
+  schedule:
+    - cron: "0 9,11,13,15,17,19,21,23 * * *"
+
   workflow_dispatch:
     inputs:
       modo:
@@ -22,13 +38,22 @@ on:
         options: [levantamento, copia, atualizacao]
 
 # Duas rodadas ao mesmo tempo dariam trabalho repetido e log confuso.
-concurrency: robo-trilogo
+#
+# `cancel-in-progress: false` é escolha, não descuido: se o horário chegar com uma
+# leitura ainda rodando, a nova ESPERA. Cancelar no meio deixaria a rodada aberta
+# no banco, com a situação travada em "rodando" e ninguém para fechá-la.
+concurrency:
+  group: robo-trilogo
+  cancel-in-progress: false
 
 jobs:
   rodar:
     runs-on: ubuntu-latest
-    # O levantamento leva minutos; a cópia dos vídeos pode levar horas.
-    timeout-minutes: 350
+    # O levantamento leva minutos e a cópia pode levar horas. Mas a rodada
+    # agendada é a incremental, que leva segundos — e uma incremental que passe
+    # de meia hora está travada, não trabalhando. Sem este corte, uma rodada
+    # pendurada seguraria a fila das próximas por quase seis horas.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 30 || 350 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +69,8 @@ jobs:
         working-directory: baleryan
         env:
           PAPEL: robo
-          MODO: ${{ github.event.inputs.modo }}
+          # Rodada agendada não tem `inputs`: cai no `atualizacao`.
+          MODO: ${{ github.event.inputs.modo || 'atualizacao' }}
           CLIENTE_SLUG: frota-macedo
 
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
