@@ -1,4 +1,4 @@
-// rev 6 — baleryan, o motor do FrotaHub
+// rev 7 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -35,7 +35,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "6"
+const Revisao = "7"
 
 type motor struct {
 	cfg  *config.Config
@@ -72,7 +72,7 @@ func main() {
 	// O armazém é um só, compartilhado: o robô o usa para GRAVAR arquivo, e a
 	// tela para assinar o endereço temporário que MOSTRA esse arquivo.
 	arm := armazem.Novo(cfg)
-	trilogo.NovoModulo(trilogo.Novo(cfg, bd, arm), seg, bd).Montar(mux)
+	trilogo.NovoModulo(trilogo.Novo(cfg, bd, arm), seg, m.perm, bd).Montar(mux)
 	trilogo.NovaConsulta(bd, seg, m.perm, arm).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado

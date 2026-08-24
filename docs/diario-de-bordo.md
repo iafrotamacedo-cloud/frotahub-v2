@@ -1971,6 +1971,53 @@ mentira responde 400, como o de verdade responderia (**P-30**).
 
 ---
 
+### 3.18 O agendamento e o botão
+
+Duas decisões do dono, tomadas juntas, e uma delas mudou a forma da permissão.
+
+**O agendamento.** De 2 em 2 horas, das 6h às 20h de Fortaleza, **todos os dias**. Fica no
+`cron` do GitHub Actions, e não num agendador dentro do motor: o Render no plano gratuito
+adormece, e um relógio que dorme não toca. O cron do GitHub é em UTC e Fortaleza é UTC−3,
+então a linha é `0 9,11,13,15,17,19,21,23 * * *` — a janela inteira cabe no mesmo dia em
+UTC, o que dispensa mexer nos dias da semana (a pegadinha clássica desse campo). São 8
+rodadas por dia; o repositório é público, então minuto de Actions não é cobrado.
+
+Rodada agendada não tem `inputs`, então o modo cai em `atualizacao` por padrão. As duas
+passadas pesadas **nunca** entram no agendamento.
+
+**O botão.** Liberado para quem já enxerga a tela — decisão do dono. Mas a rota era uma só
+para os três modos, e abrir a rota abriria também o levantamento e a cópia. Agora **o modo
+decide**: `atualizacao` pede a rotina `CONTRATO_TRILOGO_DADOS`; `levantamento` e `copia`
+continuam do builder. É a leitura do dia a dia que ficou no botão — ela não apaga nada e
+repetir é inofensivo —, e quem percebe que um chamado novo ainda não apareceu é justamente
+quem está olhando a lista (**P-29**).
+
+**A trava, e onde ela mora.** Com o botão liberado, três pessoas apertando no mesmo minuto
+seriam três leituras do Trílogo. A trava está no **banco**, não na memória do motor, e isso
+é o ponto: a rodada agendada roda no GitHub Actions, num processo que o motor nunca vê. Uma
+trava em memória não enxergaria essa rodada; a do banco enxerga, e o botão espera.
+
+São duas perguntas em ordem: existe rodada em andamento? A última atualização terminou agora
+há pouco? A primeira vale para qualquer modo; a segunda só para o botão — o builder que pede
+um levantamento sabe o que está fazendo e não leva sermão.
+
+Duas escolhas pequenas com motivo: uma rodada "rodando" há mais de **30 minutos** deixa de
+travar, porque não terminou nem vai terminar — sem isso, um tombo do Actions trancaria o
+botão para sempre. E o pedido barrado volta com **409 e a rodada em curso junto**, não com
+erro seco: a tela mostra o andamento do que já está rodando em vez de fingir que nada
+acontece.
+
+| Prova | Resultado |
+|---|---|
+| Só `atualizacao` é modo de botão | `levantamento` e `copia` recusados |
+| Leitura em andamento há 2 min | segura, e devolve a rodada em curso |
+| Rodada "rodando" há 45 min | deixa passar — abandonada, não ativa |
+| Duas atualizações em 30 s | a segunda espera |
+| Descanso aplicado a um modo pesado | não se aplica |
+| Horário do banco em 5 formatos | todos entendidos; lixo recusado |
+
+---
+
 ## Inventário da Fase 3
 
 | Arquivo | Hospedado | Rev |
@@ -1983,14 +2030,15 @@ mentira responde 400, como o de verdade responderia (**P-30**).
 | `baleryan/interno/modulos/trilogo/api.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/tipos.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/robo.go` | repo · **Render** | 1 |
-| `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/consulta.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/consulta_test.go` | repo | 1 |
 | `baleryan/cmd/robo/main.go` | repo · **Actions** | 2 |
-| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 6 |
+| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 7 |
 | `baleryan/interno/config/config.go` | repo · **Render** | 4 |
 | `baleryan/interno/banco/cliente.go` | repo · **Render** | 4 |
-| `.github/workflows/robo-trilogo.yml` | repo | 1 |
+| `.github/workflows/robo-trilogo.yml` | repo · **Actions** | 2 |
+| `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 2 |
+| `baleryan/interno/modulos/trilogo/rodar_test.go` | repo | 1 |
 
 ---
 
@@ -2003,7 +2051,8 @@ mentira responde 400, como o de verdade responderia (**P-30**).
 | ~~Rodar a cópia (1,2 GB)~~ | **feita** — 4.458 objetos, 1.167 MB |
 | **Aplicar a migração 009** | antes de a tela funcionar |
 | Telas do front (lista e ficha) | entrega 2 |
-| Robô de atualização aparecendo no front | entrega 3 |
+| Botão "Atualizar agora" na tela | entrega 3 — o motor já está pronto |
+| Conferir a primeira rodada agendada | o cron só começa a valer depois do push |
 | Conferir um horário do chamado 130328 no Trílogo | a vistoria está gravada às 04:26; se houver deslocamento de 3 h, é conserto no robô |
 | Quatro lojas no escopo sem nenhum chamado desde 01/07 | 34 de 38 têm chamado; conferir se é real ou leitura faltando |
 | Batizar os tipos de evento que vêm sem texto | quando aparecer um com conteúdo |
