@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **24/08/2026** · Rodada 26 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **24/08/2026** · Rodada 27 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1647,7 +1647,32 @@ não se usa só cria segredo de mentira no GitHub, que é pior que não ter.
 foi derrubada uma vez pelos robôs do Trílogo antigo; ligar um relógio sem o dono
 mandar seria repetir isso.
 
-### 3.6 Como foi conferido
+### 3.6 O login não era adivinhável
+
+A primeira rodada no Actions falhou com **400** logo no login. Não era senha
+errada: era o formato do envio.
+
+Os nomes óbvios — `email` e `password` — foram lidos pelo Trílogo e **ignorados**;
+ele respondeu *"Informe o email"*, ou seja, entendeu o JSON e não achou o campo.
+O nome verdadeiro estava no código do site: **`UserEmail`** e **`UserPassword`**.
+
+**Como foi descoberto sem arriscar a conta do dono:** sondando o endereço com um
+e-mail INVENTADO. Nenhuma tentativa errada entrou na conta real, e a resposta do
+servidor foi o guia — de *"Informe o email"* (formato errado) para *"Email ou
+senha incorretos"* (formato certo, credencial falsa).
+
+Duas coisas mudaram por causa disso:
+
+**A frase do Trílogo agora vai para o log.** Ele responde **400 nos dois casos** —
+pedido malformado e senha errada. Sem a frase, as duas falhas ficam idênticas, e
+alguém acaba trocando a senha certa achando que o problema é ela.
+
+**O Trílogo de mentira dos testes ficou exigente.** Ele só entende
+`UserEmail`/`UserPassword`, como o de verdade. Se um dia alguém "arrumar" esses
+nomes para os óbvios, o teste quebra na hora — em vez de a descoberta se repetir
+num log do Actions.
+
+### 3.7 Como foi conferido
 
 Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra eles:
 
@@ -1663,9 +1688,10 @@ Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra el
 | **Mesmo conteúdo por dois endereços** | **1 objeto no armazém, 2 aparições** |
 | Senha errada | erro legível, não "falha de rede" |
 | Sem credencial | recusa antes de tentar |
+| Nomes dos campos do login | `UserEmail`/`UserPassword`, travados por teste |
 | Assinatura do R2 | bate com a implementação em Python |
 
-Ao todo, **36 provas automáticas** no motor, e as duas telas de sempre: `go vet`
+Ao todo, **37 provas automáticas** no motor, e as duas telas de sempre: `go vet`
 limpo e os dois binários compilando.
 
 ---

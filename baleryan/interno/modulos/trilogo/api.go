@@ -1,4 +1,4 @@
-// rev 1 — a conversa com o Trílogo
+// rev 2 — a conversa com o Trílogo
 //
 // COMO ISTO FOI DESCOBERTO
 //
@@ -63,7 +63,13 @@ func Entrar(ctx context.Context, conta, email, senha string) (*Sessao, error) {
 			},
 		},
 	}
-	corpo, _ := json.Marshal(map[string]string{"email": email, "password": senha})
+	// OS NOMES DOS CAMPOS SÃO ESTES, E NÃO "email"/"password".
+	//
+	// Descoberto na marra: a primeira tentativa mandou os nomes óbvios e o Trílogo
+	// respondeu 400 "Informe o email" — ou seja, leu o JSON e não achou o campo.
+	// O nome verdadeiro estava no código do site: `UserEmail` / `UserPassword`.
+	// O primeiro nome é o que a tela usa por dentro; estes são os que viajam.
+	corpo, _ := json.Marshal(map[string]string{"UserEmail": email, "UserPassword": senha})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/Login/SignIn", bytes.NewReader(corpo))
 	if err != nil {
 		return nil, err
@@ -78,6 +84,16 @@ func Entrar(ctx context.Context, conta, email, senha string) (*Sessao, error) {
 	bruto, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 
 	if resp.StatusCode != http.StatusOK {
+		// O Trílogo responde 400 tanto para pedido malformado quanto para senha
+		// errada — o que muda é a FRASE. Sem ela no log, as duas falhas ficam
+		// idênticas, e a pessoa fica trocando a senha certa achando que é ela.
+		var m struct {
+			Message string `json:"message"`
+		}
+		json.Unmarshal(bruto, &m)
+		if m.Message != "" {
+			return nil, fmt.Errorf("conta %s: o Trílogo recusou o login (%d): %s", conta, resp.StatusCode, m.Message)
+		}
 		return nil, fmt.Errorf("conta %s: o Trílogo recusou o login (%d)", conta, resp.StatusCode)
 	}
 	var fora struct {

@@ -65,16 +65,30 @@ func novoMundo(t *testing.T) *mundo {
 	// --- Trílogo -----------------------------------------------------------
 	tri := http.NewServeMux()
 	tri.HandleFunc("POST /api/Login/SignIn", func(w http.ResponseWriter, r *http.Request) {
-		var c struct{ Email, Password string }
+		// Este Trílogo de mentira é EXIGENTE de propósito: ele só entende
+		// UserEmail/UserPassword, como o de verdade. Se alguém trocar os nomes no
+		// robô achando que "email/password" é mais bonito, os testes quebram na
+		// hora — em vez de a descoberta acontecer de novo num log do Actions.
+		var c struct {
+			UserEmail    string `json:"UserEmail"`
+			UserPassword string `json:"UserPassword"`
+		}
 		json.NewDecoder(r.Body).Decode(&c)
-		if c.Password != "certa" {
-			w.WriteHeader(401)
+		if c.UserEmail == "" {
+			w.WriteHeader(400)
+			w.Write([]byte(`{"message":"Informe o email"}`))
+			return
+		}
+		if c.UserPassword != "certa" {
+			// O Trílogo devolve 400, e não 401, também para senha errada.
+			w.WriteHeader(400)
+			w.Write([]byte(`{"message":"Email ou senha incorretos"}`))
 			return
 		}
 		m.mu.Lock()
-		m.logins = append(m.logins, c.Email)
+		m.logins = append(m.logins, c.UserEmail)
 		m.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]any{"accessToken": "tok-" + c.Email, "authenticated": true})
+		json.NewEncoder(w).Encode(map[string]any{"accessToken": "tok-" + c.UserEmail, "authenticated": true})
 	})
 	tri.HandleFunc("POST /api/Ticket/ListTicketsByUser", func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer tok-") {

@@ -247,6 +247,25 @@ func TestCredencialErradaFalaClaro(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "recusou o login") {
 		t.Fatalf("esperava erro de login legível, veio: %v", err)
 	}
+	// A FRASE do Trílogo tem que chegar ao log. Ele responde 400 tanto para
+	// pedido malformado quanto para senha errada; sem a frase, as duas falhas
+	// ficam iguais e a pessoa troca a senha certa achando que o problema é ela.
+	if !strings.Contains(err.Error(), "Email ou senha incorretos") {
+		t.Fatalf("faltou a explicação do Trílogo no erro: %v", err)
+	}
+}
+
+// O nome dos campos do login não é adivinhável, e errá-lo custou uma rodada
+// inteira do Actions. Este teste existe para não custar duas.
+func TestLoginMandaOsNomesCertos(t *testing.T) {
+	m := novoMundo(t)
+	m.chamado(1, 82, "", nil, nil)
+	if _, err := m.servico().Rodar(context.Background(), ModoLevantamento, cliente, "teste"); err != nil {
+		t.Fatalf("o login com UserEmail/UserPassword tinha que passar: %v", err)
+	}
+	if len(m.logins) != 2 {
+		t.Fatalf("esperava entrar nas duas contas, entrou em %d", len(m.logins))
+	}
 }
 
 func TestSemCredencialNaoTenta(t *testing.T) {
