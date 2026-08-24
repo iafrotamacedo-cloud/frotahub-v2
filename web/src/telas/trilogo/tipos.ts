@@ -1,4 +1,4 @@
-// rev 1 — o que a tela de Dados do Trílogo recebe do motor
+// rev 2 — o que as telas de Dados do Trílogo recebem do motor
 //
 // Os nomes são os do banco, sem tradução no meio do caminho: o que a consulta
 // devolve é o que a tela lê. Uma camada de renomeação aqui só criaria dois
@@ -117,4 +117,151 @@ export function quando(iso: string | null, comHora = true): string {
   const data = d.toLocaleDateString('pt-BR')
   if (!comHora) return data
   return data + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ---------------------------------------------------------------------------
+// A ficha de um chamado
+// ---------------------------------------------------------------------------
+
+export interface Evento {
+  quando: string
+  tipo: string
+  tipo_codigo: number | null
+  status: string
+  autor: string
+  texto: string
+}
+
+export interface Custo {
+  id: string
+  tipo: string
+  valor: string | number
+  numero_documento: string | null
+  empresa: string | null
+  criado_em: string | null
+}
+
+export interface Anexo {
+  id: string
+  colecao: string
+  nome: string
+  extensao: string
+  tamanho: number | null
+  tipo: string | null
+  autor: string | null
+  quando: string | null
+  copiar: boolean
+  custo_id: string | null
+  /** Onde a tela vai buscar o arquivo: no nosso armazém ou no Trílogo. */
+  onde: 'armazem' | 'trilogo'
+  link: string
+  vence_em?: number
+}
+
+export interface Ficha {
+  chamado: LinhaChamado & {
+    tipo?: string | null
+    natureza?: string | null
+    prestadora?: string | null
+    lido_em?: string | null
+  }
+  eventos: Evento[]
+  custos: Custo[]
+  anexos: Anexo[]
+}
+
+/** Um evento da linha do tempo, já pronto para desenhar. */
+export interface Passo {
+  quando: string
+  titulo: string
+  autor: string
+  texto: string
+  /** "13 anexos", "1 vídeo" — o que foi agrupado nesta linha. */
+  nota: string
+  /** Mudança de status ganha marca cheia; o resto, círculo vazio. */
+  marco: boolean
+}
+
+/**
+ * A linha do tempo como ela se lê.
+ *
+ * O Trílogo grava um evento por ANEXO. O chamado 130328 tem 33 eventos, e 13
+ * deles são o mesmo "anexo" no mesmo segundo da abertura: metade da linha do
+ * tempo é a mesma frase repetida. Aqui os anexos seguidos do mesmo autor, no
+ * mesmo minuto, viram uma linha só — "13 anexos enviados".
+ *
+ * O dado no banco continua inteiro; o agrupamento é de LEITURA. Quem for tirar
+ * métrica depois lê os 33.
+ */
+export function linhaDoTempo(eventos: Evento[]): Passo[] {
+  const passos: Passo[] = []
+  const contagem = new Map<Passo, number>()
+  const jaAberto = new Map<string, Passo>()
+
+  for (const e of eventos) {
+    if (e.tipo === 'anexo') {
+      // A chave é AUTOR + MINUTO, e a busca é pela linha já aberta com essa
+      // chave — não pela linha anterior. Os 13 anexos da abertura do 130328 têm
+      // o evento "Aberto" no meio deles; olhando só para a linha de trás, eles
+      // viravam três entradas ("1 arquivo", "Aberto", "11 arquivos") em vez de
+      // uma.
+      const chave = (e.autor || '') + '|' + (e.quando || '').slice(0, 16)
+      const linha = jaAberto.get(chave)
+      if (linha) {
+        const quantos = (contagem.get(linha) ?? 1) + 1
+        contagem.set(linha, quantos)
+        linha.nota = `${quantos} arquivos enviados`
+        continue
+      }
+      const nova: Passo = {
+        quando: e.quando, titulo: 'Anexos', autor: e.autor || '—',
+        texto: '', nota: '1 arquivo enviado', marco: false,
+      }
+      contagem.set(nova, 1)
+      jaAberto.set(chave, nova)
+      passos.push(nova)
+      continue
+    }
+
+    passos.push({
+      quando: e.quando,
+      titulo: tituloDoEvento(e),
+      autor: e.autor || '—',
+      texto: e.texto,
+      nota: '',
+      marco: e.tipo === 'status',
+    })
+  }
+  return passos
+}
+
+function tituloDoEvento(e: Evento): string {
+  // Mudança de status é o próprio status: "Executado" diz mais que "Status".
+  if (e.tipo === 'status') return e.status || 'Status'
+  switch (e.tipo) {
+    case 'prestadora': return 'Prestadora'
+    case 'responsavel': return 'Responsável'
+    case 'prioridade': return 'Prioridade'
+    case 'prazo': return 'Prazo'
+    case 'comentario': return 'Comentário'
+    default: return e.tipo || 'Evento'
+  }
+}
+
+/** Tamanho de arquivo do jeito que se fala. */
+export function tamanhoLegivel(bytes: number | null): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB'
+  return (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB'
+}
+
+export function ehImagem(a: Anexo): boolean {
+  return (a.tipo ?? '').startsWith('image/') ||
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].includes((a.extensao || '').toLowerCase())
+}
+
+export function ehVideo(a: Anexo): boolean {
+  return (a.tipo ?? '').startsWith('video/') ||
+    ['mp4', 'mov', 'avi', '3gp', 'm4v', 'mkv', 'wmv', 'webm'].includes((a.extensao || '').toLowerCase())
 }

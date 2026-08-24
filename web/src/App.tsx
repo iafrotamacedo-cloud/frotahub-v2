@@ -1,4 +1,4 @@
-// rev 6 — a casca do FrotaHub
+// rev 7 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -33,7 +33,7 @@ export default function App() {
   // O caminho aberto mora no ENDEREÇO, não na memória da página. É o que faz o
   // botão "voltar" do navegador voltar uma tela em vez de sair do sistema.
   // [] é o início; [Manutenção] é o bloco; [Manutenção, Serviços] é a rotina.
-  const { caminho, navegar: irPara } = useNavegacao(arvore)
+  const { caminho, extra, navegar: irPara } = useNavegacao(arvore)
 
   const [abertos, setAbertos] = useState<string[]>([])
 
@@ -59,8 +59,8 @@ export default function App() {
   const atual = caminho[caminho.length - 1]
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
-  function navegar(novo: ItemMenu[]) {
-    irPara(novo)
+  function navegar(novo: ItemMenu[], sobra: string[] = []) {
+    irPara(novo, sobra)
     setNavAberta(false)
     document.body.classList.remove('nav-aberta')
   }
@@ -202,7 +202,14 @@ export default function App() {
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
           ) : atual?.tela === 'trilogo-dados' ? (
-            <DadosTrilogo />
+            // O ticket aberto vem do ENDEREÇO, não de um estado escondido: é o
+            // que faz o voltar do navegador fechar a ficha em vez de sair do
+            // sistema, e faz um link para um chamado abrir aquele chamado.
+            <DadosTrilogo
+              ticket={extra[0]}
+              abrir={numero => navegar(caminho, [String(numero)])}
+              voltar={() => navegar(caminho)}
+            />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}

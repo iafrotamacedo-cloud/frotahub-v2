@@ -1,4 +1,4 @@
-// rev 1 — Dados do Trílogo: a lista
+// rev 2 — Dados do Trílogo: a lista e a ficha
 //
 // TUDO GIRA EM TORNO DO TICKET
 //   É por isso que a busca por número tem borda escura e vem primeiro, antes dos
@@ -13,11 +13,18 @@
 //
 // O QUE ESTA TELA NÃO FAZ
 //   Não altera nada. É uma janela para o que o robô trouxe. Editar chamado é no
-//   Trílogo, e continua sendo — o botão "Abrir no Trílogo" leva para lá.
+//   Trílogo, e continua sendo.
+//
+// A LISTA NÃO MORRE QUANDO A FICHA ABRE
+//   Ela fica montada, escondida. Se fosse desmontada, voltar da ficha jogaria a
+//   pessoa na página 1 sem filtro nenhum — depois de ela ter chegado à página 7
+//   filtrando por loja e por data. Ninguém merece refazer isso a cada chamado
+//   que abre (P-29).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { ajustarCelulas } from './encolher'
+import { FichaChamado } from './FichaChamado'
 import {
   SEM_FILTRO, classeDaPrioridade, classeDoStatus, contaPorExtenso, emReais, quando,
   type Escolhas, type Filtros, type Pagina, type Rodada,
@@ -27,10 +34,17 @@ import {
  *  uma resposta que nunca diz "completo" não pode virar laço infinito. */
 const LOTES_NO_MAXIMO = 60
 
-export function DadosTrilogo() {
+interface Props {
+  /** O ticket aberto, quando há um. Vem do endereço. */
+  ticket?: string
+  abrir: (numero: number) => void
+  voltar: () => void
+}
+
+export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
   const [filtros, setFiltros] = useState<Filtros | null>(null)
   const [escolhas, setEscolhas] = useState<Escolhas>(SEM_FILTRO)
-  const [ticket, setTicket] = useState('')
+  const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(100)
 
@@ -46,11 +60,11 @@ export function DadosTrilogo() {
   // Digitar não dispara uma consulta por tecla: espera a pessoa parar (CORE-01).
   useEffect(() => {
     const t = setTimeout(() => {
-      setEscolhas(e => (e.ticket === ticket.trim() ? e : { ...e, ticket: ticket.trim() }))
+      setEscolhas(e => (e.ticket === busca.trim() ? e : { ...e, ticket: busca.trim() }))
       setPagina(1)
     }, 350)
     return () => clearTimeout(t)
-  }, [ticket])
+  }, [busca])
 
   // As opções dos seletores vêm do próprio dado, uma vez só.
   useEffect(() => {
@@ -97,7 +111,10 @@ export function DadosTrilogo() {
 
   // O encolhimento roda depois do desenho, quando as colunas já têm largura, e de
   // novo quando a janela muda de tamanho.
-  useLayoutEffect(() => { ajustarCelulas(corpo.current) }, [dados])
+  // `ticket` entra nas dependências de propósito: com a ficha aberta a lista fica
+  // escondida, e escondida ela tem largura zero. Sem recalcular ao voltar, as
+  // colunas voltariam com o tamanho de letra medido contra o nada.
+  useLayoutEffect(() => { if (!ticket) ajustarCelulas(corpo.current) }, [dados, ticket])
   useEffect(() => {
     let t: number | undefined
     function aoRedimensionar() {
@@ -115,7 +132,7 @@ export function DadosTrilogo() {
 
   function limpar() {
     setEscolhas(SEM_FILTRO)
-    setTicket('')
+    setBusca('')
     setPagina(1)
   }
 
@@ -155,8 +172,28 @@ export function DadosTrilogo() {
     }
   }
 
+  // A posição do chamado aberto dentro da página, para o "‹ 18 de 100 ›".
+  const naPagina = dados?.linhas.findIndex(l => String(l.numero) === ticket) ?? -1
+  const vizinho = (passo: number) => {
+    const alvo = dados?.linhas[naPagina + passo]
+    return alvo ? () => abrir(alvo.numero) : undefined
+  }
+
   return (
     <>
+      {ticket && (
+        <FichaChamado
+          numero={ticket}
+          voltar={voltar}
+          anterior={naPagina > 0 ? vizinho(-1) : undefined}
+          proximo={naPagina >= 0 && naPagina < (dados?.linhas.length ?? 0) - 1 ? vizinho(1) : undefined}
+          posicao={naPagina >= 0
+            ? `${(dados!.pagina - 1) * dados!.por_pagina + naPagina + 1} de ${dados!.total.toLocaleString('pt-BR')}`
+            : undefined}
+        />
+      )}
+
+      <div hidden={!!ticket}>
       <header className="hero hero-linha">
         <div>
           <h1>Dados do Trílogo</h1>
@@ -183,8 +220,8 @@ export function DadosTrilogo() {
         <label className="tri-campo tri-ticket">
           <span>Ticket</span>
           <input
-            value={ticket}
-            onChange={e => setTicket(e.target.value)}
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
             placeholder="Buscar número do ticket..."
             inputMode="numeric"
           />
@@ -282,8 +319,25 @@ export function DadosTrilogo() {
               </thead>
               <tbody ref={corpo}>
                 {dados!.linhas.map(c => (
-                  <tr key={c.id}>
-                    <td className="c-ticket"><span className="tri-num">{c.numero}</span></td>
+                  <tr
+                    key={c.id}
+                    className="tri-linha"
+                    onClick={() => abrir(c.numero)}
+                    title={`Abrir o chamado ${c.numero}`}
+                  >
+                    <td className="c-ticket">
+                      {/* Botão de verdade dentro da célula: a linha inteira é
+                          clicável para o ponteiro, e o teclado tem por onde
+                          entrar. Um `onClick` no `tr` sozinho não é alcançável
+                          por quem navega com Tab. */}
+                      <button
+                        type="button"
+                        className="tri-num"
+                        onClick={e => { e.stopPropagation(); abrir(c.numero) }}
+                      >
+                        {c.numero}
+                      </button>
+                    </td>
                     <td className="c-loja" data-encolhe="loja" data-base="13" data-peso="400">
                       <span title={c.loja}>{c.loja}</span>
                     </td>
@@ -347,6 +401,7 @@ export function DadosTrilogo() {
           </div>
         </>
       )}
+      </div>
     </>
   )
 }

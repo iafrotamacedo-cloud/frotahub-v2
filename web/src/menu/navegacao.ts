@@ -1,4 +1,4 @@
-// rev 1 — o endereço do navegador é o lugar onde a pessoa está
+// rev 2 — o endereço do navegador é o lugar onde a pessoa está
 //
 // O PROBLEMA QUE ISTO RESOLVE
 //   Antes, a tela aberta vivia só na memória da página. O endereço nunca mudava,
@@ -30,6 +30,43 @@ export function caminhoParaEndereco(caminho: ItemMenu[]): string {
 }
 
 /**
+ * O que um endereço quer dizer: até onde ele anda no menu, e o que sobra depois.
+ *
+ * O QUE SOBRA
+ *   Uma rotina pode ter algo dentro dela — um chamado, uma nota, um pedido. Esse
+ *   algo não é item de menu, mas precisa caber no endereço, senão o botão voltar
+ *   do navegador sai da ficha direto para fora do sistema, e um link colado numa
+ *   conversa não abre o que deveria.
+ *
+ *   `#/manutencao/contrato-sao-luiz/dados-trilogo/130328`
+ *    └────────── caminho no menu ──────────┘ └ o que sobra
+ *
+ *   O resto só é aceito DEPOIS de uma tela de verdade. Assim um endereço
+ *   inventado no meio da árvore continua não resolvendo, em vez de virar um
+ *   caminho meio certo.
+ */
+export function lerEndereco(endereco: string, arvore: ItemMenu[]): { caminho: ItemMenu[]; extra: string[] } {
+  const partes = endereco.replace(/^#\/?/, '').split('/').filter(Boolean)
+  const caminho: ItemMenu[] = []
+  let nivel = arvore
+
+  for (let i = 0; i < partes.length; i++) {
+    const achado = nivel.find(item => item.rota === partes[i])
+    if (achado) {
+      caminho.push(achado)
+      nivel = achado.sub ?? []
+      continue
+    }
+    // Não é item de menu. Só vale como "o que sobra" se o último item já for uma
+    // tela construída.
+    const ultimo = caminho[caminho.length - 1]
+    if (ultimo?.tela) return { caminho, extra: partes.slice(i) }
+    return { caminho: [], extra: [] }
+  }
+  return { caminho, extra: [] }
+}
+
+/**
  * Lê o endereço e devolve o caminho correspondente DENTRO da árvore recebida.
  *
  * Como a árvore já vem filtrada pelo que este login alcança, um endereço para uma
@@ -37,17 +74,7 @@ export function caminhoParaEndereco(caminho: ItemMenu[]): string {
  * A proteção sai de graça: não é preciso conferir permissão outra vez aqui.
  */
 export function enderecoParaCaminho(endereco: string, arvore: ItemMenu[]): ItemMenu[] {
-  const partes = endereco.replace(/^#\/?/, '').split('/').filter(Boolean)
-  const caminho: ItemMenu[] = []
-  let nivel = arvore
-
-  for (const parte of partes) {
-    const achado = nivel.find(i => i.rota === parte)
-    if (!achado) return []
-    caminho.push(achado)
-    nivel = achado.sub ?? []
-  }
-  return caminho
+  return lerEndereco(endereco, arvore).caminho
 }
 
 /**
@@ -70,15 +97,15 @@ export function useNavegacao(arvore: ItemMenu[]) {
     return () => window.removeEventListener('hashchange', mudou)
   }, [])
 
-  const caminho = enderecoParaCaminho(endereco, arvore)
+  const { caminho, extra } = lerEndereco(endereco, arvore)
 
-  const navegar = useCallback((novo: ItemMenu[]) => {
-    const alvo = caminhoParaEndereco(novo)
+  const navegar = useCallback((novo: ItemMenu[], sobra: string[] = []) => {
+    const alvo = caminhoParaEndereco(novo) + (sobra.length ? '/' + sobra.join('/') : '')
     if (window.location.hash === alvo) return
     // Trocar o endereço é o que cria a entrada no histórico do navegador. O
     // `hashchange` volta para cá e atualiza a tela — um caminho só (CORE-06).
     window.location.hash = alvo
   }, [])
 
-  return { caminho, navegar }
+  return { caminho, extra, navegar }
 }
