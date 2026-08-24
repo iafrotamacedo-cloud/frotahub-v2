@@ -1,0 +1,63 @@
+name: Robô Trílogo
+# Lê os chamados das duas contas do Trílogo e grava no FrotaHub.
+#
+# É MANUAL, de propósito. Não tem agendamento: as duas passadas pesadas rodam uma
+# vez, no botão, e o dono decide quando. Quando quisermos a leitura diária, entra
+# um bloco `schedule` aqui — uma linha.
+#
+# MODOS
+#   levantamento — lê TUDO desde 01/07/2026 e grava chamado, timeline, custos e a
+#                  ficha de cada arquivo COM O TAMANHO, sem baixar nada. É a
+#                  passada que responde "quantos GB isto vai custar?".
+#   copia        — busca os bytes dos arquivos e manda para o R2.
+#   atualizacao  — só o que mudou desde a última rodada concluída.
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "O que fazer"
+        required: true
+        default: levantamento
+        type: choice
+        options: [levantamento, copia, atualizacao]
+
+# Duas rodadas ao mesmo tempo dariam trabalho repetido e log confuso.
+concurrency: robo-trilogo
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    # O levantamento leva minutos; a cópia dos vídeos pode levar horas.
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          # O motor não tem dependência externa nenhuma, então não existe go.sum
+          # para guardar em cache. Deixar ligado faria o passo falhar procurando
+          # um arquivo que nunca vai existir.
+          cache: false
+
+      - name: Rodar
+        working-directory: baleryan
+        env:
+          PAPEL: robo
+          MODO: ${{ github.event.inputs.modo }}
+          CLIENTE_SLUG: frota-macedo
+
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+          TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
+          TRILOGO_SENHA_INSTALACOES: ${{ secrets.TRILOGO_SENHA_INSTALACOES }}
+          TRILOGO_EMAIL_CIVIL: ${{ secrets.TRILOGO_EMAIL_CIVIL }}
+          TRILOGO_SENHA_CIVIL: ${{ secrets.TRILOGO_SENHA_CIVIL }}
+
+          # Só a cópia precisa destes. No levantamento eles podem faltar.
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: go run ./cmd/robo
