@@ -1,4 +1,4 @@
-// rev 2 — Dados do Trílogo: a lista e a ficha
+// rev 4 — Dados do Trílogo: a lista, a ficha e a extração
 //
 // TUDO GIRA EM TORNO DO TICKET
 //   É por isso que a busca por número tem borda escura e vem primeiro, antes dos
@@ -21,7 +21,7 @@
 //   filtrando por loja e por data. Ninguém merece refazer isso a cada chamado
 //   que abre (P-29).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { motor, ErroMotor } from '../../motor/cliente'
+import { motor, baixarDoMotor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { ajustarCelulas } from './encolher'
 import { FichaChamado } from './FichaChamado'
@@ -54,8 +54,10 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
 
   const [ultima, setUltima] = useState<string | null>(null)
   const [andamento, setAndamento] = useState<string | null>(null)
+  const [extraindo, setExtraindo] = useState<'pdf' | 'xlsx' | null>(null)
 
   const corpo = useRef<HTMLTableSectionElement>(null)
+  const painel = useRef<HTMLDivElement>(null)
 
   // Digitar não dispara uma consulta por tecla: espera a pessoa parar (CORE-01).
   useEffect(() => {
@@ -78,7 +80,11 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
   const verUltimaLeitura = useCallback(() => {
     motor<{ rodadas: Rodada[] }>('/robos/trilogo/rodadas')
       .then(r => {
-        const feita = r.rodadas.find(x => x.situacao === 'concluida' && x.terminou_em)
+        // A cópia de arquivos NÃO é uma leitura do Trílogo: ela move bytes que já
+        // tinham sido lidos. Contar a cópia aqui fazia o carimbo mostrar a hora
+        // errada — foi o que apareceu na primeira vez que a tela subiu.
+        const feita = r.rodadas.find(x =>
+          x.situacao === 'concluida' && !!x.terminou_em && x.modo !== 'copia')
         setUltima(feita?.terminou_em ?? null)
       })
       .catch(() => { /* o carimbo é informação a mais; a falta dele não atrapalha */ })
@@ -86,19 +92,33 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
 
   useEffect(() => { verUltimaLeitura() }, [verUltimaLeitura])
 
-  const carregar = useCallback(async () => {
-    setErro(null)
-    const p = new URLSearchParams({ pagina: String(pagina), por_pagina: String(porPagina) })
+  /**
+   * Os filtros viram endereço aqui, e só aqui.
+   *
+   * A lista e a extração usam ESTA função. Se cada uma montasse os seus, bastava
+   * corrigir um lado e esquecer o outro para o arquivo sair com um conteúdo
+   * diferente do que está na tela — e ninguém perceberia (CORE-06).
+   */
+  const paramsDoFiltro = useCallback(() => {
+    const p = new URLSearchParams()
     for (const [chave, valor] of Object.entries(escolhas)) {
       if (valor) p.set(chave, valor)
     }
+    return p
+  }, [escolhas])
+
+  const carregar = useCallback(async () => {
+    setErro(null)
+    const p = paramsDoFiltro()
+    p.set('pagina', String(pagina))
+    p.set('por_pagina', String(porPagina))
     try {
       setDados(await motor<Pagina>(`/trilogo/chamados?${p}`))
     } catch (e) {
       setDados(null)
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar os chamados.')
     }
-  }, [escolhas, pagina, porPagina])
+  }, [paramsDoFiltro, pagina, porPagina])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -108,6 +128,41 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
   useEffect(() => {
     if (dados && dados.pagina !== pagina) setPagina(dados.pagina)
   }, [dados, pagina])
+
+  /**
+   * A ÁREA DA TABELA TERMINA ONDE A JANELA TERMINA
+   *
+   * Antes, a barra de rolagem lateral ficava no fim da LISTA: com 100 linhas —
+   * ou 500 — ela nascia a três telas de distância, e para ver a coluna da
+   * direita era preciso descer até o fim, rolar de lado e subir de volta.
+   *
+   * Agora o painel tem a altura do que sobra da janela, e rola por dentro. A
+   * barra lateral fica sempre na borda de baixo do campo de visão, e o cabeçalho
+   * da tabela fica grudado no topo enquanto se rola.
+   *
+   * A altura é MEDIDA, não chutada: a faixa de filtros muda de altura conforme a
+   * janela, e um número fixo estaria errado na maioria das telas.
+   */
+  useLayoutEffect(() => {
+    function ajustar() {
+      const el = painel.current
+      if (!el) return
+      // Tudo que fica ABAIXO do painel é medido, não estimado: a linha de
+      // paginação e o respiro do rodapé da página. Com número fixo, a página
+      // inteira ganhava uma rolagem de alguns pixels — e aí a barra lateral da
+      // tabela deixava de estar exatamente na borda de baixo da janela, que é o
+      // ponto todo desta conta.
+      const topo = el.getBoundingClientRect().top
+      const paginacao = el.parentElement?.querySelector('.tri-rodape') as HTMLElement | null
+      const conteudo = el.closest('.content') as HTMLElement | null
+      const abaixo = (paginacao ? paginacao.getBoundingClientRect().height + 12 : 52)
+        + (conteudo ? parseFloat(getComputedStyle(conteudo).paddingBottom || '24') : 24)
+      el.style.maxHeight = Math.max(240, window.innerHeight - topo - abaixo) + 'px'
+    }
+    ajustar()
+    window.addEventListener('resize', ajustar)
+    return () => window.removeEventListener('resize', ajustar)
+  }, [dados, ticket, filtros])
 
   // O encolhimento roda depois do desenho, quando as colunas já têm largura, e de
   // novo quando a janela muda de tamanho.
@@ -179,6 +234,24 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
     return alvo ? () => abrir(alvo.numero) : undefined
   }
 
+  /**
+   * A extração obedece ao FILTRO, não à página.
+   *
+   * Quem filtrou 340 chamados e está vendo a página 1 quer os 340 no arquivo. Por
+   * isso `pagina` e `por_pagina` não entram: só os filtros.
+   */
+  async function extrair(formato: 'pdf' | 'xlsx') {
+    setExtraindo(formato)
+    setErro(null)
+    try {
+      await baixarDoMotor(`/trilogo/chamados.${formato}?${paramsDoFiltro()}`)
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui gerar o arquivo.')
+    } finally {
+      setExtraindo(null)
+    }
+  }
+
   return (
     <>
       {ticket && (
@@ -194,21 +267,8 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
       )}
 
       <div hidden={!!ticket}>
-      <header className="hero hero-linha">
-        <div>
-          <h1>Dados do Trílogo</h1>
-          <p>Os chamados do contrato, como o robô os trouxe.</p>
-        </div>
-        <div className="tri-acoes">
-          <span className="tri-carimbo">
-            Última leitura: <b>{ultima ? quando(ultima) : '—'}</b>
-          </span>
-          <button className="bt bt-neutro" type="button" disabled={!!andamento} onClick={() => void atualizar()}>
-            {andamento ?? 'Atualizar agora'}
-          </button>
-        </div>
-      </header>
-
+      {/* Sem faixa de título aqui: o cabeçalho da página já diz "Dados do
+          Trílogo", e repetir logo abaixo só empurrava a tabela para baixo. */}
       {recado && (
         <div className="recado" role="status">
           {recado}
@@ -278,6 +338,36 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
         {filtrando && (
           <button type="button" className="tri-limpar" onClick={limpar}>Limpar filtros</button>
         )}
+
+        {/* Encostados à direita, na mesma linha das datas. */}
+        <div className="tri-canto">
+          {/* O menu abre no repouso do ponteiro — e também com o teclado, pelo
+              foco, senão só existe para quem usa mouse. */}
+          <div className="tri-extrair">
+            <button className="bt bt-neutro" type="button" disabled={!!extraindo}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3v11" /><path d="m7.5 10 4.5 4.5 4.5-4.5" /><path d="M4 20h16" />
+              </svg>
+              {extraindo ? 'Gerando...' : 'Extrair'}
+            </button>
+            <div className="tri-opcoes" role="menu">
+              <button type="button" role="menuitem" onClick={() => void extrair('pdf')} disabled={!!extraindo}>
+                <b>PDF</b><span>para imprimir ou enviar</span>
+              </button>
+              <button type="button" role="menuitem" onClick={() => void extrair('xlsx')} disabled={!!extraindo}>
+                <b>Excel</b><span>para somar e ordenar</span>
+              </button>
+            </div>
+          </div>
+
+          <span className="tri-carimbo">
+            Última leitura: <b>{ultima ? quando(ultima) : '—'}</b>
+          </span>
+          <button className="bt bt-neutro" type="button" disabled={!!andamento} onClick={() => void atualizar()}>
+            {andamento ?? 'Atualizar agora'}
+          </button>
+        </div>
       </div>
 
       {dados && !erro && (
@@ -300,7 +390,7 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
         </div>
       ) : (
         <>
-          <div className="tabela-rolo">
+          <div className="tabela-rolo tri-painel" ref={painel}>
             <table className="tabela tri-tabela">
               <thead>
                 <tr>

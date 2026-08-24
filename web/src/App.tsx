@@ -1,4 +1,4 @@
-// rev 7 — a casca do FrotaHub
+// rev 8 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -46,6 +46,16 @@ export default function App() {
     if (grupoAberto) setAbertos(a => (a.includes(grupoAberto) ? a : [...a, grupoAberto]))
   }, [grupoAberto])
   const [navAberta, setNavAberta] = useState(false)
+
+  // A barra lateral recolhida é uma escolha da pessoa, e ela não deve ter que
+  // refazer essa escolha a cada visita. Fica no próprio navegador — é preferência
+  // de quem está ali, não dado de sistema.
+  const [recolhida, setRecolhida] = useState(() => {
+    try { return localStorage.getItem('fh-menu-recolhido') === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('fh-menu-recolhido', recolhida ? '1' : '0') } catch { /* navegador sem armazenamento: só não lembra */ }
+  }, [recolhida])
   const [expirou, setExpirou] = useState(false)
 
   // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
@@ -86,8 +96,23 @@ export default function App() {
   }
 
   return (
-    <div className="lay">
+    <div className={'lay' + (recolhida ? ' recolhida' : '')}>
       <div className="sd-back" onClick={alternarNav} />
+
+      {/* O puxador vive FORA da barra: recolhida, a barra some, e ele precisa
+          continuar ali para trazê-la de volta. */}
+      <button
+        className="sd-puxador"
+        type="button"
+        onClick={() => setRecolhida(r => !r)}
+        title={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
+        aria-label={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1"
+             strokeLinecap="round" strokeLinejoin="round">
+          <path d={recolhida ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} />
+        </svg>
+      </button>
 
       <aside className="side">
         <div className="sd-topo">
@@ -170,7 +195,9 @@ export default function App() {
           </div>
         </header>
 
-        <main className="content">
+        {/* A tela de chamados é uma tabela larga: nela o limite de leitura
+            confortável atrapalha mais do que ajuda. */}
+        <main className={'content' + (atual?.tela === 'trilogo-dados' ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
           ) : atual?.sub?.length ? (

@@ -1,4 +1,4 @@
-// rev 1 — a conversa do front com o baleryan
+// rev 2 — a conversa do front com o baleryan
 //
 // Existe para que nenhuma tela precise saber montar cabeçalho, achar o token da
 // sessão ou traduzir erro. Tela chama `motor(...)` e recebe o resultado ou uma
@@ -73,4 +73,64 @@ export async function motor<T>(caminho: string, opcoes: Opcoes = {}): Promise<T>
 export function avisoDe(resposta: unknown): string | null {
   const a = (resposta as { aviso?: string } | null)?.aviso
   return a ?? null
+}
+
+/**
+ * Baixa um arquivo gerado pelo motor.
+ *
+ * POR QUE NÃO É UM LINK DIRETO
+ *   Um `<a href="...">` não carrega o cabeçalho de autorização, e a saída fácil
+ *   seria pendurar o token no endereço. Token em endereço vai parar no histórico
+ *   do navegador, no log do servidor e no primeiro link que alguém colar numa
+ *   conversa (CORE-09).
+ *
+ *   Então o arquivo é buscado como qualquer outra chamada, com o cabeçalho, e
+ *   entregue ao navegador como um endereço temporário que vive na memória e
+ *   morre em seguida.
+ */
+export async function baixarDoMotor(caminho: string): Promise<void> {
+  if (!BASE) {
+    throw new ErroMotor(0, 'O endereço do motor não foi configurado nesta publicação (VITE_MOTOR_URL).')
+  }
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new ErroMotor(401, 'A sua sessão expirou. Entre de novo.')
+
+  let resposta: Response
+  try {
+    resposta = await fetch(BASE + caminho, { headers: { Authorization: `Bearer ${token}` } })
+  } catch {
+    throw new ErroMotor(0, 'Não consegui falar com o servidor. Confira a conexão e tente de novo.')
+  }
+
+  if (!resposta.ok) {
+    // Quando dá errado, o motor responde JSON — e a mensagem dele é escrita
+    // para ser lida (P-18).
+    let msg = 'Não consegui gerar o arquivo.'
+    try { msg = (JSON.parse(await resposta.text()) as { erro?: string }).erro || msg } catch { /* corpo não era JSON */ }
+    throw new ErroMotor(resposta.status, msg)
+  }
+
+  const nome = nomeDoCabecalho(resposta.headers.get('Content-Disposition')) ?? 'extracao'
+  const blob = await resposta.blob()
+  const endereco = URL.createObjectURL(blob)
+  try {
+    const a = document.createElement('a')
+    a.href = endereco
+    a.download = nome
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } finally {
+    // Sem isto o arquivo fica preso na memória da aba até ela fechar.
+    setTimeout(() => URL.revokeObjectURL(endereco), 1000)
+  }
+}
+
+function nomeDoCabecalho(cabecalho: string | null): string | null {
+  if (!cabecalho) return null
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(cabecalho)
+  if (utf8) { try { return decodeURIComponent(utf8[1]) } catch { /* segue para o simples */ } }
+  const simples = /filename="?([^";]+)"?/i.exec(cabecalho)
+  return simples ? simples[1] : null
 }

@@ -1,4 +1,4 @@
-/* rev 1 — a casca: barra lateral fixa + área de trabalho */
+/* rev 2 — a casca: barra lateral fixa + área de trabalho */
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body,#raiz{margin:0;height:100%}
@@ -113,6 +113,25 @@ aside ::-webkit-scrollbar-thumb{background:#3d3234;border-color:var(--side-bg)}
 .crumb{color:var(--mut);font-size:11.5px;margin:0 0 1px}
 .titulo{font-size:16.5px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
 .content{flex:1;padding:24px 24px 48px;max-width:1240px;width:100%;margin:0 auto}
+/* Tela de tabela larga: sem o teto de leitura, que aqui só rouba coluna. */
+.content-largo{max-width:none}
+
+/* ---------- barra lateral que recolhe ---------- */
+/* Recolhida ela não fica estreita: ela SOME. Uma faixa de ícones sem texto
+   obriga a decorar o que cada desenho quer dizer, e decorar é justamente o que
+   não se pede de quem opera (P-29). Fica só a seta, e ela traz tudo de volta. */
+.side{transition:width var(--transicao),flex-basis var(--transicao)}
+.lay.recolhida .side{width:0;flex-basis:0;overflow:hidden;border-right:0}
+.sd-puxador{
+  position:fixed;top:66px;left:255px;z-index:41;
+  width:26px;height:26px;border-radius:50%;cursor:pointer;
+  background:var(--card);border:1px solid var(--line);box-shadow:var(--sh-2);
+  color:var(--gray);display:flex;align-items:center;justify-content:center;
+  transition:left var(--transicao),color var(--transicao),border-color var(--transicao);
+}
+.sd-puxador svg{width:13px;height:13px}
+.sd-puxador:hover{color:var(--red);border-color:var(--red)}
+.lay.recolhida .sd-puxador{left:12px}
 
 /* ---------- home ---------- */
 .hero{margin:2px 0 22px}
@@ -206,6 +225,9 @@ aside ::-webkit-scrollbar-thumb{background:#3d3234;border-color:var(--side-bg)}
 /* ---------- celular ---------- */
 .sd-back{display:none}
 @media (max-width:900px){
+  /* No celular a barra já é uma gaveta: o puxador não tem função, e atrapalharia. */
+  .sd-puxador{display:none}
+  .lay.recolhida .side{width:268px;flex-basis:268px}
   .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform var(--transicao)}
   body.nav-aberta .side{transform:none}
   body.nav-aberta .sd-back{display:block;position:fixed;inset:0;background:rgba(20,14,15,.5);z-index:39}

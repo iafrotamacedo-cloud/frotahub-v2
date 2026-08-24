@@ -1,4 +1,4 @@
-// rev 1 — as peças comuns de toda rota HTTP
+// rev 2 — as peças comuns de toda rota HTTP
 //
 // Respostas em JSON, erro traduzido para uma frase que o usuário entende, e CORS.
 // Toda rota do motor passa por aqui — não existe rota escrevendo cabeçalho na mão.
@@ -56,6 +56,9 @@ func CORS(cfg *config.Config, proximo http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Robot-Key, X-Pin")
+		// Sem esta linha o navegador ESCONDE do front o nome do arquivo que o
+		// motor mandou, e a extração chega com o nome do endereço.
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 

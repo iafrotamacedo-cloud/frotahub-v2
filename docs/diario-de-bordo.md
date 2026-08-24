@@ -2018,6 +2018,189 @@ acontece.
 
 ---
 
+### 3.19 As telas
+
+Desenhadas e **aprovadas como imagem antes de existir código** (3.13). Construídas em
+duas entregas: a lista e a ficha.
+
+**A lista.** Busca por ticket com borda escura e primeiro lugar na faixa — quem chega
+nesta tela quase sempre chega com um número na mão; os filtros servem para quando NÃO se
+sabe o número. Loja, status, conta, prioridade e intervalo de data completam. Página de
+100, com 250 e 500 à escolha, e navegação de primeira/anterior/próxima/última mais
+"página X de Y".
+
+O tamanho da página vem do navegador, e o que vem do navegador se confere: só 100, 250 e
+500 passam. `?por_pagina=999999` vira 100 — não por malícia esperada, basta alguém brincar
+com o endereço.
+
+**A ficha.** Uma folha A4 de pé, medida no navegador: **792 × 1121 px**. Primeira linha de
+1,2 cm, segunda de 1,0 cm, na ordem que o dono definiu. A linha do tempo fica à direita, em
+altura cheia, **rolando por dentro** — é o que mantém a ficha em UMA folha tendo o chamado
+5 ou 80 eventos. No 130328 ela tem 1.481 px de conteúdo em 933 px de espaço.
+
+O vídeo não finge ser foto: como não foi copiado (3.10), ele aparece como um cartão escuro
+com "ver no Trílogo", em vez de uma miniatura que não abre.
+
+**O ticket aberto mora no endereço**, e não num estado escondido:
+
+    #/manutencao/contrato-sao-luiz/dados-trilogo/130328
+
+O `navegacao.ts` aprendeu que uma rotina pode ter algo dentro dela, e só aceita esse resto
+DEPOIS de uma tela de verdade — assim um endereço inventado no meio da árvore continua não
+resolvendo, em vez de virar um caminho meio certo. Com isso o voltar do navegador fecha a
+ficha, e um link para um chamado abre aquele chamado.
+
+**O menu passou a filtrar por rotina.** `arvoreVisivel` recebe as rotinas do login, lidas
+direto do banco junto com o perfil — e não pelo motor, senão o menu só apareceria depois de
+o Render acordar. Quem não alcança `CONTRATO_TRILOGO_DADOS` não vê o item; o builder passa
+sempre.
+
+---
+
+### 3.20 A letra que diminui sozinha, sem travar a tela
+
+O pedido: "onde o texto for grande, você diminui a letra automaticamente, para não quebrar
+linhas."
+
+O caminho óbvio é um laço — escreve, mede o elemento, se passou diminui um pouco e mede de
+novo. Funciona em vinte linhas e **trava em quinhentas**: cada leitura de `scrollWidth`
+obriga o navegador a refazer o layout ali mesmo, e seriam mais de dez mil recálculos numa
+troca de página.
+
+A saída veio de uma propriedade da tipografia: a largura de um texto é **proporcional** ao
+tamanho da letra, na mesma fonte. Então mede-se UMA vez, num `canvas` — que não toca no
+layout — e divide:
+
+    tamanho = base × (largura disponível ÷ largura medida)
+
+Uma conta por célula, nenhum recálculo. A largura da coluna também é lida uma vez por
+COLUNA, e não por célula: todas as células de uma coluna têm a mesma largura.
+
+Com a tela aberta, o piso mudou. Em 8,6px, uma descrição de 240 caracteres virava um borrão
+— e ainda assim não cabia. O piso subiu para **10,5px**, que dá conta do texto que quase
+cabia (o caso que o pedido tinha em mente), e o que passa muito disso ganha reticências,
+com o texto inteiro no repouso do ponteiro e completo na ficha.
+
+---
+
+### 3.21 O que só apareceu com a tela aberta
+
+Cinco defeitos passaram por `tsc --noEmit` e por `vite build` sem uma reclamação, e caíram
+na primeira vez que a tela foi aberta num navegador (**P-26**). Ficam registrados porque
+todos são de uma família só: coisa que compila não é coisa que funciona.
+
+**1. Um seletor largo demais quebrou três colunas.** A regra das reticências estava escrita
+como `.tri-tabela td > span`. Só que os pinos de status e prioridade TAMBÉM são spans dentro
+de uma célula. Viraram blocos da largura da coluna, com o texto cortado: "Em execuç...",
+"Mé...", "Instalaçõ...". O conserto foi estreitar o alcance para `td[data-encolhe] > span`.
+Virou **P-32**.
+
+**2. O agrupamento dos anexos, olhando para o lugar errado.** Anexos seguidos viravam uma
+linha só — mas os 13 anexos da abertura do 130328 têm o evento "Aberto" NO MEIO deles.
+Olhando só para a linha anterior, saíam três entradas: "1 arquivo", "Aberto", "11
+arquivos". Passou a agrupar por autor + minuto, procurando a linha já aberta com aquela
+chave. Agora é uma linha só: "12 arquivos enviados".
+
+**3. A tabela escondida mede zero.** A lista fica montada por trás da ficha, para o voltar
+não custar os filtros e a página (**P-33**). Só que escondida ela tem largura zero — e sem
+recalcular o encolhimento AO VOLTAR, as colunas voltariam com o tamanho de letra medido
+contra o nada.
+
+**4. A segunda data caindo sozinha** para a linha de baixo, deixando o "até" órfão. As duas
+viraram um bloco que não quebra no meio: são um filtro só.
+
+**5. Larguras de coluna erradas** — "22/08/2026 15:4", o cabeçalho ANEXOS cortado. Refeitas
+medindo o texto real na tela, e não estimando.
+
+| Prova | Resultado |
+|---|---|
+| Compilação e verificação de tipos | limpas |
+| Console do navegador | **nenhum erro** |
+| Medida da folha | **792 × 1121 px** — A4 |
+| 30 eventos brutos | viram **19 linhas** legíveis |
+| Linha do tempo | rola por dentro: 1.481 px em 933 px |
+| Miniaturas | 19 — 16 fotos e 3 vídeos |
+| Encolhimento aplicado | 13px → 10,5px, com reticências no que sobra |
+| Foto em tela cheia | abre, anda com as setas, fecha com Esc |
+
+---
+
+### 3.22 A extração: PDF e Excel escritos à mão
+
+Pedido do dono: um botão que, no repouso do ponteiro, oferece as duas saídas — e a
+extração obedece ao **filtro**, não à página. Quem filtrou 340 chamados e está vendo a
+página 1 leva os 340.
+
+**Por que escrito à mão.** As duas bibliotecas que resolveriam isto sozinhas trazem,
+juntas, mais código que o FrotaHub inteiro, e uma delas passaria a decidir como o nosso
+documento se parece. Um `.xlsx` é um zip de XML, e `archive/zip` e `encoding/xml` já vêm
+com o Go. Um PDF é uma lista de objetos com uma tabela de posições no fim, e as suas
+catorze fontes padrão dispensam embutir arquivo de fonte. Nenhum dos dois é difícil; os
+dois são detalhistas. O motor continua com **zero dependência externa**.
+
+**Uma tabela, dois formatos.** Quem chama monta a tabela uma vez e pede o formato. A regra
+do que entra no relatório mora num lugar só (**CORE-06**) — coluna nova nasce na tabela e
+aparece nos dois. No papel saem menos colunas: onze não cabem numa folha sem virar letra
+de bula.
+
+**O que a planilha entrega.** Data e dinheiro vão como **número**, não como texto — é a
+diferença entre uma planilha que se ordena e uma que só se olha. Vem com o cabeçalho
+congelado e o filtro do Excel já ligado.
+
+**O teto, e o barulho que ele faz.** A extração para em 5.000 linhas. Quando o teto morde,
+o documento **diz** que mordeu, em vermelho no rodapé: *"Mostrando as primeiras 5.000 de
+12.340 — refine o filtro"*. Corte silencioso é pior que corte, porque quem lê acha que está
+vendo tudo.
+
+**O token não vai no endereço.** Um `<a href>` não carrega cabeçalho de autorização, e a
+saída fácil seria pendurar o token na URL — onde ele acaba no histórico do navegador, no
+log do servidor e no primeiro link colado numa conversa (**CORE-09**). O arquivo é buscado
+como qualquer outra chamada e entregue ao navegador por um endereço temporário que morre em
+seguida.
+
+---
+
+### 3.23 Vinte e seis minutos de diferença
+
+Os testes do gerador de planilha passavam. O arquivo abria. E a data estava **errada em 26
+minutos**: onde o sistema mostrava 12:45, o Excel mostrava 13:11.
+
+O número de série que o Excel usa é a quantidade de dias desde 30/12/1899. A conta parecia
+óbvia: leva a data para o fuso da casa e subtrai aquela origem, no mesmo fuso. Só que **em
+1899 Fortaleza não estava em UTC−3**: estava no horário do meridiano local, UTC−2:34. A
+subtração carregava essa diferença de 26 minutos para dentro do resultado.
+
+Um erro assim não aparece em teste que compara o código consigo mesmo — os dois lados usam
+a mesma conta errada. Ele apareceu ao **abrir o arquivo com um leitor de planilha de
+verdade**, que devolveu o horário como um `datetime` e denunciou a diferença.
+
+O conserto foi contar como as pessoas leem: dia, hora e minuto no fuso da casa, e a
+contagem de dias feita entre duas datas no mesmo fuso neutro. O teste passou a exigir o
+número **na casa do minuto** — o anterior aceitava qualquer coisa que começasse com
+`46256.5`, e meia hora de erro cabia ali dentro.
+
+Virou **P-34**.
+
+| Prova | Resultado |
+|---|---|
+| Planilha aberta por leitor independente | abre; aba, dimensões e formatos corretos |
+| Data na planilha | `datetime` de verdade, **22/08/2026 12:45** |
+| Dinheiro na planilha | número, formato `#,##0.00` |
+| Cabeçalho congelado e filtro | ligados |
+| Caractere de controle e `& < >` no texto | limpos e escapados; o arquivo abre |
+| Colunas além de Z | A, Z, AA, AB, AZ, BA |
+| PDF por leitor independente | 3 folhas para 80 linhas |
+| Tabela de posições do PDF | cada posição cai no começo do objeto que promete |
+| Acento no PDF | vira WinAnsi; fora do alfabeto vira `?`, não byte inválido |
+| Corte de texto | corta antes de invadir a coluna vizinha |
+| Moeda | 1.234,50 · 1.234.567,89 · -12,30 |
+
+*(Uma pegadinha que este último teste cobrou de si mesmo: as posições do PDF são gravadas
+com zeros à esquerda, e `fmt.Sscan` lê `0000000015` como **octal** — 13. A leitura tem que
+dizer a base, senão o teste acusa um defeito que não existe.)*
+
+---
+
 ## Inventário da Fase 3
 
 | Arquivo | Hospedado | Rev |
@@ -2030,13 +2213,29 @@ acontece.
 | `baleryan/interno/modulos/trilogo/api.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/tipos.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/robo.go` | repo · **Render** | 1 |
-| `baleryan/interno/modulos/trilogo/consulta.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/consulta.go` | repo · **Render** | 2 |
 | `baleryan/interno/modulos/trilogo/consulta_test.go` | repo | 1 |
 | `baleryan/cmd/robo/main.go` | repo · **Actions** | 2 |
 | `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 7 |
 | `baleryan/interno/config/config.go` | repo · **Render** | 4 |
 | `baleryan/interno/banco/cliente.go` | repo · **Render** | 4 |
+| `baleryan/interno/relatorio/relatorio.go` | repo · **Render** | 1 |
+| `baleryan/interno/relatorio/planilha.go` | repo · **Render** | 1 |
+| `baleryan/interno/relatorio/pdf.go` | repo · **Render** | 1 |
+| `baleryan/interno/relatorio/fuso.go` | repo · **Render** | 1 |
+| `baleryan/interno/web/web.go` | repo · **Render** | 2 |
+| `web/src/motor/cliente.ts` | repo · **HostGator** | 2 |
+| `web/src/estilos/base.css` | repo · **HostGator** | 2 |
 | `.github/workflows/robo-trilogo.yml` | repo · **Actions** | 2 |
+| `web/src/telas/trilogo/DadosTrilogo.tsx` | repo · **HostGator** | 4 |
+| `web/src/telas/trilogo/FichaChamado.tsx` | repo · **HostGator** | 1 |
+| `web/src/telas/trilogo/tipos.ts` | repo · **HostGator** | 2 |
+| `web/src/telas/trilogo/encolher.ts` | repo · **HostGator** | 1 |
+| `web/src/estilos/trilogo.css` | repo · **HostGator** | 4 |
+| `web/src/menu/navegacao.ts` | repo · **HostGator** | 2 |
+| `web/src/menu/arvore.ts` | repo · **HostGator** | 6 |
+| `web/src/sessao/useSessao.ts` | repo · **HostGator** | 4 |
+| `web/src/App.tsx` | repo · **HostGator** | 8 |
 | `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 2 |
 | `baleryan/interno/modulos/trilogo/rodar_test.go` | repo | 1 |
 
@@ -2338,6 +2537,27 @@ por dedução e davam 211 ms em 1.377 linhas. O plano mostrou por quê — o ban
 soma de custos das 1.377 para jogar 877 fora. Índice com o filtro primeiro e a ordenação
 depois deixou o mesmo pedido em 8,4 ms, e o custo passou a ser o tamanho da página, não o
 tamanho da tabela.*
+
+**P-34 — Arquivo gerado se abre com o programa que vai abri-lo.**
+Planilha, PDF, documento: antes de entregar, o arquivo é aberto por um leitor
+independente — não pelo próprio código que o escreveu. *Origem: o gerador de planilha
+passava nos testes e produzia datas 26 minutos adiantadas. Os dois lados usavam a mesma
+conta errada, então concordavam. Um leitor de planilha de verdade devolveu o horário e
+denunciou a diferença na primeira olhada.*
+
+**P-32 — Regra de estilo nasce no menor alcance possível.**
+Antes de escrever um seletor amplo, pergunta-se o que MAIS ele alcança. *Origem: a regra
+das reticências da tabela de chamados foi escrita como `td > span` e pegou junto os pinos
+de status, de prioridade e de conta — que também são spans. Três colunas com o texto
+cortado, e a compilação sem uma reclamação. Com `td[data-encolhe] > span`, o alcance é
+exatamente o pretendido.*
+
+**P-33 — Voltar não custa o caminho andado.**
+Sair de uma tela e voltar devolve a pessoa onde ela estava: mesma página, mesmos filtros,
+mesma busca. *Origem: a ficha do chamado abre por cima da lista. Desmontar a lista era o
+caminho simples — e jogaria a pessoa na página 1 sem filtro depois de ela ter chegado à
+página 7 filtrando por loja e por data, a cada chamado aberto. A lista ficou montada,
+escondida; o preço foi lembrar que elemento escondido mede zero, e recalcular ao voltar.*
 
 ## Operação
 

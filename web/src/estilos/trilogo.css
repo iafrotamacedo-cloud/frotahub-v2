@@ -1,10 +1,10 @@
-/* rev 2 — Dados do Trílogo
+/* rev 4 — Dados do Trílogo
    Só o que é próprio desta tela. Tabela, botão, aviso e pino vêm do telas.css:
    a identidade é a mesma em todo lugar (P-19), e uma tela que traz o próprio
    visual é o começo de dois sistemas dentro do mesmo sistema. */
 
-/* ---------- cabeçalho: carimbo + botão ---------- */
-.tri-acoes{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* ---------- carimbo + botão, encostados à direita da faixa de filtros ---------- */
+.tri-canto{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
 .tri-carimbo{
   font-size:12px;color:var(--gray);background:var(--card);
   border:1px solid var(--line);border-radius:var(--r-s);padding:6px 10px;white-space:nowrap;
@@ -49,6 +49,18 @@
 .tri-resumo{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.2px;color:var(--gray)}
 .tri-resumo b{color:var(--ink);font-weight:700}
 .tri-pt{width:3px;height:3px;border-radius:50%;background:var(--mut);display:inline-block}
+
+/* ---------- o painel: termina onde a janela termina ---------- */
+/* A altura vem do JavaScript, medida (ver DadosTrilogo.tsx). Aqui só o que é
+   estilo: rolar nos dois sentidos e o cabeçalho grudado no topo — sem ele,
+   descer 300 linhas é perder de vista o nome das colunas. */
+.tri-painel{overflow:auto}
+.tri-painel thead th{position:sticky;top:0;z-index:2;background:#F6F7F9}
+/* O canto de cima à esquerda do cabeçalho encobre a rolagem horizontal; sem
+   isto, a primeira coluna aparece por baixo do cabeçalho ao rolar de lado. */
+.tri-painel thead th::after{
+  content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--line);
+}
 
 /* ---------- a tabela ---------- */
 /* Mais apertada que a tabela padrão: aqui são até 500 linhas na tela, e cada
@@ -333,3 +345,30 @@ button.tri-num:hover{color:var(--red);text-decoration:underline}
   .fi-esquerda{flex:1 1 auto}
   .fi-tempo{max-height:420px}
 }
+
+/* ---------- extrair: um botão, duas saídas ---------- */
+/* O menu abre no repouso do ponteiro e também no foco do teclado. Sem o segundo,
+   a extração existiria só para quem usa mouse. */
+.tri-extrair{position:relative}
+.tri-extrair .bt{display:inline-flex;align-items:center;gap:7px}
+.tri-extrair .bt svg{width:13px;height:13px}
+.tri-opcoes{
+  position:absolute;top:100%;right:0;z-index:20;min-width:196px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-s);
+  box-shadow:var(--sh-2);padding:4px;
+  opacity:0;visibility:hidden;transform:translateY(-4px);
+  transition:opacity var(--transicao),transform var(--transicao),visibility var(--transicao);
+}
+/* Sem espaço entre o botão e o menu: uma folga de 1px aqui faria o menu fechar
+   no caminho do ponteiro até ele. */
+.tri-extrair:hover .tri-opcoes,
+.tri-extrair:focus-within .tri-opcoes{opacity:1;visibility:visible;transform:none}
+.tri-opcoes button{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;
+  background:none;border:0;border-radius:6px;padding:7px 10px;cursor:pointer;
+  font-family:var(--f);text-align:left;
+}
+.tri-opcoes button:hover:not(:disabled){background:var(--red-050)}
+.tri-opcoes button:disabled{opacity:.5;cursor:default}
+.tri-opcoes b{font-size:12.5px;font-weight:650;color:var(--ink)}
+.tri-opcoes span{font-size:10.5px;color:var(--mut)}

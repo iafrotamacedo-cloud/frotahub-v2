@@ -26,6 +26,7 @@ import (
 	"html"
 	"math"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/relatorio"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
@@ -58,6 +60,14 @@ const porPaginaPadrao = 100
 // vazar, vazou uma janela de cinco minutos, e não o arquivo para sempre.
 const ValidadeDoLink = 5 * time.Minute
 
+// TetoDaExtracao — o máximo de linhas que sai num arquivo.
+//
+// Não é medo do volume: são 1.377 chamados hoje. É que um PDF de 50 mil linhas
+// são 1.500 folhas que ninguém vai ler, geradas com o motor parado esperando.
+// Quando o teto morde, o documento DIZ que mordeu — corte silencioso é pior que
+// corte, porque quem lê acha que está vendo tudo.
+const TetoDaExtracao = 5000
+
 type Consulta struct {
 	bd   *banco.Cliente
 	seg  *seguranca.Servico
@@ -73,6 +83,8 @@ func (c *Consulta) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /trilogo/filtros", c.filtros)
 	mux.HandleFunc("GET /trilogo/chamados", c.lista)
 	mux.HandleFunc("GET /trilogo/chamados/{numero}", c.ficha)
+	mux.HandleFunc("GET /trilogo/chamados.xlsx", c.extrairPlanilha)
+	mux.HandleFunc("GET /trilogo/chamados.pdf", c.extrairPDF)
 }
 
 // quem confere login e permissão, nessa ordem, e devolve nil se barrou (já tendo
@@ -468,4 +480,238 @@ func ordenado(m map[string]bool) []string {
 		}
 	}
 	return saida
+}
+
+// ---------------------------------------------------------------------------
+// GET /trilogo/chamados.xlsx e .pdf — a extração
+// ---------------------------------------------------------------------------
+
+func (c *Consulta) extrairPlanilha(w http.ResponseWriter, r *http.Request) {
+	tab, ok := c.montarRelatorio(w, r)
+	if !ok {
+		return
+	}
+	bytes, err := tab.Planilha()
+	if err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar a planilha.")
+		return
+	}
+	entregar(w, bytes, "chamados-trilogo", "xlsx",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+}
+
+func (c *Consulta) extrairPDF(w http.ResponseWriter, r *http.Request) {
+	tab, ok := c.montarRelatorio(w, r)
+	if !ok {
+		return
+	}
+	// No papel, onze colunas não cabem numa folha sem virar letra de bula. Saem
+	// as que se lê de relance; o resto está na planilha e na ficha.
+	tab.Colunas = append(tab.Colunas[:0:0], colunasDoPDF...)
+	enxutas := make([][]any, 0, len(tab.Linhas))
+	for _, l := range tab.Linhas {
+		enxutas = append(enxutas, []any{l[0], l[1], l[2], l[3], l[4], l[5], l[7], l[9]})
+	}
+	tab.Linhas = enxutas
+
+	bytes, err := tab.PDF()
+	if err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar o PDF.")
+		return
+	}
+	entregar(w, bytes, "chamados-trilogo", "pdf", "application/pdf")
+}
+
+// As colunas da planilha: tudo que a lista mostra.
+var colunasDaPlanilha = []relatorio.Coluna{
+	{Titulo: "Ticket", Peso: 7, Tipo: relatorio.Numero},
+	{Titulo: "Loja", Peso: 16, Tipo: relatorio.Texto},
+	{Titulo: "Conta", Peso: 8, Tipo: relatorio.Texto},
+	{Titulo: "Status", Peso: 9, Tipo: relatorio.Texto},
+	{Titulo: "Prioridade", Peso: 8, Tipo: relatorio.Texto},
+	{Titulo: "Descrição", Peso: 40, Tipo: relatorio.Texto},
+	{Titulo: "Ambiente", Peso: 26, Tipo: relatorio.Texto},
+	{Titulo: "Criado em", Peso: 11, Tipo: relatorio.DataHora},
+	{Titulo: "Prazo", Peso: 9, Tipo: relatorio.Data},
+	{Titulo: "Responsável", Peso: 12, Tipo: relatorio.Texto},
+	{Titulo: "Custo", Peso: 9, Tipo: relatorio.Dinheiro},
+	{Titulo: "Anexos", Peso: 7, Tipo: relatorio.Numero},
+}
+
+// As do papel: as mesmas, menos ambiente, prazo, responsável e anexos.
+var colunasDoPDF = []relatorio.Coluna{
+	{Titulo: "Ticket", Peso: 6, Tipo: relatorio.Numero},
+	{Titulo: "Loja", Peso: 15, Tipo: relatorio.Texto},
+	{Titulo: "Conta", Peso: 8, Tipo: relatorio.Texto},
+	{Titulo: "Status", Peso: 9, Tipo: relatorio.Texto},
+	{Titulo: "Prioridade", Peso: 8, Tipo: relatorio.Texto},
+	{Titulo: "Descrição", Peso: 35, Tipo: relatorio.Texto},
+	{Titulo: "Criado em", Peso: 11, Tipo: relatorio.DataHora},
+	{Titulo: "Custo", Peso: 8, Tipo: relatorio.Dinheiro},
+}
+
+type linhaExtracao struct {
+	Numero      int     `json:"numero"`
+	Loja        string  `json:"loja"`
+	Conta       string  `json:"conta"`
+	Status      string  `json:"status"`
+	Prioridade  string  `json:"prioridade"`
+	Descricao   *string `json:"descricao"`
+	Ambiente    *string `json:"ambiente"`
+	CriadoEm    string  `json:"criado_em"`
+	Prazo       *string `json:"prazo"`
+	Responsavel *string `json:"responsavel"`
+	CustoTotal  string  `json:"custo_total"`
+	Anexos      int     `json:"anexos"`
+}
+
+func (c *Consulta) montarRelatorio(w http.ResponseWriter, r *http.Request) (relatorio.Tabela, bool) {
+	p := c.quem(w, r)
+	if p == nil {
+		return relatorio.Tabela{}, false
+	}
+	filtro, err := c.montarFiltro(p.ClienteID, r.URL.Query())
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return relatorio.Tabela{}, false
+	}
+
+	linhas := []linhaExtracao{}
+	caminho := fmt.Sprintf("chamados_lista?%s&select=*&order=criado_em.desc,numero.desc&limit=%d",
+		filtro, TetoDaExtracao)
+	total, err := c.bd.BuscarContando(r.Context(), caminho, &linhas)
+	if err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar os chamados para a extração.")
+		return relatorio.Tabela{}, false
+	}
+
+	tab := relatorio.Tabela{
+		Titulo:    "Dados do Trílogo — chamados",
+		Subtitulo: descreverFiltro(r.URL.Query(), linhas),
+		Colunas:   colunasDaPlanilha,
+		Gerado:    time.Now(),
+	}
+	for _, l := range linhas {
+		tab.Linhas = append(tab.Linhas, []any{
+			l.Numero, l.Loja, contaPorExtenso(l.Conta), l.Status, ouTraco(l.Prioridade),
+			texto(l.Descricao), texto(l.Ambiente),
+			instanteDoBanco(l.CriadoEm), instanteDoBanco(texto(l.Prazo)),
+			texto(l.Responsavel), l.CustoTotal, l.Anexos,
+		})
+	}
+	if total > len(linhas) {
+		tab.Aviso = fmt.Sprintf("Mostrando as primeiras %s de %s — refine o filtro",
+			comPonto(len(linhas)), comPonto(total))
+	}
+	return tab, true
+}
+
+// entregar manda o arquivo com o nome já pronto.
+//
+// O nome do arquivo vai no cabeçalho, e o cabeçalho precisa estar EXPOSTO no
+// CORS para o navegador deixar o front lê-lo — senão o arquivo chega com o nome
+// do endereço, que é feio e não diz nada.
+func entregar(w http.ResponseWriter, corpo []byte, base, extensao, tipo string) {
+	nome := fmt.Sprintf("%s-%s.%s", base, time.Now().In(relatorio.FusoDaCasa()).Format("2006-01-02"), extensao)
+	w.Header().Set("Content-Type", tipo)
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+nome+"\"; filename*=UTF-8''"+url.PathEscape(nome))
+	w.Header().Set("Content-Length", strconv.Itoa(len(corpo)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(corpo)
+}
+
+// descreverFiltro escreve, em português, o que foi filtrado — para o documento
+// dizer de si mesmo do que ele trata. Um relatório sem essa linha é um monte de
+// linhas sem contexto três semanas depois.
+func descreverFiltro(q url.Values, linhas []linhaExtracao) string {
+	var partes []string
+	if t := somenteDigitos(q.Get("ticket")); t != "" {
+		partes = append(partes, "Ticket "+t)
+	}
+	if q.Get("loja") != "" && len(linhas) > 0 {
+		partes = append(partes, "Loja: "+linhas[0].Loja)
+	}
+	if v := q.Get("status"); v != "" {
+		partes = append(partes, "Status: "+v)
+	}
+	if v := q.Get("conta"); v != "" {
+		partes = append(partes, "Conta: "+contaPorExtenso(v))
+	}
+	if v := q.Get("prioridade"); v != "" {
+		if strings.EqualFold(v, "sem") {
+			partes = append(partes, "Sem prioridade")
+		} else {
+			partes = append(partes, "Prioridade: "+v)
+		}
+	}
+	de, ate := q.Get("de"), q.Get("ate")
+	switch {
+	case de != "" && ate != "":
+		partes = append(partes, "Criados de "+diaBonito(de)+" a "+diaBonito(ate))
+	case de != "":
+		partes = append(partes, "Criados a partir de "+diaBonito(de))
+	case ate != "":
+		partes = append(partes, "Criados até "+diaBonito(ate))
+	}
+	if len(partes) == 0 {
+		return "Todos os chamados da base"
+	}
+	return strings.Join(partes, " · ")
+}
+
+func contaPorExtenso(c string) string {
+	switch c {
+	case "instalacoes":
+		return "Instalações"
+	case "civil":
+		return "Civil"
+	}
+	return c
+}
+
+func texto(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func ouTraco(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
+}
+
+// instanteDoBanco entende tanto o carimbo completo quanto uma data seca. O nome
+// é comprido de propósito: `instante` já existe no rotas.go, deste mesmo módulo.
+func instanteDoBanco(s string) any {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	for _, f := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02"} {
+		if t, err := time.Parse(f, s); err == nil {
+			return t
+		}
+	}
+	return nil
+}
+
+func diaBonito(s string) string {
+	if t, err := time.Parse("2006-01-02", strings.TrimSpace(s)); err == nil {
+		return t.Format("02/01/2006")
+	}
+	return s
+}
+
+// comPonto escreve 1377 como 1.377.
+func comPonto(n int) string {
+	s := strconv.Itoa(n)
+	var partes []string
+	for len(s) > 3 {
+		partes = append([]string{s[len(s)-3:]}, partes...)
+		s = s[:len(s)-3]
+	}
+	return strings.Join(append([]string{s}, partes...), ".")
 }
