@@ -177,6 +177,16 @@ func novoMundo(t *testing.T) *mundo {
 		var linhas []map[string]any
 		bruto, _ := io.ReadAll(r.Body)
 		json.Unmarshal(bruto, &linhas)
+
+		// O PostgREST de verdade RECUSA o lote inteiro quando as linhas não têm
+		// exatamente as mesmas chaves. Este de mentira faz igual — foi assim que
+		// a primeira carga morreu, depois de ler 1.050 chamados: um chamado sem
+		// ambiente tinha uma chave a menos que os outros.
+		if chaves := chavesDiferentes(linhas); chaves != "" {
+			w.WriteHeader(400)
+			w.Write([]byte(`{"code":"PGRST102","message":"All object keys must match","details":"` + chaves + `"}`))
+			return
+		}
 		m.registrar(tabela, linhas)
 
 		fora := make([]map[string]any, 0, len(linhas))
@@ -263,4 +273,26 @@ func (m *mundo) chamado(numero, unidade int, criado string, anexos []map[string]
 		"attachments":         anexos,
 		"activity":            map[string]any{"histories": eventos},
 	}
+}
+
+// chavesDiferentes devolve a descrição do problema, ou vazio se está tudo certo.
+func chavesDiferentes(linhas []map[string]any) string {
+	if len(linhas) < 2 {
+		return ""
+	}
+	molde := map[string]bool{}
+	for k := range linhas[0] {
+		molde[k] = true
+	}
+	for i, l := range linhas[1:] {
+		if len(l) != len(molde) {
+			return "linha " + itoa(i+1) + " tem " + itoa(len(l)) + " chaves, a primeira tem " + itoa(len(molde))
+		}
+		for k := range l {
+			if !molde[k] {
+				return "linha " + itoa(i+1) + " tem a chave " + k + ", que a primeira não tem"
+			}
+		}
+	}
+	return ""
 }

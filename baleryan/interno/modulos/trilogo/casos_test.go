@@ -305,3 +305,64 @@ func shaDe(linhas []map[string]any) string {
 	s, _ := linhas[0]["sha256"].(string)
 	return s
 }
+
+// A primeira carga de verdade morreu aqui, depois de ler 1.050 chamados: um
+// chamado sem ambiente gerava uma linha com uma chave a menos, e o PostgREST
+// recusa o LOTE INTEIRO nesse caso. Este teste mistura chamados completos e
+// incompletos de propósito.
+func TestChamadosDesiguaisNaoQuebramOLote(t *testing.T) {
+	m := novoMundo(t)
+
+	// completo
+	m.chamado(1, 82, "", []map[string]any{
+		{"id": 1, "fileName": "a.jpg", "image": m.arquivo.URL + "/a.jpg", "author": "Fulano", "authorId": 7},
+	}, nil)
+	m.conteudo[m.arquivo.URL+"/a.jpg"] = []byte("aa")
+
+	// pelado: sem ambiente, sem tipo predial, sem quem criou, sem anexo
+	m.chamado(2, 82, "", nil, nil)
+	delete(m.detalhes[2], "department")
+	delete(m.detalhes[2], "buildingServiceType")
+	delete(m.detalhes[2], "creator")
+
+	// com orçamento, que na tabela de anexos tem custo e não tem autor
+	m.chamado(3, 82, "", []map[string]any{
+		{"id": 9, "fileName": "b.jpg", "image": m.arquivo.URL + "/b.jpg", "author": "Beltrano", "authorId": 8},
+	}, nil)
+	m.conteudo[m.arquivo.URL+"/b.jpg"] = []byte("bb")
+	m.custos[3] = []map[string]any{{
+		"id": 55, "type": 2, "totalValue": 10.0,
+		"invoiceFiles": []map[string]any{{"id": 77, "fileName": "tmpx.pdf", "permalink": m.arquivo.URL + "/o.pdf"}},
+	}}
+	m.conteudo[m.arquivo.URL+"/o.pdf"] = []byte("pp")
+
+	if _, err := m.servico().Rodar(context.Background(), ModoLevantamento, cliente, "teste"); err != nil {
+		t.Fatalf("o lote misturado tinha que passar: %v", err)
+	}
+	if len(m.linhas("chamados")) < 3 {
+		t.Fatalf("esperava os três chamados, vieram %d", len(m.linhas("chamados")))
+	}
+	// e o chamado pelado não pode ter inventado valor nenhum
+	for _, l := range m.linhas("chamados") {
+		if l["numero"] == float64(2) {
+			for _, campo := range []string{"ambiente", "tipo_predial", "criado_por"} {
+				if l[campo] != nil {
+					t.Errorf("o chamado sem %s tinha que gravar nulo, gravou %v", campo, l[campo])
+				}
+			}
+		}
+	}
+	// foto e orçamento convivem no mesmo lote de anexos
+	var temFoto, temOrc bool
+	for _, f := range m.linhas("chamado_anexos") {
+		if f["colecao"] == "anexo" {
+			temFoto = true
+		}
+		if f["colecao"] == "orcamento" {
+			temOrc = true
+		}
+	}
+	if !temFoto || !temOrc {
+		t.Fatalf("esperava foto e orçamento no mesmo lote: foto=%v orcamento=%v", temFoto, temOrc)
+	}
+}

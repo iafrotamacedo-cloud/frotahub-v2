@@ -369,16 +369,46 @@ func (s *Servico) garantirUnidades(ctx context.Context, clienteID string, cols [
 }
 
 func (s *Servico) gravarChamados(ctx context.Context, clienteID, conta string, cols []*colhido, unidades map[int]string) (map[int]string, error) {
+	// TODAS as linhas do envio precisam ter EXATAMENTE as mesmas chaves.
+	//
+	// Não é preciosismo meu: o PostgREST recusa o lote inteiro com
+	// "All object keys must match" se uma linha tiver um campo que outra não tem.
+	// Montar o mapa condicionalmente — "se tem ambiente, acrescenta ambiente" —
+	// parece natural e quebra na primeira linha sem ambiente. Já quebrou.
+	//
+	// Por isso todo campo entra SEMPRE, valendo nulo quando não existe.
 	linhas := make([]map[string]any, 0, len(cols))
 	for _, c := range cols {
 		if c == nil {
 			continue
 		}
 		d := c.detalhe
-		l := map[string]any{
+
+		var unidadeID, ambiente, ambienteID, tipoPredial any
+		var criadoPor, criadoPorID, responsavel any
+		if id, ok := unidades[d.Company.ID]; ok {
+			unidadeID = id
+		}
+		if d.Department != nil {
+			ambiente = d.Department.FullAddress
+			ambienteID = nuloSeZero(d.Department.ID)
+		}
+		if d.BuildingServiceType != nil {
+			tipoPredial = d.BuildingServiceType.Name
+		}
+		if d.Creator != nil {
+			criadoPor = d.Creator.Name
+			criadoPorID = nuloSeZero(d.Creator.ID)
+		}
+		if d.ServiceCompanyAssignee != nil {
+			responsavel = d.ServiceCompanyAssignee.Name
+		}
+
+		linhas = append(linhas, map[string]any{
 			"cliente_id": clienteID,
 			"numero":     d.ID,
 			"conta":      conta,
+			"unidade_id": unidadeID,
 			"descricao":  strings.TrimSpace(d.Description),
 
 			"status_codigo":     d.Status,
@@ -389,6 +419,12 @@ func (s *Servico) gravarChamados(ctx context.Context, clienteID, conta string, c
 			"tipo":              RotuloTipo(d.Type),
 
 			"natureza":        d.Nature,
+			"tipo_predial":    tipoPredial,
+			"ambiente":        ambiente,
+			"ambiente_id":     ambienteID,
+			"criado_por":      criadoPor,
+			"criado_por_id":   criadoPorID,
+			"responsavel":     responsavel,
 			"prestadora":      d.ServiceCompany.Name,
 			"prestadora_cnpj": d.ServiceCompany.CNPJ,
 
@@ -399,25 +435,7 @@ func (s *Servico) gravarChamados(ctx context.Context, clienteID, conta string, c
 			"concluido_em":  nulo(d.DateOfLastConclusion),
 			"prazo":         dataNula(d.DeadlineDate),
 			"lido_em":       time.Now().UTC().Format(time.RFC3339),
-		}
-		if id, ok := unidades[d.Company.ID]; ok {
-			l["unidade_id"] = id
-		}
-		if d.Department != nil {
-			l["ambiente"] = d.Department.FullAddress
-			l["ambiente_id"] = d.Department.ID
-		}
-		if d.BuildingServiceType != nil {
-			l["tipo_predial"] = d.BuildingServiceType.Name
-		}
-		if d.Creator != nil {
-			l["criado_por"] = d.Creator.Name
-			l["criado_por_id"] = d.Creator.ID
-		}
-		if d.ServiceCompanyAssignee != nil {
-			l["responsavel"] = d.ServiceCompanyAssignee.Name
-		}
-		linhas = append(linhas, l)
+		})
 	}
 	if len(linhas) == 0 {
 		return map[int]string{}, nil
@@ -553,21 +571,38 @@ func (s *Servico) gravarFichas(ctx context.Context, cols []*colhido, ids map[int
 	return nil
 }
 
+// ficha monta UMA aparição de arquivo.
+//
+// Mesma regra dos chamados: todas as chaves em todas as linhas, sempre. Uma foto
+// tem autor e não tem custo; um orçamento tem custo e não tem autor — e o
+// PostgREST recusa o lote se os dois não tiverem o mesmo formato.
 func (s *Servico) ficha(c *colhido, chamadoID, colecao string, idTrilogo int, nome, url, custoID string, extra map[string]any) map[string]any {
+	var tamanho, tipo any
+	if m, ok := c.medidas[url]; ok {
+		if n, err := strconv.ParseInt(m[0], 10, 64); err == nil && n > 0 {
+			tamanho = n
+		}
+		if m[1] != "" {
+			tipo = m[1]
+		}
+	}
 	f := map[string]any{
-		"chamado_id": chamadoID, "colecao": colecao, "id_trilogo": idTrilogo,
-		"nome": nome, "extensao": Extensao(nome), "url_origem": url,
+		"chamado_id": chamadoID,
+		"colecao":    colecao,
+		"id_trilogo": idTrilogo,
+		"custo_id":   nil,
+		"nome":       nome,
+		"extensao":   Extensao(nome),
+		"url_origem": url,
+		"tamanho":    tamanho,
+		"tipo":       tipo,
+		"autor":      nil,
+		"autor_id":   nil,
+		"quando":     nil,
+		"origem":     "trilogo",
 	}
 	if custoID != "" {
 		f["custo_id"] = custoID
-	}
-	if m, ok := c.medidas[url]; ok {
-		if n, err := strconv.ParseInt(m[0], 10, 64); err == nil && n > 0 {
-			f["tamanho"] = n
-		}
-		if m[1] != "" {
-			f["tipo"] = m[1]
-		}
 	}
 	for k, v := range extra {
 		f[k] = v

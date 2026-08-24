@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **24/08/2026** · Rodada 27 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **24/08/2026** · Rodada 28 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1672,7 +1672,35 @@ alguém acaba trocando a senha certa achando que o problema é ela.
 nomes para os óbvios, o teste quebra na hora — em vez de a descoberta se repetir
 num log do Actions.
 
-### 3.7 Como foi conferido
+### 3.7 O lote que o banco recusou inteiro
+
+A segunda rodada foi mais longe: **entrou nas duas contas e leu 1.050 chamados em
+23 segundos**. Morreu na hora de gravar.
+
+```
+banco respondeu 400: {"code":"PGRST102","message":"All object keys must match"}
+```
+
+**O que é.** O PostgREST recusa o **lote inteiro** quando as linhas não têm
+exatamente as mesmas chaves. E o código montava cada linha do jeito que parece
+natural: *"se o chamado tem ambiente, acrescenta o ambiente"*. Chamado sem
+ambiente gerava uma linha com uma chave a menos — e derrubava os outros 49 do lote
+junto.
+
+**A correção.** Todo campo entra **sempre**, valendo nulo quando não existe. Vale
+para chamados e para as fichas de arquivo, onde o problema é ainda mais claro: uma
+foto tem autor e não tem custo; um orçamento tem custo e não tem autor.
+
+**A lição, que virou prática.** Nas duas falhas seguidas — o nome dos campos do
+login e agora este — os testes passavam, porque o dublê era mais tolerante que o
+original. Um Trílogo de mentira que aceita qualquer nome de campo e um banco de
+mentira que aceita qualquer formato não testam nada: apenas confirmam que o código
+faz o que o código faz.
+
+Os dois dublês ficaram exigentes. Recolocando o defeito de propósito, o teste
+falha com **a mesma mensagem que o Actions deu** (**P-30**).
+
+### 3.8 Como foi conferido
 
 Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra eles:
 
@@ -1689,9 +1717,10 @@ Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra el
 | Senha errada | erro legível, não "falha de rede" |
 | Sem credencial | recusa antes de tentar |
 | Nomes dos campos do login | `UserEmail`/`UserPassword`, travados por teste |
+| Lote com chamados completos e pelados juntos | passa; o pelado grava nulo, não inventa |
 | Assinatura do R2 | bate com a implementação em Python |
 
-Ao todo, **37 provas automáticas** no motor, e as duas telas de sempre: `go vet`
+Ao todo, **38 provas automáticas** no motor, e as duas telas de sempre: `go vet`
 limpo e os dois binários compilando.
 
 ---
@@ -1982,6 +2011,13 @@ dar a medida do que falta.
 
 **P-19 — A identidade da casa é a mesma em todo lugar.**
 Sem biblioteca de componentes com visual próprio.
+
+**P-30 — O dublê do teste é tão exigente quanto o original.**
+Servidor de mentira que aceita o que o de verdade recusa não testa nada: confirma que
+o código faz o que o código faz. *Origem: duas cargas seguidas morreram no GitHub
+Actions — o nome dos campos do login e o formato do lote — com os testes verdes.
+Agora, recolocando cada defeito, o teste falha com a MESMA mensagem que o servidor
+de verdade deu.*
 
 **P-29 — Facilidade de operação é requisito, não acabamento.**
 Toda tela, mensagem e fluxo é desenhada a partir de quem vai usar: menos passos na tarefa
