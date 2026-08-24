@@ -1,4 +1,4 @@
-// rev 1 — o armazém: enviar arquivo para o Cloudflare R2
+// rev 2 — o armazém: enviar arquivo para o Cloudflare R2, e deixar ver de volta
 //
 // O R2 fala o mesmo protocolo do S3 da Amazon, e a assinatura desse protocolo
 // (Signature V4) está escrita aqui à mão. São umas cem linhas de HMAC — contra
@@ -13,6 +13,15 @@
 //
 //	O nome original não se perde: fica na tabela de aparições, junto de quem
 //	subiu e quando.
+//
+// COMO A FOTO CHEGA NA TELA SEM O BALDE SER PÚBLICO
+//
+//	O balde não tem acesso público, e não vai ter (CORE-07). Para a tela mostrar
+//	uma foto, o motor assina um endereço temporário — a assinatura vai na própria
+//	URL e vence em minutos. Passou o prazo, o mesmo endereço devolve erro.
+//
+//	É exatamente o contrário do que o sistema antigo faz, onde o endereço do
+//	arquivo é público, não vence nunca e vale para quem quer que o tenha recebido.
 package armazem
 
 import (
@@ -23,6 +32,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +132,73 @@ func (c *Cliente) Enviar(ctx context.Context, chave string, corpo io.ReadSeeker,
 	return nil
 }
 
+// LinkTemporario devolve um endereço assinado que abre o objeto e vence sozinho.
+//
+// A diferença para o Enviar é onde a assinatura viaja: lá, num cabeçalho; aqui,
+// dentro da própria URL — é o que permite jogar o endereço num <img> e o
+// navegador buscar sozinho, sem saber de chave nenhuma. O segredo NUNCA sai do
+// motor (CORE-09): o que sai é uma assinatura que só serve para este objeto e
+// só durante este prazo.
+//
+// O corpo não é assinado (UNSIGNED-PAYLOAD): numa leitura não existe corpo.
+func (c *Cliente) LinkTemporario(chave string, validade time.Duration) (string, error) {
+	return c.linkEm(chave, validade, time.Now().UTC())
+}
+
+// linkEm é o LinkTemporario com o relógio por fora. Existe para o teste poder
+// fixar o instante e comparar a assinatura com uma implementação independente —
+// uma assinatura que só a si mesma confirma não prova nada.
+func (c *Cliente) linkEm(chave string, validade time.Duration, agora time.Time) (string, error) {
+	if !c.Ligado() {
+		return "", fmt.Errorf("o armazém não está configurado (R2_*)")
+	}
+	segundos := int(validade.Seconds())
+	switch {
+	case segundos < 1:
+		segundos = 1
+	case segundos > 7*24*3600: // o teto do protocolo é uma semana
+		segundos = 7 * 24 * 3600
+	}
+
+	agora = agora.UTC()
+	carimbo := agora.Format("20060102T150405Z")
+	dia := agora.Format("20060102")
+	alvo := c.base()
+	host := strings.TrimPrefix(strings.TrimPrefix(alvo, "https://"), "http://")
+	caminho := "/" + c.cfg.R2.Bucket + "/" + escaparCaminho(chave)
+	escopo := dia + "/" + regiao + "/" + servico + "/aws4_request"
+
+	// A ordem dos parâmetros na consulta canônica é alfabética, e cada valor vai
+	// codificado. A barra dentro do Credential vira %2F — se ficar barra crua, a
+	// assinatura fecha aqui e o servidor recusa lá, sem dizer por quê.
+	partes := []string{
+		"X-Amz-Algorithm=AWS4-HMAC-SHA256",
+		"X-Amz-Credential=" + escaparValor(c.cfg.R2.ChaveID+"/"+escopo),
+		"X-Amz-Date=" + carimbo,
+		"X-Amz-Expires=" + strconv.Itoa(segundos),
+		"X-Amz-SignedHeaders=host",
+	}
+	sort.Strings(partes)
+	consulta := strings.Join(partes, "&")
+
+	canonica := strings.Join([]string{
+		http.MethodGet,
+		caminho,
+		consulta,
+		"host:" + host,
+		"",
+		"host",
+		"UNSIGNED-PAYLOAD",
+	}, "\n")
+
+	paraAssinar := strings.Join([]string{
+		"AWS4-HMAC-SHA256", carimbo, escopo, resumo(canonica),
+	}, "\n")
+
+	assinatura := hex.EncodeToString(hmacRaw(c.chaveDoDia(dia), paraAssinar))
+	return alvo + caminho + "?" + consulta + "&X-Amz-Signature=" + assinatura, nil
+}
+
 // ---------------------------------------------------------------------------
 // Assinatura V4
 //
@@ -156,18 +234,24 @@ func (c *Cliente) assinar(dia, carimbo, host, caminho, tipo, sha string) string 
 		resumo(canonica),
 	}, "\n")
 
-	chave := hmacBytes(
+	return "AWS4-HMAC-SHA256 " +
+		"Credential=" + c.cfg.R2.ChaveID + "/" + escopo + ", " +
+		"SignedHeaders=" + assinados + ", " +
+		"Signature=" + hex.EncodeToString(hmacRaw(c.chaveDoDia(dia), paraAssinar))
+}
+
+// chaveDoDia deriva a chave de assinatura. São quatro HMAC encadeados, sempre na
+// mesma ordem — data, região, serviço, encerramento — e a chave resultante só
+// vale para aquele dia. Os dois caminhos (envio e link temporário) usam esta, em
+// vez de cada um repetir a escada (CORE-06).
+func (c *Cliente) chaveDoDia(dia string) []byte {
+	return hmacBytes(
 		hmacBytes(
 			hmacBytes(
 				hmacBytes([]byte("AWS4"+c.cfg.R2.ChaveSecreta), dia),
 				regiao),
 			servico),
 		"aws4_request")
-
-	return "AWS4-HMAC-SHA256 " +
-		"Credential=" + c.cfg.R2.ChaveID + "/" + escopo + ", " +
-		"SignedHeaders=" + assinados + ", " +
-		"Signature=" + hex.EncodeToString(hmacRaw(chave, paraAssinar))
 }
 
 func hmacRaw(chave []byte, dado string) []byte {
@@ -187,6 +271,24 @@ func resumo(s string) string {
 //
 // A regra do protocolo NÃO é a do `url.QueryEscape`: espaço é %20 e não "+", e
 // os caracteres -_.~ passam intactos. Usar a função pronta aqui dá 403.
+// escaparValor codifica um valor de parâmetro. É o escaparCaminho SEM a exceção
+// da barra: aqui ela também vira %2F, porque não separa pastas — faz parte do
+// valor.
+func escaparValor(v string) string {
+	var b strings.Builder
+	for i := 0; i < len(v); i++ {
+		ch := v[i]
+		switch {
+		case ch >= 'A' && ch <= 'Z', ch >= 'a' && ch <= 'z', ch >= '0' && ch <= '9',
+			ch == '-', ch == '_', ch == '.', ch == '~':
+			b.WriteByte(ch)
+		default:
+			fmt.Fprintf(&b, "%%%02X", ch)
+		}
+	}
+	return b.String()
+}
+
 func escaparCaminho(chave string) string {
 	var b strings.Builder
 	for i := 0; i < len(chave); i++ {

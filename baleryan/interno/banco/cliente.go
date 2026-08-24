@@ -1,4 +1,4 @@
-// rev 3 — a conversa com o banco (Supabase / PostgREST)
+// rev 4 — a conversa com o banco (Supabase / PostgREST)
 //
 // Um cliente só, com tempo-limite e erro que ESTOURA. Nada de gravar e seguir em
 // frente sem saber se gravou: se o banco recusou, quem chamou fica sabendo.
@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,6 +93,57 @@ func (c *Cliente) executar(ctx context.Context, metodo, caminho string, corpo an
 // Buscar faz um GET e joga o resultado em destino (que deve ser ponteiro para slice).
 func (c *Cliente) Buscar(ctx context.Context, caminho string, destino any) error {
 	return c.executar(ctx, http.MethodGet, caminho, nil, nil, destino)
+}
+
+// BuscarContando faz um GET e devolve TAMBÉM quantas linhas existem no total,
+// ignorando o limite da página.
+//
+// POR QUE NÃO UM SEGUNDO "select count(*)"
+//
+//	Uma tela paginada precisa de duas respostas: as linhas desta página e o total
+//	para escrever "1–100 de 1.377". A saída óbvia é fazer duas consultas — e são
+//	duas viagens ao banco, com dois conjuntos de filtros que precisam ficar
+//	iguais para sempre. Basta alguém corrigir o filtro de um lado e esquecer o
+//	outro para a tela mentir a contagem.
+//
+//	O PostgREST resolve numa viagem só: pedindo `count=exact`, ele devolve o
+//	total no cabeçalho Content-Range, no formato "0-99/1377". Um filtro, uma
+//	consulta, duas respostas.
+//
+// Quando não vem nada, o cabeçalho é "*/0" e o total é zero.
+func (c *Cliente) BuscarContando(ctx context.Context, caminho string, destino any) (int, error) {
+	resp, err := c.requisicao(ctx, http.MethodGet, caminho, nil,
+		map[string]string{"Prefer": "count=exact"})
+	if err != nil {
+		return 0, fmt.Errorf("não consegui falar com o banco em %s: %w", caminho, err)
+	}
+	defer resp.Body.Close()
+
+	bruto, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return 0, &Erro{Status: resp.StatusCode, Caminho: caminho, Corpo: strings.TrimSpace(string(bruto))}
+	}
+	if destino != nil && len(bytes.TrimSpace(bruto)) > 0 {
+		if err := json.Unmarshal(bruto, destino); err != nil {
+			return 0, fmt.Errorf("resposta do banco em %s não é o que eu esperava: %w", caminho, err)
+		}
+	}
+	return TotalDoIntervalo(resp.Header.Get("Content-Range")), nil
+}
+
+// TotalDoIntervalo lê o total de um cabeçalho Content-Range ("0-99/1377").
+// Cabeçalho ausente, estranho ou com "*" depois da barra devolve zero — a tela
+// mostra "0 registros", que é chato, mas nunca um número inventado.
+func TotalDoIntervalo(cab string) int {
+	barra := strings.LastIndex(cab, "/")
+	if barra < 0 {
+		return 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(cab[barra+1:]))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // Inserir grava linhas novas. Passe destino != nil para receber o que foi gravado.

@@ -1811,21 +1811,185 @@ limpo e os dois binários compilando.
 
 ---
 
+### 3.12 A cópia, feita
+
+Rodada em 24/08/2026, das 22:01 às 22:06 — **5 minutos e 10 segundos**, em 30 lotes,
+todos concluídos e nenhum com erro.
+
+| | |
+|---|---|
+| Objetos no armazém | **4.458** |
+| Peso | **1.167 MB** |
+| Composição | 3.960 imagens · 487 PDFs · 11 outros |
+| Anexos com arquivo ligado | 4.580 |
+| Vídeos deixados no Trílogo | 678, por decisão (3.12 abaixo) |
+
+Foi o primeiro uso de verdade do assinador de S3 escrito à mão. Passou de primeira: 4.458
+envios, nenhuma recusa.
+
+**O susto.** Terminada a cópia, o painel do Cloudflare mostrava o balde **vazio**. Antes de
+mexer em qualquer coisa, o banco foi interrogado: 4.458 linhas em `arquivos`, cada uma com
+chave, tamanho e tipo coerentes, e 30 execuções com `erro` nulo. Isso encerra a hipótese de
+falha silenciosa — o `Enviar` confere o status HTTP e recusa qualquer coisa acima de 300;
+uma assinatura errada teria deixado a tabela vazia, não cheia e com dados plausíveis.
+
+Não era a cópia, era a tela. Ficam anotadas as duas armadilhas do painel do R2, porque
+custaram meia hora:
+
+1. a aba **Metrics / Storage used** é recalculada com atraso e continua mostrando zero por
+   um bom tempo depois da escrita; quem lista ao vivo é a aba **Objects**;
+2. o navegador do balde abre em pastas: na raiz aparece só `clientes`, e os arquivos estão
+   três níveis abaixo, em `clientes / <cliente> / arquivos / xx / yy /`.
+
+---
+
+### 3.13 A tela: o desenho antes do código
+
+A tela foi desenhada e **aprovada como imagem** antes de existir uma linha de código —
+maquetes montadas com dado real do banco, não com texto de enfeite. O que o dono pediu, e
+ficou valendo:
+
+- lista de **100 linhas por página**, com 250 e 500 à escolha, e navegação de primeira,
+  anterior, próxima, última, mais "página X de Y";
+- filtros de loja, status, conta, prioridade, intervalo de data e **busca por ticket** —
+  esta última com destaque próprio, porque para quem opera **tudo gira em torno do ticket**;
+- letra menor e ar mais sério que o do sistema antigo;
+- **onde o texto for grande, a letra diminui sozinha** para não quebrar a linha;
+- a ficha do chamado padronizada como uma **folha A4**, com a primeira linha de 1,2 cm e a
+  segunda de 1,0 cm, nesta ordem: número e loja / conta e prioridade / descrição / ambiente /
+  fotos de 3 cm que abrem em tela cheia / custos / linha do tempo.
+
+A linha do tempo ficou **à direita, em altura cheia, rolando por dentro**. A alternativa —
+linha do tempo embaixo, em duas colunas — foi desenhada também e descartada na comparação:
+ela faz a ficha passar de uma página A4 e quebra a leitura ao virar de coluna. Do jeito
+escolhido, a ficha cabe em **uma folha** tendo o chamado 5 ou 80 eventos.
+
+Duas decisões de apresentação, tomadas no desenho: os anexos repetidos no mesmo segundo
+viram **uma linha** ("13 anexos enviados na abertura") — sem isso, metade da linha do tempo
+do chamado 130328 é ruído; e o vídeo aparece com aparência própria e o dizer "ver no
+Trílogo", coerente com a decisão de não copiá-lo.
+
+---
+
+### 3.14 O motor da tela
+
+Três rotas de leitura, num arquivo separado do robô. O robô **escreve** e demora minutos;
+a tela **lê** e responde a um clique. Ritmos diferentes, arquivos diferentes.
+
+| Rota | O quê |
+|---|---|
+| `GET /trilogo/filtros` | as opções dos seletores, tiradas do próprio dado |
+| `GET /trilogo/chamados` | a lista, com os seis filtros e a paginação |
+| `GET /trilogo/chamados/{numero}` | a ficha inteira, numa resposta só |
+
+A ficha abre pelo **número do ticket**, não por um identificador interno: é o número que a
+pessoa tem no papel e no WhatsApp.
+
+**A forma da lista foi para o banco.** A lista precisa do nome da loja, da soma dos custos e
+da contagem de anexos, que não estão em `chamados`. Resolver isso no motor seriam três
+consultas e uma costura na memória — a mesma regra em dois lugares (**CORE-06**). A visão
+`chamados_lista` põe num lugar só, com `security_invoker = true` para não virar um caminho
+paralelo que passe por cima do filtro de cliente titular (**CORE-11**).
+
+**A contagem vem junto das linhas.** Uma tela paginada precisa das linhas da página e do
+total para escrever "1–100 de 1.377". Duas consultas seriam dois conjuntos de filtros que
+precisam ficar iguais para sempre — basta corrigir um lado e esquecer o outro para a tela
+mentir. O `BuscarContando` pede a conta no mesmo pedido e lê o total do cabeçalho.
+
+**O tamanho da página é conferido.** Só 100, 250 e 500 passam; `?por_pagina=999999` vira
+100. O que vem do navegador não se obedece sem olhar.
+
+**A foto abre sem o balde ser público.** O `LinkTemporario` assina o endereço do objeto
+dentro da própria URL, com prazo de **5 minutos**. O segredo não sai do motor (**CORE-09**);
+o que sai é uma assinatura que serve para aquele arquivo e só naquela janela. É o contrário
+do sistema antigo, onde o endereço é público e não vence nunca.
+
+**O texto do evento é limpo no motor.** A linha do tempo do Trílogo vem com marcação HTML
+dentro (`<b>FROTA - INSTALAÇÕES</b> <br/>Anterior:`). A limpeza acontece uma vez, e não em
+cada tela que for mostrar aquilo — senão a primeira que esquecer mostra as tags ao usuário.
+
+---
+
+### 3.15 O índice que se provou com o plano
+
+Os índices da lista estavam escritos por dedução — filtro, ordenação, o de sempre. Antes de
+fechar, rodaram contra os 1.377 chamados reais, com `explain analyze`:
+
+| | |
+|---|---|
+| Sem índice que sirva à ordenação | **211 ms** |
+| Com índice que já entrega a ordem | **8,4 ms** |
+
+O número impressiona menos que o motivo. Sem um índice que já venha ordenado, o banco
+calcula a soma de custos e a contagem de anexos das **1.377** linhas para depois jogar 877
+fora; o plano mostra `loops=1377`. Com o índice, ele lê em ordem, para na linha 500 e faz a
+conta só dessas: `loops=500`.
+
+Daí a forma final de cada índice — **filtro primeiro, `criado_em desc` depois**. Um índice
+só na coluna do filtro acharia as linhas, mas obrigaria a ordenar tudo de novo, e o trabalho
+voltaria a crescer com a tabela. Do jeito que ficou, **o custo da página é o tamanho da
+página**: 500 linhas custam 500 linhas, com 1.377 chamados ou com 50 mil.
+
+Ficou como **P-31**.
+
+---
+
+### 3.16 O catálogo de rotinas estava vazio
+
+Descoberto ao cadastrar a rotina da tela: a tabela `rotinas` não tinha **nenhuma** linha. A
+007 havia decidido, com todas as letras, não cadastrar a rotina enquanto a tela não
+existisse — para o catálogo nunca prometer uma porta que não abre. O efeito colateral é que
+a tela de Categorias não tinha o que listar: a matriz de permissões aparecia em branco.
+
+Não estava quebrada, estava vazia. `CONTRATO_TRILOGO_DADOS` é a primeira linha do catálogo.
+
+---
+
+### 3.17 Como foi conferido — a tela
+
+| Prova | Resultado |
+|---|---|
+| Paginação sobre 1.377 em páginas de 100 | 14 páginas, **77 linhas na última** |
+| O mesmo em 250 e em 500 | 6 e 3 páginas, com o resto certo |
+| Lista vazia | 0 registros em **1** página, nunca "página 0" |
+| `por_pagina` = 7, 999999, −1, "abc" | tudo vira 100 |
+| Consulta sem cliente | o banco de mentira **recusa** |
+| Paginação sem pedir a contagem | o banco de mentira **recusa** |
+| Ticket digitado como "#130328", "130.328", "ticket 130328" | vira o mesmo filtro |
+| Texto sem dígito no campo de ticket | não vira filtro de número |
+| "31/02/2026" e "ontem" como data | erro explicado, não filtro ignorado |
+| Início e fim do dia | **no fuso de Fortaleza**, não em UTC |
+| Foto copiada | endereço assinado, com prazo, e o endereço público sumindo da resposta |
+| Vídeo não copiado | aponta para o Trílogo, com o link intacto |
+| Assinatura do link temporário | bate com implementação independente em Python |
+| Chave secreta no link | teste falha se algum dia aparecer |
+| Prazo do link: 0, negativo, um mês | vira 1 s, 1 s e uma semana |
+| HTML no texto do evento | sai limpo, com as quebras virando espaço |
+
+O dublê foi provado recolocando o defeito: tirando o pedido de contagem, o PostgREST de
+mentira responde 400, como o de verdade responderia (**P-30**).
+
+---
+
 ## Inventário da Fase 3
 
 | Arquivo | Hospedado | Rev |
 |---|---|---|
 | `db/migrations/007_trilogo.sql` | repo · **Supabase** | 1 |
 | `db/migrations/008_anexos_copiar.sql` | repo · **Supabase** | 1 |
-| `baleryan/interno/armazem/r2.go` | repo · **Render** | 1 |
+| `db/migrations/009_trilogo_tela.sql` | repo | 1 |
+| `baleryan/interno/armazem/r2.go` | repo · **Render** | 2 |
+| `baleryan/interno/armazem/link_test.go` | repo | 1 |
 | `baleryan/interno/modulos/trilogo/api.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/tipos.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/robo.go` | repo · **Render** | 1 |
 | `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/consulta.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/consulta_test.go` | repo | 1 |
 | `baleryan/cmd/robo/main.go` | repo · **Actions** | 2 |
-| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 5 |
+| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 6 |
 | `baleryan/interno/config/config.go` | repo · **Render** | 4 |
-| `baleryan/interno/banco/cliente.go` | repo · **Render** | 3 |
+| `baleryan/interno/banco/cliente.go` | repo · **Render** | 4 |
 | `.github/workflows/robo-trilogo.yml` | repo | 1 |
 
 ---
@@ -1834,12 +1998,15 @@ limpo e os dois binários compilando.
 
 | O quê | Situação |
 |---|---|
-| Aplicar a migração 008 e rodar o levantamento de novo | corrige a conta dos 38 e marca os vídeos |
-| Cadastrar os segredos do R2 no GitHub | antes da cópia |
-| **Rodar a cópia** (1,2 GB) | depois dos dois acima |
+| ~~Aplicar a migração 008 e rodar o levantamento~~ | **feito** |
+| ~~Cadastrar os segredos do R2 no GitHub~~ | **feito** |
+| ~~Rodar a cópia (1,2 GB)~~ | **feita** — 4.458 objetos, 1.167 MB |
+| **Aplicar a migração 009** | antes de a tela funcionar |
+| Telas do front (lista e ficha) | entrega 2 |
+| Robô de atualização aparecendo no front | entrega 3 |
+| Conferir um horário do chamado 130328 no Trílogo | a vistoria está gravada às 04:26; se houver deslocamento de 3 h, é conserto no robô |
+| Quatro lojas no escopo sem nenhum chamado desde 01/07 | 34 de 38 têm chamado; conferir se é real ou leitura faltando |
 | Batizar os tipos de evento que vêm sem texto | quando aparecer um com conteúdo |
-| Rodar o levantamento e decidir o que copiar para o R2 | depende do robô |
-| Tela "Dados do Trílogo" e o cadastro da rotina no catálogo | depois do robô |
 | Estimar o custo do R2 acima de 10 GB | ~US$ 0,015 por GB/mês, sem cobrança de saída |
 
 ---
@@ -2115,6 +2282,14 @@ de programar e o que é simples de operar, **ganha operar**. *Sistema que funcio
 esforço todo dia é sistema que as pessoas contornam — e o contorno vira a verdade, não o
 sistema. Declarada pelo dono em 23/08/2026.*
 
+**P-31 — Índice se prova com plano de execução, não com dedução.**
+Antes de fechar uma consulta de tela, roda-se `explain analyze` contra o dado real e olha-se
+quantas vezes cada parte executou. *Origem: os índices da lista de chamados pareciam certos
+por dedução e davam 211 ms em 1.377 linhas. O plano mostrou por quê — o banco calculava a
+soma de custos das 1.377 para jogar 877 fora. Índice com o filtro primeiro e a ordenação
+depois deixou o mesmo pedido em 8,4 ms, e o custo passou a ser o tamanho da página, não o
+tamanho da tabela.*
+
 ## Operação
 
 **P-20 — O motor não serve arquivo.**
@@ -2168,9 +2343,9 @@ remove o original.*
 | O quê | Onde | Existe? |
 |---|---|---|
 | Repositório | `github.com/iafrotamacedo-cloud/frotahub-v2` | sim, público |
-| Banco | `https://hltcngamdqabqlocufrv.supabase.co` (us-east-1) | sim, 6 tabelas |
+| Banco | `https://hltcngamdqabqlocufrv.supabase.co` (us-east-1) | sim, 13 tabelas + 1 visão |
 | Chave pública do banco | `sb_publishable_IyCf5yioEo-Ry8q5mB2boA__ekxvPIu` | é chave de navegador, não é segredo |
-| Arquivos | Cloudflare R2, balde `frotahub`, conta `99f23938821d056868ecef92c08eed7f` | sim, vazio |
+| Arquivos | Cloudflare R2, balde `frotahub`, conta `99f23938821d056868ecef92c08eed7f` | sim, **4.458 objetos · 1.167 MB** |
 | Front | `https://novo.frotamacedo.com.br` | **no ar** |
 | Hospedagem | HostGator Plano P, servidor `br1000`, IP `162.241.203.77` | sim |
 | Motor | `https://baleryan.onrender.com` — Render, região Ohio | **no ar** |
