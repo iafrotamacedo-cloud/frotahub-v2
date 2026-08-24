@@ -1,4 +1,4 @@
-// rev 4 — baleryan, o motor do FrotaHub
+// rev 5 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -22,10 +22,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -33,7 +35,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "4"
+const Revisao = "5"
 
 type motor struct {
 	cfg  *config.Config
@@ -67,6 +69,7 @@ func main() {
 	// delas — só monta o módulo (P-13).
 	usuarios.Novo(cfg, bd, seg, hist).Montar(mux)
 	acesso.Novo(bd, seg, hist).Montar(mux)
+	trilogo.NovoModulo(trilogo.Novo(cfg, bd, armazem.Novo(cfg)), seg, bd).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".

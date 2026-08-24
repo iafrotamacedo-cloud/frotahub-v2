@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **23/08/2026** · Rodada 25 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **24/08/2026** · Rodada 26 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1335,7 +1335,8 @@ nível da categoria.
 
 ## Próximo passo
 
-**Fase 3, Step 3: o robô.** As tabelas estão de pé; falta quem as preencha.
+**Rodar o levantamento.** O robô está escrito e testado; falta soltá-lo contra o
+Trílogo de verdade — primeiro para medir, sem copiar nada.
 
 Continua pendente da Fase 2, e é do dono: configurar a sessão no painel do Supabase
 (3 h paradas, 24 h no total).
@@ -1365,7 +1366,7 @@ dentro de casa: chamado, timeline completa, custos e arquivos, das duas contas.
 - **Dedup:** na carga vem tudo; na leitura rotineira, só o que mudou.
 - **Fora do escopo:** 4 lojas (Crato, Juazeiro, Lagoa Seca, Novo Juazeiro).
 
-**Situação: Step 1 e 2 concluídos.** O robô ainda não foi escrito.
+**Situação: Steps 1, 2 e 3 concluídos.** Falta rodar o levantamento e fazer as telas.
 
 ---
 
@@ -1554,21 +1555,118 @@ cada regra exercitada contra o banco:
 
 ## Step 3 — O robô
 
-**Não começou.** Três modos, um código só:
+Escrito em Go, dentro do motor, **sem uma única dependência externa**.
 
-- **Levantamento** — lê tudo desde 01/07/2026 e grava chamados, timeline, custos e
-  a ficha de cada arquivo **com o tamanho real**, obtido do cabeçalho HTTP, **sem
-  baixar nada**. No fim, o número exato de GB, por tipo, antes de gastar o primeiro
-  byte de R2.
-- **Cópia** — busca os bytes do que o dono escolher, transmitindo direto para o R2
-  e calculando o sha256 no caminho.
-- **Atualização** — a mesma leitura, com marca d'água: só os chamados cujo
-  `dateOfLastChange` passou da última rodada concluída.
+### 3.1 O que mudou em relação ao robô antigo
 
-**Onde roda:** levantamento e cópia no Actions, no botão. A atualização mora no
-motor, picotada e retomável — cada chamada processa um lote e anota onde parou,
-o que protege contra o Render adormecer no meio. Dois gatilhos, uma implementação:
-o botão do front e um agendamento no Actions chamando o mesmo endereço.
+| | Antigo (Python) | Novo (Go) |
+|---|---|---|
+| Login | abria um Chrome e **roubava** o token | `Login/SignIn`, uma chamada |
+| O que lia | número, status, prioridade, loja | **tudo**: timeline, custos, anexos, ambiente |
+| Chave do chamado | número + conta (**duplica** quando troca de conta) | número |
+| Prioridade | **invertida** | conferida contra a tela |
+| A cada rodada | **apagava a aba e recarregava** | acrescenta e atualiza; nada é apagado |
+| Arquivos | não lia | mede, baixa e guarda pelo conteúdo |
+
+### 3.2 Três modos, um código só
+
+**levantamento** — lê tudo desde 01/07/2026 e grava chamado, timeline, custos e a
+ficha de cada arquivo **com o tamanho real**, obtido de uma consulta de cabeçalho.
+Não baixa nada. É a passada que responde *"quantos GB isto vai custar?"* antes de
+gastar o primeiro byte.
+
+**copia** — busca os bytes do que ainda não foi copiado e manda para o R2.
+
+**atualizacao** — a mesma leitura, com marca d'água: só os chamados cujo
+`dateOfLastChange` passou da última rodada **concluída**.
+
+A diferença entre eles é a janela e o que se faz com os arquivos. Nada mais
+(**CORE-06**).
+
+### 3.3 Decisões que valem registro
+
+**A marca d'água só avança em rodada concluída.** Se avançasse durante, uma rodada
+interrompida pularia para sempre os chamados que não chegou a processar. E entra
+com **uma hora de folga**: relógios não são iguais, e reprocessar alguns chamados
+é barato — perder um, não.
+
+**O horário não escorrega.** O Trílogo manda data e hora **sem fuso**, no horário
+de Fortaleza — o mesmo que aparece na tela dele. Tratar como UTC jogaria tudo três
+horas para frente e estragaria qualquer métrica de tempo entre estados. A tabela
+de fusos vai **dentro do binário**, porque a imagem do motor não tem uma.
+
+**O trabalho é em lotes, e cada chamada responde se sobrou.** O caminho fácil
+seria disparar em segundo plano e responder "comecei" — seria mentira num servidor
+que adormece. Aqui, quem chama repete até acabar, e o andamento mora no banco
+(**P-03**).
+
+**Um arquivo que falha não derruba a rodada.** Fica sem vínculo, aparece no log, e
+a próxima passada tenta de novo.
+
+**O arquivo passa pelo disco, de propósito.** O caminho no armazém é o sha256 do
+conteúdo, e o sha256 só se conhece depois de ler o arquivo inteiro. Guardar vídeos
+de dezenas de megabytes na memória, doze ao mesmo tempo, derrubaria o processo.
+
+**A ficha do arquivo nunca manda `arquivo_sha256`.** Se mandasse, o upsert apagaria
+com nulo o vínculo de um arquivo já copiado — e a cópia seria refeita do zero a
+cada leitura. Tem teste só para isso.
+
+**Código desconhecido não vira vazio.** Um status ou prioridade que ninguém mapeou
+aparece como `codigo 9`, visível, para alguém perceber. Sumir em silêncio é como o
+erro da prioridade sobreviveu tanto tempo no sistema antigo.
+
+**O robô reconhece o que o sistema antigo subiu.** Os orçamentos do robô em Python
+têm nome de arquivo temporário (`tmp…`); a ficha deles nasce marcada como
+`sistema-antigo`.
+
+### 3.4 A assinatura do R2, escrita à mão
+
+O R2 fala o protocolo do S3, e esse protocolo exige assinatura. São cem linhas de
+HMAC aqui — contra um SDK de dezenas de megabytes que traria meia AWS junto. O
+motor não tem dependência externa, e vai continuar assim.
+
+É a peça mais arriscada do lote: qualquer diferença de espaço, de ordem de
+cabeçalho ou de maiúscula muda a assinatura, e o servidor responde **403 sem
+explicar nada**. Por isso ela foi conferida contra uma implementação
+**independente, escrita em Python**, com as mesmas entradas. Duas implementações
+concordando é prova; uma sozinha é esperança.
+
+### 3.5 Onde cada coisa roda
+
+| | Onde | Por quê |
+|---|---|---|
+| levantamento e cópia | GitHub Actions, no botão | são de minutos a horas; lá há tempo, disco para os vídeos e minutos livres |
+| atualização | motor, pelo botão do front | resposta imediata para quem clicou |
+| atualização agendada | Actions, quando o dono mandar | não depende de o motor estar acordado |
+
+O mesmo binário nos dois lugares. O `PAPEL=robo` diz à configuração que aquele
+processo não precisa do tempero do PIN nem da chave pública — pedir segredos que
+não se usa só cria segredo de mentira no GitHub, que é pior que não ter.
+
+**O agendamento NÃO foi criado.** O robô roda no botão, e só. A cota de Actions já
+foi derrubada uma vez pelos robôs do Trílogo antigo; ligar um relógio sem o dono
+mandar seria repetir isso.
+
+### 3.6 Como foi conferido
+
+Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra eles:
+
+| Prova | Resultado |
+|---|---|
+| Chamado gravado inteiro, com os rótulos certos | prioridade 2 vira **"Baixa"** (o antigo grava "Média") |
+| Horário | 12:45 na tela do Trílogo vira **15:45 UTC**, sem escorregar |
+| Loja fora do escopo | não entra |
+| Chamado anterior a 01/07/2026 | não entra |
+| Evento sem id | ganha impressão digital, **igual entre duas leituras** |
+| Ficha de arquivo | traz o tamanho e **não** manda `arquivo_sha256` |
+| Orçamento do robô antigo | reconhecido, e ligado ao custo |
+| **Mesmo conteúdo por dois endereços** | **1 objeto no armazém, 2 aparições** |
+| Senha errada | erro legível, não "falha de rede" |
+| Sem credencial | recusa antes de tentar |
+| Assinatura do R2 | bate com a implementação em Python |
+
+Ao todo, **36 provas automáticas** no motor, e as duas telas de sempre: `go vet`
+limpo e os dois binários compilando.
 
 ---
 
@@ -1577,6 +1675,16 @@ o botão do front e um agendamento no Actions chamando o mesmo endereço.
 | Arquivo | Hospedado | Rev |
 |---|---|---|
 | `db/migrations/007_trilogo.sql` | repo · **Supabase** | 1 |
+| `baleryan/interno/armazem/r2.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/api.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/tipos.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/robo.go` | repo · **Render** | 1 |
+| `baleryan/interno/modulos/trilogo/rotas.go` | repo · **Render** | 1 |
+| `baleryan/cmd/robo/main.go` | repo · **Actions** | 1 |
+| `baleryan/cmd/baleryan/baleryan.go` | repo · **Render** | 5 |
+| `baleryan/interno/config/config.go` | repo · **Render** | 3 |
+| `baleryan/interno/banco/cliente.go` | repo · **Render** | 3 |
+| `.github/workflows/robo-trilogo.yml` | repo | 1 |
 
 ---
 
@@ -1584,7 +1692,9 @@ o botão do front e um agendamento no Actions chamando o mesmo endereço.
 
 | O quê | Situação |
 |---|---|
-| Escrever o robô (3 modos) | próximo passo |
+| **Rodar o levantamento** e ver quantos GB são | próximo passo |
+| Cadastrar os segredos do Trílogo no GitHub | antes de rodar |
+| Decidir o que copiar para o R2 | depois do levantamento |
 | Rodar o levantamento e decidir o que copiar para o R2 | depende do robô |
 | Tela "Dados do Trílogo" e o cadastro da rotina no catálogo | depois do robô |
 | Estimar o custo do R2 acima de 10 GB | ~US$ 0,015 por GB/mês, sem cobrança de saída |

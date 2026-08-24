@@ -1,4 +1,4 @@
-// rev 2 — a conversa com o banco (Supabase / PostgREST)
+// rev 3 — a conversa com o banco (Supabase / PostgREST)
 //
 // Um cliente só, com tempo-limite e erro que ESTOURA. Nada de gravar e seguir em
 // frente sem saber se gravou: se o banco recusou, quem chamou fica sabendo.
@@ -110,6 +110,32 @@ func (c *Cliente) Inserir(ctx context.Context, tabela string, linhas any, destin
 func (c *Cliente) Gravar(ctx context.Context, tabela string, linhas any) error {
 	return c.executar(ctx, http.MethodPost, tabela, linhas,
 		map[string]string{"Prefer": "resolution=merge-duplicates,return=minimal"}, nil)
+}
+
+// Upsert grava e RESOLVE conflito: linha que já existe é atualizada.
+//
+// A chave do conflito vai no próprio caminho, do jeito do PostgREST:
+//
+//	Upsert(ctx, "chamados?on_conflict=cliente_id,numero", linhas, &fora)
+//
+// Passe destino != nil para receber de volta o que ficou gravado — é assim que o
+// robô descobre o id interno de um chamado que ele acabou de gravar.
+func (c *Cliente) Upsert(ctx context.Context, tabela string, linhas any, destino any) error {
+	cab := map[string]string{"Prefer": "resolution=merge-duplicates,return=minimal"}
+	if destino != nil {
+		cab["Prefer"] = "resolution=merge-duplicates,return=representation"
+	}
+	return c.executar(ctx, http.MethodPost, tabela, linhas, cab, destino)
+}
+
+// InserirIgnorando insere e IGNORA em silêncio o que já existe.
+//
+// É o oposto do Upsert, e serve para o que não se reescreve: um evento de
+// histórico já gravado não muda. Aqui, mandar de novo a timeline inteira é
+// barato e seguro — o banco fica com a primeira versão e descarta o resto.
+func (c *Cliente) InserirIgnorando(ctx context.Context, tabela string, linhas any) error {
+	return c.executar(ctx, http.MethodPost, tabela, linhas,
+		map[string]string{"Prefer": "resolution=ignore-duplicates,return=minimal"}, nil)
 }
 
 // Duplicado diz se o erro é de chave repetida — o que quase sempre significa que

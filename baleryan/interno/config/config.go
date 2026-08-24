@@ -1,4 +1,4 @@
-// rev 2 — configuração do baleryan
+// rev 3 — configuração do baleryan
 //
 // Toda variável de ambiente que o motor usa é declarada AQUI, com tipo, valor padrão
 // (quando faz sentido ter um) e uma linha dizendo para que serve. Não existe leitura
@@ -138,6 +138,42 @@ func (r R2) Endpoint() string {
 	return "https://" + r.ContaID + ".r2.cloudflarestorage.com"
 }
 
+// Trilogo é o sistema do cliente de onde os chamados são lidos.
+//
+// São DUAS contas, e o robô lê as duas. Não existe conta única com visão das
+// duas: o Trílogo separa por empresa prestadora.
+type Trilogo struct {
+	EmailInstalacoes string
+	SenhaInstalacoes string
+	EmailCivil       string
+	SenhaCivil       string
+	// Quantos chamados o robô processa ao mesmo tempo. Mais que isso não acelera
+	// (o gargalo passa a ser o Trílogo) e começa a parecer abuso.
+	Paralelo int
+	// Quantos chamados por lote na atualização. O motor do plano gratuito pode
+	// adormecer no meio; lote pequeno significa perder pouco e retomar rápido.
+	Lote int
+}
+
+func (t Trilogo) Ligado() bool {
+	return t.EmailInstalacoes != "" && t.SenhaInstalacoes != "" &&
+		t.EmailCivil != "" && t.SenhaCivil != ""
+}
+
+// Contas devolve as duas na ordem em que são lidas.
+func (t Trilogo) Contas() []Conta {
+	return []Conta{
+		{Nome: "instalacoes", Email: t.EmailInstalacoes, Senha: t.SenhaInstalacoes},
+		{Nome: "civil", Email: t.EmailCivil, Senha: t.SenhaCivil},
+	}
+}
+
+type Conta struct {
+	Nome  string // 'instalacoes' | 'civil'
+	Email string
+	Senha string
+}
+
 // Dropbox guarda o arquivo-mestre.
 type Dropbox struct {
 	AppKey       string
@@ -162,10 +198,13 @@ func (r Runtime) Producao() bool { return r.Ambiente == "producao" }
 
 // Config é tudo junto.
 type Config struct {
-	Supabase  Supabase
-	R2        R2
-	Dropbox   Dropbox
-	Runtime   Runtime
+	Supabase Supabase
+	R2       R2
+	Dropbox  Dropbox
+	Trilogo  Trilogo
+	Runtime  Runtime
+	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
+	Papel     string
 	PinPepper string
 	ChaveRobo string
 
@@ -181,6 +220,7 @@ func (c Config) Resumo() map[string]any {
 		"supabase": c.Supabase.URL != "",
 		"r2":       c.R2.Ligado(),
 		"dropbox":  c.Dropbox.Ligado(),
+		"trilogo":  c.Trilogo.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
 }
@@ -196,7 +236,7 @@ func Carregar() (*Config, error) {
 			"Endereço do projeto Supabase — sem ele não há banco nem login."),
 		ChaveServico: l.segredo("SUPABASE_SERVICE_KEY", true, 40,
 			"Chave service_role. Supabase > Project Settings > API."),
-		ChavePublica: l.segredo("SUPABASE_ANON_KEY", true, 40,
+		ChavePublica: l.segredo("SUPABASE_ANON_KEY", os.Getenv("PAPEL") != "robo", 40,
 			"Chave pública (anon/publishable), usada só para validar o token do usuário."),
 	}
 
@@ -209,12 +249,28 @@ func Carregar() (*Config, error) {
 		ValidadeURLseg: l.inteiro("R2_VALIDADE_URL_SEG", 3600, 60, 86400),
 	}
 
+	tri := Trilogo{
+		EmailInstalacoes: l.texto("TRILOGO_EMAIL_INSTALACOES", "", false, ""),
+		SenhaInstalacoes: l.segredo("TRILOGO_SENHA_INSTALACOES", false, 0, ""),
+		EmailCivil:       l.texto("TRILOGO_EMAIL_CIVIL", "", false, ""),
+		SenhaCivil:       l.segredo("TRILOGO_SENHA_CIVIL", false, 0, ""),
+		Paralelo:         l.inteiro("TRILOGO_PARALELO", 12, 1, 32),
+		Lote:             l.inteiro("TRILOGO_LOTE", 150, 10, 1000),
+	}
+
 	dbx := Dropbox{
 		AppKey:       l.texto("DROPBOX_APP_KEY", "", false, ""),
 		AppSecret:    l.segredo("DROPBOX_APP_SECRET", false, 0, ""),
 		RefreshToken: l.segredo("DROPBOX_REFRESH_TOKEN", false, 0, ""),
 		Raiz:         l.texto("DROPBOX_RAIZ", "/FROTAHUB", false, ""),
 	}
+
+	// QUEM ESTÁ LIGANDO
+	//   O motor e o robô rodam o mesmo pacote de configuração, mas precisam de
+	//   coisas diferentes. Exigir do robô o tempero do PIN — que ele nunca usa —
+	//   só criaria um segredo de mentira no GitHub, que é pior que não ter.
+	papel := l.texto("PAPEL", "motor", false, "")
+	ehRobo := papel == "robo"
 
 	rt := Runtime{
 		Porta:       l.inteiro("PORT", 8000, 1, 65535),
@@ -224,12 +280,19 @@ func Carregar() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Supabase: sb, R2: r2, Dropbox: dbx, Runtime: rt,
-		PinPepper: l.segredo("PIN_PEPPER", true, 16,
+		Supabase: sb, R2: r2, Dropbox: dbx, Trilogo: tri, Runtime: rt,
+		Papel: papel,
+		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),
 		ChaveRobo: l.segredo("ROBOT_KEY", false, 24,
 			"Segredo compartilhado com os robôs do GitHub Actions."),
 		DominioLogin: l.texto("DOMINIO_LOGIN", "frotahub.local", false, ""),
+	}
+
+	// O robô sem credencial do Trílogo não tem o que fazer: melhor recusar a subir
+	// do que rodar e não ler nada.
+	if ehRobo && !cfg.Trilogo.Ligado() {
+		l.problema("TRILOGO_* — o robô precisa das duas contas (instalações e civil).")
 	}
 
 	// Coerências que só valem em produção.
