@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **24/08/2026** · Rodada 28 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **24/08/2026** · Rodada 29 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
 
 ---
 
@@ -1335,8 +1335,8 @@ nível da categoria.
 
 ## Próximo passo
 
-**Rodar o levantamento.** O robô está escrito e testado; falta soltá-lo contra o
-Trílogo de verdade — primeiro para medir, sem copiar nada.
+**Decidir o que vai para o R2.** O levantamento respondeu: são 8,7 GB, e 86% disso é
+vídeo. Cabe no plano gratuito, mas ocupando quase tudo.
 
 Continua pendente da Fase 2, e é do dono: configurar a sessão no painel do Supabase
 (3 h paradas, 24 h no total).
@@ -1366,7 +1366,8 @@ dentro de casa: chamado, timeline completa, custos e arquivos, das duas contas.
 - **Dedup:** na carga vem tudo; na leitura rotineira, só o que mudou.
 - **Fora do escopo:** 4 lojas (Crato, Juazeiro, Lagoa Seca, Novo Juazeiro).
 
-**Situação: Steps 1, 2 e 3 concluídos.** Falta rodar o levantamento e fazer as telas.
+**Situação: levantamento FEITO.** 1.377 chamados e 17 mil eventos no banco. Falta decidir
+o que copiar para o R2 e fazer as telas.
 
 ---
 
@@ -1700,7 +1701,59 @@ faz o que o código faz.
 Os dois dublês ficaram exigentes. Recolocando o defeito de propósito, o teste
 falha com **a mesma mensagem que o Actions deu** (**P-30**).
 
-### 3.8 Como foi conferido
+### 3.8 O levantamento, feito
+
+**1 minuto e 59 segundos** para as duas contas inteiras. A estimativa era de 2 a 5
+minutos.
+
+| | |
+|---|---|
+| Chamados no banco | **1.377** (917 Instalações · 460 Civil) |
+| Eventos de timeline | **17.080** |
+| Custos | 496 |
+| Arquivos catalogados | **5.258** |
+| **Peso total** | **8,7 GB** |
+| Unidades | 38, sendo 4 fora do escopo |
+
+**E o peso está quase todo no vídeo:**
+
+| | Arquivos | Peso | Fatia | Média |
+|---|---|---|---|---|
+| **Vídeo** | 678 | **7,3 GB** | **86%** | 11 MB (maior: 55 MB) |
+| Foto | 4.072 | 1,1 GB | 12% | 273 kB |
+| PDF | 496 | 105 MB | 1% | 217 kB |
+| Áudio e zip | 12 | 2 MB | ~0% | — |
+
+**Cabe no plano gratuito do R2 (10 GB) — mas ocupando 87% dele.** Sem os vídeos,
+seriam 1,2 GB, ou 12%.
+
+Dos 477 orçamentos, **173 foram reconhecidos como do sistema antigo** pelo nome de
+arquivo temporário do Python.
+
+### 3.9 Dois defeitos que só a carga real revelou
+
+**A conta vinha de quem leu, não de quem atende.** Trinta e oito chamados da
+Instalações foram parar na Civil — simplesmente porque a Civil é lida depois, e o
+último a gravar ganhava. Eles aparecem na lista das **duas** contas.
+
+Agora quem manda é a **empresa prestadora**, que é o fato; a ordem da leitura
+deixou de importar. Sobra um caso: chamado atendido por empresa de fora (umas
+dezenas — desentupidora, refrigeração, estruturas metálicas). Esses ficam com a
+conta que os enxerga, e quem serve de verdade está sempre em `prestadora`.
+
+**Dezessete tipos de evento sem nome.** Apareceram como `codigo 23`, `codigo 57` e
+por aí — exatamente como projetado: **visíveis**, não silenciosos. Com os 17 mil
+eventos na mão deu para batizar a maioria olhando o texto de cada um:
+interrupção de execução, fornecedor adicionado, prestador removido, responsável
+removido, chamado relacionado, chamado duplicado, mudança de tipo predial.
+
+Os poucos que vêm **sem texto nenhum** continuam como `codigo N`. Chutar um nome
+para eles seria inventar.
+
+*Se o robô tivesse traduzido código desconhecido para vazio — como é o costume —
+esses 274 eventos teriam sumido sem ninguém notar.*
+
+### 3.10 Como foi conferido
 
 Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra eles:
 
@@ -1718,9 +1771,11 @@ Um Trílogo, um banco, um S3 e um R2 **de mentira**, e o robô rodando contra el
 | Sem credencial | recusa antes de tentar |
 | Nomes dos campos do login | `UserEmail`/`UserPassword`, travados por teste |
 | Lote com chamados completos e pelados juntos | passa; o pelado grava nulo, não inventa |
+| Chamado da Instalações lido pela Civil | fica na Instalações |
+| Código de evento desconhecido | continua aparecendo como `codigo N` |
 | Assinatura do R2 | bate com a implementação em Python |
 
-Ao todo, **38 provas automáticas** no motor, e as duas telas de sempre: `go vet`
+Ao todo, **41 provas automáticas** no motor, e as duas telas de sempre: `go vet`
 limpo e os dois binários compilando.
 
 ---
@@ -1747,9 +1802,10 @@ limpo e os dois binários compilando.
 
 | O quê | Situação |
 |---|---|
-| **Rodar o levantamento** e ver quantos GB são | próximo passo |
-| Cadastrar os segredos do Trílogo no GitHub | antes de rodar |
-| Decidir o que copiar para o R2 | depois do levantamento |
+| **Decidir o que copiar para o R2** | 8,7 GB no total, 87% do plano grátis — 1,2 GB sem os vídeos |
+| Rodar o levantamento de novo (corrige a conta dos 38) | antes da cópia |
+| Cadastrar os segredos do R2 no GitHub | antes da cópia |
+| Batizar os tipos de evento que vêm sem texto | quando aparecer um com conteúdo |
 | Rodar o levantamento e decidir o que copiar para o R2 | depende do robô |
 | Tela "Dados do Trílogo" e o cadastro da rotina no catálogo | depois do robô |
 | Estimar o custo do R2 acima de 10 GB | ~US$ 0,015 por GB/mês, sem cobrança de saída |

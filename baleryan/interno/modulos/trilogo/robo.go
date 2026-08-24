@@ -407,7 +407,7 @@ func (s *Servico) gravarChamados(ctx context.Context, clienteID, conta string, c
 		linhas = append(linhas, map[string]any{
 			"cliente_id": clienteID,
 			"numero":     d.ID,
-			"conta":      conta,
+			"conta":      ContaDe(d.ServiceCompany.Name, conta),
 			"unidade_id": unidadeID,
 			"descricao":  strings.TrimSpace(d.Description),
 

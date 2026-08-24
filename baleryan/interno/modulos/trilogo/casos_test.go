@@ -366,3 +366,60 @@ func TestChamadosDesiguaisNaoQuebramOLote(t *testing.T) {
 		t.Fatalf("esperava foto e orçamento no mesmo lote: foto=%v orcamento=%v", temFoto, temOrc)
 	}
 }
+
+// Trinta e oito chamados da Instalações foram parar na Civil na primeira carga,
+// só porque a Civil é lida depois. Quem manda é a prestadora, não a ordem.
+func TestAContaVemDaPrestadoraNaoDeQuemLeu(t *testing.T) {
+	casos := []struct{ prestadora, leu, quer string }{
+		{"FROTA - INSTALAÇÕES", "civil", "instalacoes"},
+		{"FROTA - INSTALAÇÕES", "instalacoes", "instalacoes"},
+		{"FROTA - CIVIL", "instalacoes", "civil"},
+		{"FROTA - CIVIL", "civil", "civil"},
+		// empresa de fora: fica com quem enxerga; a verdade está em `prestadora`
+		{"DESENTUPIDORA QUALIDADE", "instalacoes", "instalacoes"},
+		{"", "civil", "civil"},
+	}
+	for _, c := range casos {
+		if got := ContaDe(c.prestadora, c.leu); got != c.quer {
+			t.Errorf("prestadora %q lida por %q: esperava %q, veio %q", c.prestadora, c.leu, c.quer, got)
+		}
+	}
+}
+
+// O chamado lido pela conta errada tem que ser gravado na conta certa.
+func TestChamadoDaInstalacoesLidoPelaCivilFicaNaInstalacoes(t *testing.T) {
+	m := novoMundo(t)
+	m.chamado(1, 82, "", nil, nil)
+	// o mundo de mentira faz as DUAS contas lerem a mesma lista; a Civil lê por
+	// último, então antes da correção este chamado terminava como 'civil'
+	m.detalhes[1]["serviceCompany"] = map[string]any{"name": "FROTA - INSTALAÇÕES", "cnpj": "27363223000170"}
+
+	if _, err := m.servico().Rodar(context.Background(), ModoLevantamento, cliente, "teste"); err != nil {
+		t.Fatal(err)
+	}
+	linhas := m.linhas("chamados")
+	if len(linhas) == 0 {
+		t.Fatal("nada gravado")
+	}
+	for _, l := range linhas {
+		if l["conta"] != "instalacoes" {
+			t.Fatalf("esperava conta instalacoes, veio %v", l["conta"])
+		}
+	}
+}
+
+// Os tipos de evento batizados a partir dos 17 mil da carga inicial.
+func TestTiposDeEventoBatizados(t *testing.T) {
+	for codigo, quer := range map[int]string{
+		23: "interrupcao", 57: "fornecedor", 58: "relacionamento",
+		75: "duplicacao", 79: "prestadora", 103: "responsavel", 4: "status",
+	} {
+		if got := RotuloEvento(codigo); got != quer {
+			t.Errorf("recordType %d: esperava %q, veio %q", codigo, quer, got)
+		}
+	}
+	// e o que ninguém mapeou continua VISÍVEL, não vira vazio
+	if got := RotuloEvento(999); got != "codigo 999" {
+		t.Errorf("código desconhecido tinha que aparecer, veio %q", got)
+	}
+}

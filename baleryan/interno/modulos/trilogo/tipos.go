@@ -1,4 +1,4 @@
-// rev 1 — o que o Trílogo devolve, e o que a gente entende disso
+// rev 2 — o que o Trílogo devolve, e o que a gente entende disso
 //
 // SÓ ESTÃO AQUI OS CAMPOS QUE USAMOS. A lista tem 99 campos e o detalhe tem 81;
 // declarar todos seria carregar peso que ninguém lê. O que faltar depois se
@@ -178,19 +178,35 @@ var rotuloTipo = map[int]string{
 }
 
 // Os tipos de evento da timeline, como aparecem na tela do Trílogo.
+// Os tipos abaixo foram batizados olhando o TEXTO de cada um deles nos 17 mil
+// eventos da carga inicial. Os que continuam sem nome aqui aparecem como
+// "codigo N" — visíveis, para alguém mapear depois. Sumir em silêncio é como o
+// erro de prioridade sobreviveu tanto tempo no sistema antigo.
 var rotuloEvento = map[int]string{
 	0:   "status",
 	2:   "status",
 	3:   "anexo",
+	4:   "status", // "Chamado finalizado"
 	11:  "responsavel",
 	12:  "prioridade",
 	17:  "prazo",
+	23:  "interrupcao", // "Interrupção de Execução"
 	26:  "situacao",
 	28:  "descricao",
+	32:  "tag",
+	35:  "status",       // "De Vistoriado Para Aberto"
+	41:  "tipo",         // "De Tipo predial Para Procedimento"
+	49:  "tipo_predial", // "De Mobilia para Eletrica"
 	54:  "comentario",
 	55:  "comentario",
+	57:  "fornecedor",     // "Fornecedor(es) Adicionado(s): ..."
+	58:  "relacionamento", // "Ticket X Relacionado Com Ticket Y"
+	59:  "relacionamento",
+	75:  "duplicacao", // "Ticket X duplicado a partir deste"
 	78:  "prestadora",
+	79:  "prestadora", // "Prestador removido: ..."
 	102: "responsavel",
+	103: "responsavel", // "Responsável removido: ..."
 }
 
 // Rotular traduz o código, e NUNCA inventa: código desconhecido volta como
@@ -218,6 +234,32 @@ var rotuloCusto = map[int]string{
 }
 
 func RotuloCusto(c int) string { return Rotular(rotuloCusto, c) }
+
+// ContaDe decide a QUAL das duas contas o chamado pertence.
+//
+// POR QUE NÃO É SIMPLESMENTE "QUEM LEU"
+//
+//	Trinta e oito chamados aparecem na lista das DUAS contas. Gravando quem leu,
+//	quem lesse por último ganhava — e a carga inicial pôs 38 chamados da
+//	Instalações dentro da Civil, só porque a Civil é lida depois.
+//
+//	Aqui quem manda é a empresa prestadora, que é o fato. A ordem da leitura
+//	deixou de importar.
+//
+// O CASO QUE SOBRA: chamado atendido por uma empresa de fora (aparecem umas
+// dezenas — desentupidora, refrigeração, estruturas metálicas). Esses ficam com a
+// conta que os enxerga. Quem serve de verdade está sempre em `prestadora`.
+func ContaDe(prestadora, contaQueLeu string) string {
+	p := strings.ToUpper(prestadora)
+	switch {
+	case strings.Contains(p, "INSTALA"):
+		return "instalacoes"
+	case strings.Contains(p, "CIVIL"):
+		return "civil"
+	default:
+		return contaQueLeu
+	}
+}
 
 // Texto escolhe o que o evento tem de legível — os campos se alternam conforme
 // o tipo, e nunca vêm os três juntos.
