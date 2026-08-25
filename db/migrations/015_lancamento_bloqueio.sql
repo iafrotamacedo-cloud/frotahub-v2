@@ -1,5 +1,5 @@
 -- =============================================================================
--- 015 — por que não lançou, e quem tem que resolver                      rev 1
+-- 015 — por que não lançou, e quem tem que resolver                      rev 2
 -- =============================================================================
 --
 -- Hoje, quando o Trílogo recusa um lançamento, três coisas acontecem de errado:
@@ -219,6 +219,18 @@ select cl.id as cliente_id,
      where o.cliente_id = cl.id and o.status <> 'removido') as no_total,
   (select coalesce(sum(o.valor), 0) from orcamentos o
      where o.cliente_id = cl.id and o.status <> 'removido') as valor_total,
+
+  -- ---- as duas da 011. Reproduzidas aqui porque `create or replace view` exige
+  -- ---- a lista INTEIRA, na mesma ordem: acrescentar é permitido, mexer não.
+  -- ---- Foi assim que a rev 1 falhou — eu tinha copiado o painel da 010, que
+  -- ---- não tem estas duas, e a 015 tentou renomear `notas_travadas`.
+
+  (select count(*) from documentos_lista dl
+     where dl.cliente_id = cl.id and dl.oculto_em is null
+       and array_length(dl.ticket_soltos, 1) > 0) as notas_travadas,
+  (select count(*) from documentos_lista dl
+     where dl.cliente_id = cl.id and dl.oculto_em is null and dl.pronto_para_gerar) as prontas_para_gerar,
+
   -- ------- daqui para baixo é o que a 015 acrescenta -------
   (select count(*) from orcamentos o
      where o.cliente_id = cl.id and o.status = 'gerado'

@@ -124,6 +124,14 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /orcamentos/ficha/{id}/pdf", m.pdfDoOrcamento)
 
 	// 2.4 — as quatro frentes
+	mux.HandleFunc("POST /orcamentos/ficha/{id}/reconferir", m.reconferir)
+
+	// As duas listas de quem tem que agir, e o registro de que foram cobradas.
+	mux.HandleFunc("GET /orcamentos/pendencias", m.pendencias)
+	mux.HandleFunc("GET /orcamentos/pendencias.xlsx", m.pendenciasExcel)
+	mux.HandleFunc("GET /orcamentos/pendencias.pdf", m.pendenciasPDF)
+	mux.HandleFunc("POST /orcamentos/pendencias/avisar", m.avisarPendencias)
+
 	mux.HandleFunc("GET /orcamentos/correcoes", m.correcoes)
 	mux.HandleFunc("GET /orcamentos/correcoes/candidatos", m.candidatos)
 	mux.HandleFunc("PATCH /orcamentos/documentos/{id}/tickets", m.corrigirTicket)
