@@ -228,3 +228,54 @@ func TestCadaEnderecoCaiNoSeuLugar(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// a trava do ticket solto
+// ---------------------------------------------------------------------------
+
+// UMA NOTA COM TICKET SOLTO NÃO PODE GERAR NADA
+//
+//	Não é rigor: é aritmética. O valor de cada parte de uma nota rateada depende
+//	de quantos tickets a nota atende. Gerar só para os que casaram e pular o que
+//	não casou faz TODOS os orçamentos daquela nota saírem errados — e saírem
+//	parecendo certos, porque cada um fecha a própria conta.
+func TestSemChamadoAchaOsSoltos(t *testing.T) {
+	id := "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+	tickets := []ticketDoDocumento{
+		{Ticket: 130708, ChamadoID: &id},
+		{Ticket: 130899, ChamadoID: nil},
+		{Ticket: 130720, ChamadoID: &id},
+		{Ticket: 126858, ChamadoID: nil},
+	}
+	soltos := semChamado(tickets)
+	if len(soltos) != 2 || soltos[0] != 130899 || soltos[1] != 126858 {
+		t.Fatalf("soltos = %v, queria [130899 126858]", soltos)
+	}
+
+	todosCasados := []ticketDoDocumento{{Ticket: 1, ChamadoID: &id}}
+	if len(semChamado(todosCasados)) != 0 {
+		t.Fatal("nota inteira resolvida não pode ter ticket solto")
+	}
+}
+
+// A mensagem é para ser lida por gente (P-18): "os tickets X, Y e Z", não
+// "[130708 130720 130899]".
+func TestListaDeTicketsEscritaParaGente(t *testing.T) {
+	casos := []struct {
+		ns   []int
+		quer string
+	}{
+		{nil, ""},
+		{[]int{130899}, "o ticket 130899"},
+		{[]int{130708, 130899}, "os tickets 130708 e 130899"},
+		{[]int{130708, 130720, 130899}, "os tickets 130708, 130720 e 130899"},
+	}
+	for _, c := range casos {
+		if got := listaDeTickets(c.ns); got != c.quer {
+			t.Errorf("listaDeTickets(%v) = %q, queria %q", c.ns, got, c.quer)
+		}
+	}
+	if concordancia(1) != "existe" || concordancia(3) != "existem" {
+		t.Error("a concordância do verbo está errada na frase de erro")
+	}
+}

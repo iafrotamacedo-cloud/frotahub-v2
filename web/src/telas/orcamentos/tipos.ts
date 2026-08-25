@@ -12,6 +12,8 @@ export interface Painel {
   sem_associacao: number
   aguardando_aprovacao: number
   apagados: number
+  notas_travadas: number
+  prontas_para_gerar: number
   no_total: number
   valor_total: number
   ultima_insercao?: string | null
@@ -49,6 +51,10 @@ export interface Documento {
   oculto_em: string | null
   tickets: number
   ticket_numeros: number[] | null
+  /** Os tickets escritos que a nossa base não conhece. Enquanto houver um, a
+   *  nota não gera — o valor de cada parte dependeria de quantos tickets são. */
+  ticket_soltos: number[] | null
+  pronto_para_gerar: boolean
   itens: number
 }
 

@@ -148,6 +148,22 @@
 .orc-tks-celula { display: flex; flex-direction: column; gap: 2px; }
 .orc-tks-celula span { font-variant-numeric: tabular-nums; }
 
+/* O ticket que não casou com a nossa base. Âmbar, e não vermelho: não é erro do
+   usuário, é um número que o fornecedor escreveu e ainda precisa de conserto. */
+.orc-tk-solto {
+  color: var(--warn); font-weight: 600;
+  border-bottom: 1px dashed var(--warn);
+}
+.orc-travada {
+  align-self: flex-start; margin-top: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--warn); background: var(--warn-bg);
+  border-radius: 20px; padding: 1px 8px;
+}
+
+/* O contador ao lado do botão de gerar: diz por que ele está aceso ou apagado. */
+.orc-prontas { font-size: 11.5px; color: var(--d-mut); }
+
 .orc-selo {
   display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
 }

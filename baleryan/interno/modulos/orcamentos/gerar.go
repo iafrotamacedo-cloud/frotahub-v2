@@ -77,6 +77,10 @@ func statusConhecido(s string) bool {
 type pedidoDeGeracao struct {
 	// Vazio = gera para tudo que está lido e amarrado. Com lista, gera só esses.
 	Documentos []string `json:"documentos"`
+	// "orcamento" | "rateio" | vazio (as duas). É o que permite ter o botão na
+	// própria tela de notas: quem está no rateio gera o rateio, e não mexe na
+	// outra fila sem querer.
+	Fila string `json:"fila"`
 }
 
 type saidaDaGeracao struct {
@@ -113,7 +117,7 @@ func (m *Modulo) gerar(w http.ResponseWriter, r *http.Request) {
 			p.ClienteID, par.Teto.Reais(), par.MargemBP)
 	}
 
-	docs, err := m.documentosProntos(r.Context(), p.ClienteID, pedido.Documentos)
+	docs, err := m.documentosProntos(r.Context(), p.ClienteID, pedido.Documentos, pedido.Fila)
 	if err != nil {
 		m.erro(w, "não consegui achar as notas prontas", err)
 		return
@@ -139,11 +143,15 @@ type documentoPronto struct {
 }
 
 // documentosProntos são as notas lidas, ainda não usadas e não ocultas.
-func (m *Modulo) documentosProntos(ctx context.Context, clienteID string, apenas []string) ([]documentoPronto, error) {
+func (m *Modulo) documentosProntos(ctx context.Context, clienteID string, apenas []string, fila string) ([]documentoPronto, error) {
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(clienteID) +
 		"&oculto_em=is.null&status=eq.lido" +
 		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emissao,observacao,valor_total" +
 		"&order=inserido_em"
+
+	if fila == "orcamento" || fila == "rateio" {
+		filtro += "&fila=eq." + fila
+	}
 
 	if len(apenas) > 0 {
 		ids := make([]string, 0, len(apenas))
@@ -188,6 +196,28 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		return []saidaDaGeracao{base}
 	}
 
+	// A NOTA SÓ PASSA COM TODOS OS TICKETS RESOLVIDOS
+	//
+	//	Numa nota rateada o valor de cada orçamento depende de QUANTOS tickets a
+	//	nota atende. Gerar só para os que casaram e pular o que não casou faria
+	//	todos os orçamentos daquela nota saírem com o valor errado — e saírem
+	//	parecendo certos, porque cada um fecha a própria conta.
+	//
+	//	Antes daqui a geração fazia isso: um erro por ticket, e os outros
+	//	seguiam. Era o defeito mais caro possível: silencioso, plausível, e só
+	//	descoberto conferindo nota por nota meses depois.
+	//
+	//	A recusa diz QUAIS tickets travaram e para onde ir. Bloqueio sem saída
+	//	visível é o que faz o usuário criar planilha paralela.
+	if soltos := semChamado(tickets); len(soltos) > 0 {
+		base.Erro = fmt.Sprintf(
+			"travada: %s não %s na nossa base de chamados. "+
+				"Corrija em Correções › Sem associação — enquanto um ticket estiver solto, "+
+				"o valor de cada parte desta nota sairia errado.",
+			listaDeTickets(soltos), concordancia(len(soltos)))
+		return []saidaDaGeracao{base}
+	}
+
 	itens, err := m.itensDo(ctx, d.ID)
 	if err != nil || len(itens) == 0 {
 		base.Erro = "esta nota não tem itens lidos"
@@ -201,12 +231,6 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 	for i, t := range tickets {
 		res := base
 		res.Ticket = t.Ticket
-
-		if t.ChamadoID == nil {
-			res.Erro = "o ticket não existe na nossa base de chamados"
-			saida = append(saida, res)
-			continue
-		}
 
 		// A parcela deste ticket. A última fica com a sobra dos centavos, para a
 		// soma das partes fechar exatamente com o total.
@@ -246,6 +270,41 @@ func fatiar(total regras.Dinheiro, n, i int) regras.Dinheiro {
 		return total - parte*regras.Dinheiro(n-1)
 	}
 	return parte
+}
+
+// semChamado devolve os tickets que não casaram com a nossa base.
+func semChamado(tickets []ticketDoDocumento) []int {
+	var soltos []int
+	for _, t := range tickets {
+		if t.ChamadoID == nil {
+			soltos = append(soltos, t.Ticket)
+		}
+	}
+	return soltos
+}
+
+// listaDeTickets escreve "130899" ou "130708, 130720 e 130899" — porque a
+// mensagem é para ser lida por gente (P-18).
+func listaDeTickets(ns []int) string {
+	txt := make([]string, 0, len(ns))
+	for _, n := range ns {
+		txt = append(txt, strconv.Itoa(n))
+	}
+	switch len(txt) {
+	case 0:
+		return ""
+	case 1:
+		return "o ticket " + txt[0]
+	default:
+		return "os tickets " + strings.Join(txt[:len(txt)-1], ", ") + " e " + txt[len(txt)-1]
+	}
+}
+
+func concordancia(n int) string {
+	if n == 1 {
+		return "existe"
+	}
+	return "existem"
 }
 
 type ticketDoDocumento struct {

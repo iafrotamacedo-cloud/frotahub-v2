@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
-import { BarraDeVolta, Paginacao } from './Arquivos'
+import { BarraDeVolta, Paginacao, ResumoDaGeracao } from './Arquivos'
 import {
   emReais, emDataHora, contaPorExtenso,
   type Orcamento, type Pagina, type ResultadoDaGeracao,
@@ -215,32 +215,6 @@ function Bloqueio({ dados, fechar }: { dados: BloqueioDoTeto; fechar: () => void
       <p className="orc-saidas">O que dá para fazer:</p>
       <ul>{dados.saidas.map(s => <li key={s}>{s}</li>)}</ul>
       <button type="button" className="orc-bt" onClick={fechar}>Entendi</button>
-    </div>
-  )
-}
-
-function ResumoDaGeracao({ resultados, fechar }: { resultados: ResultadoDaGeracao[]; fechar: () => void }) {
-  const bons = resultados.filter(r => r.orcamento).length
-  const ruins = resultados.filter(r => r.erro)
-  return (
-    <div className="orc-resumo">
-      <div className="cab">
-        <b>{bons} orçamento{bons === 1 ? '' : 's'} gerado{bons === 1 ? '' : 's'}</b>
-        {ruins.length > 0 && <span> · {ruins.length} não deu</span>}
-        <button type="button" onClick={fechar}>fechar</button>
-      </div>
-      {resultados.some(r => r.aviso) && (
-        <ul className="avisos">
-          {resultados.filter(r => r.aviso).map((r, i) => (
-            <li key={i}><b>ticket {r.ticket}</b> — {r.aviso}</li>
-          ))}
-        </ul>
-      )}
-      {ruins.length > 0 && (
-        <ul className="ruins">
-          {ruins.map((r, i) => <li key={i}><b>{r.nome}</b> — {r.erro}</li>)}
-        </ul>
-      )}
     </div>
   )
 }

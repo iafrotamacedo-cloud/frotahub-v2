@@ -19,7 +19,8 @@ import { motor, enviarArquivos } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import {
   emDataHora, emReais, confiancaEmPalavras,
-  type Documento, type Pagina, type ResultadoDaInsercao, type TicketDoDocumento,
+  type Documento, type Pagina, type ResultadoDaInsercao, type ResultadoDaGeracao,
+  type TicketDoDocumento,
 } from './tipos'
 
 interface Props {
@@ -42,6 +43,16 @@ export function Arquivos({ fila, voltar }: Props) {
   // O aviso de exclusão. Fica até o usuário responder: sumir sozinho
   // transformaria "desfazer" numa corrida contra o relógio.
   const [desfazer, setDesfazer] = useState<{ id: string; nome: string } | null>(null)
+
+  // A GERAÇÃO ACONTECE AQUI, ONDE O TRABALHO TERMINA
+  //
+  //	Amarrar os tickets e gerar são o mesmo gesto para quem opera: a pessoa
+  //	acabou de dizer quais tickets a nota atende e quer ver o orçamento. Mandá-la
+  //	a outra tela para apertar um botão é fazer o programa aparecer no meio do
+  //	trabalho. Lançar continua noutra tela — porque entre gerar e lançar existe
+  //	uma conferência, e essa separação é de propósito.
+  const [gerando, setGerando] = useState(false)
+  const [resultados, setResultados] = useState<ResultadoDaGeracao[] | null>(null)
 
 
   const carregar = useCallback(async () => {
@@ -83,6 +94,22 @@ export function Arquivos({ fila, voltar }: Props) {
     }
   }
 
+  async function gerar() {
+    setGerando(true)
+    setResultados(null)
+    try {
+      const r = await motor<{ resultados: ResultadoDaGeracao[] }>('/orcamentos/gerar',
+        { metodo: 'POST', corpo: { fila } })
+      setResultados(r.resultados)
+      await carregar()
+      setErro('')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui gerar.')
+    } finally {
+      setGerando(false)
+    }
+  }
+
   async function abrirArquivo(d: Documento) {
     try {
       const r = await motor<{ url: string }>(`/orcamentos/documentos/${d.id}/arquivo`)
@@ -103,7 +130,25 @@ export function Arquivos({ fila, voltar }: Props) {
 
   return (
     <div className="orc-tela">
-      <BarraDeVolta voltar={voltar} titulo={fila === 'rateio' ? 'Notas para rateio' : 'Notas e DAVs'} />
+      <BarraDeVolta
+        voltar={voltar}
+        titulo={fila === 'rateio' ? 'Notas para rateio' : 'Notas e DAVs'}
+        direita={
+          <>
+            <span className="orc-prontas">{contarProntas(pagina)}</span>
+            <button
+              type="button"
+              className="orc-bt forte"
+              disabled={gerando || contarProntas(pagina) === '' }
+              onClick={() => void gerar()}
+            >
+              {gerando ? 'Gerando…' : 'Gerar orçamentos'}
+            </button>
+          </>
+        }
+      />
+
+      {resultados && <ResumoDaGeracao resultados={resultados} fechar={() => setResultados(null)} />}
 
       <Insercao fila={fila} aoTerminar={carregar} aoFalhar={setErro} />
 
@@ -168,7 +213,9 @@ export function Arquivos({ fila, voltar }: Props) {
                       )}
                     </td>
                     <td>{emDataHora(d.inserido_em)}</td>
-                    {fila === 'rateio' && <td><Tickets numeros={d.ticket_numeros} /></td>}
+                    {fila === 'rateio' && (
+                      <td><Tickets numeros={d.ticket_numeros} soltos={d.ticket_soltos} /></td>
+                    )}
                     <td><Leitura d={d} /></td>
                     <td className="orc-acoes">
                       <button type="button" onClick={() => void abrirArquivo(d)}>ver</button>
@@ -434,16 +481,46 @@ export function BarraDeVolta({ voltar, titulo, direita }: {
 }
 
 /** Os tickets da linha, quebrando a cada quatro — o único lugar da tabela onde
- *  a quebra de linha é permitida, como o dono especificou. */
-function Tickets({ numeros }: { numeros: number[] | null }) {
+ *  a quebra de linha é permitida, como o dono especificou.
+ *
+ *  O que não casou com a nossa base sai em âmbar. É o ticket que TRAVA a nota:
+ *  enquanto ele existir, gerar produziria valor errado nas outras partes. Marcar
+ *  na lista é o que permite consertar sem ter que abrir nota por nota. */
+function Tickets({ numeros, soltos }: { numeros: number[] | null; soltos?: number[] | null }) {
   if (!numeros?.length) return <span className="orc-detalhe">sem ticket</span>
+  const solto = new Set(soltos ?? [])
   const grupos: number[][] = []
   for (let i = 0; i < numeros.length; i += 4) grupos.push(numeros.slice(i, i + 4))
   return (
     <span className="orc-tks-celula">
-      {grupos.map((g, i) => <span key={i}>{g.join(' · ')}</span>)}
+      {grupos.map((g, i) => (
+        <span key={i}>
+          {g.map((n, j) => (
+            <span key={n}>
+              {j > 0 && ' · '}
+              <span className={solto.has(n) ? 'orc-tk-solto' : undefined}
+                title={solto.has(n) ? 'este número não existe na nossa base — a nota não gera enquanto ele estiver assim' : undefined}>
+                {n}
+              </span>
+            </span>
+          ))}
+        </span>
+      ))}
+      {solto.size > 0 && <span className="orc-travada">travada</span>}
     </span>
   )
+}
+
+/** Quantas notas desta página estão prontas — o número que explica o botão. */
+function contarProntas(pagina: Pagina<Documento> | null): string {
+  if (!pagina) return ''
+  const prontas = pagina.linhas.filter(d => d.pronto_para_gerar).length
+  const travadas = pagina.linhas.filter(d => (d.ticket_soltos?.length ?? 0) > 0).length
+  if (prontas === 0 && travadas === 0) return ''
+  const partes: string[] = []
+  if (prontas) partes.push(`${prontas} pronta${prontas > 1 ? 's' : ''}`)
+  if (travadas) partes.push(`${travadas} travada${travadas > 1 ? 's' : ''}`)
+  return partes.join(' · ')
 }
 
 function Leitura({ d }: { d: Documento }) {
@@ -477,6 +554,32 @@ export function Paginacao({ pagina, por, aoTrocarPagina, aoTrocarPor }: {
           {[100, 250, 500].map(n => <option key={n} value={n}>{n} por página</option>)}
         </select>
       </span>
+    </div>
+  )
+}
+
+export function ResumoDaGeracao({ resultados, fechar }: { resultados: ResultadoDaGeracao[]; fechar: () => void }) {
+  const bons = resultados.filter(r => r.orcamento).length
+  const ruins = resultados.filter(r => r.erro)
+  return (
+    <div className="orc-resumo">
+      <div className="cab">
+        <b>{bons} orçamento{bons === 1 ? '' : 's'} gerado{bons === 1 ? '' : 's'}</b>
+        {ruins.length > 0 && <span> · {ruins.length} não deu</span>}
+        <button type="button" onClick={fechar}>fechar</button>
+      </div>
+      {resultados.some(r => r.aviso) && (
+        <ul className="avisos">
+          {resultados.filter(r => r.aviso).map((r, i) => (
+            <li key={i}><b>ticket {r.ticket}</b> — {r.aviso}</li>
+          ))}
+        </ul>
+      )}
+      {ruins.length > 0 && (
+        <ul className="ruins">
+          {ruins.map((r, i) => <li key={i}><b>{r.nome}</b> — {r.erro}</li>)}
+        </ul>
+      )}
     </div>
   )
 }
