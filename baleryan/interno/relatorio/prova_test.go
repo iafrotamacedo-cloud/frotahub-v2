@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -79,8 +80,8 @@ func TestPlanilhaTemAsPecasQueOExcelExige(t *testing.T) {
 	folha := dentro["xl/worksheets/sheet1.xml"]
 	for _, pedaco := range []string{
 		"Ticket", "LOJA 29 - MONDUBIM", "Descri", // cabeçalho e conteúdo
-		`<pane ySplit="1"`,                        // cabeçalho congelado
-		"<autoFilter",                             // filtro ligado
+		`<pane ySplit="1"`, // cabeçalho congelado
+		"<autoFilter",      // filtro ligado
 	} {
 		if !strings.Contains(folha, pedaco) {
 			t.Errorf("faltou %q na planilha", pedaco)
@@ -101,7 +102,9 @@ func TestDataEDinheiroVaoComoNumero(t *testing.T) {
 	// número tem que bater NA CASA DO MINUTO: um "46256.5" qualquer esconderia
 	// um erro de meia hora, que foi exatamente o que aconteceu na primeira
 	// versão desta conta.
-	if !strings.Contains(folha, `s="3"><v>46256.531250`) {
+	// A série agora é escrita com precisão total (`FormatFloat(..., -1)`), e não
+	// com seis casas fixas: é o mesmo número, escrito sem o zero de enfeite.
+	if !strings.Contains(folha, `s="3"><v>46256.53125<`) {
 		t.Errorf("a data não virou número de série do Excel no fuso certo:\n%s", recorte(folha, "s=\"3\""))
 	}
 	if !strings.Contains(folha, `s="4"><v>94.44`) {
@@ -287,4 +290,36 @@ func TestDumpParaConferencia(t *testing.T) {
 	os.WriteFile("/tmp/relatorio.xlsx", x, 0o644)
 	os.WriteFile("/tmp/relatorio.pdf", p, 0o644)
 	t.Log("gravados em /tmp/relatorio.xlsx e /tmp/relatorio.pdf")
+}
+
+// A PRECISÃO DA DATA NA PLANILHA
+//
+//	09:05:00 saía do gerador como 09:04:59,981 porque a série era escrita com
+//	seis casas — e seis casas de um DIA são 86 milésimos de segundo. O Excel
+//	esconde isso ao exibir (o formato arredonda para o minuto), então o defeito
+//	atravessava a conferência visual inteira.
+//
+//	Este teste desfaz a conta: pega o número escrito no XML e volta para hora,
+//	minuto e segundo. É o mesmo caminho que um leitor de planilha de verdade
+//	faz — e foi assim que o defeito apareceu (P-34).
+func TestSerieDoExcelNaoPerdeOSegundo(t *testing.T) {
+	casos := []struct{ h, m, s int }{
+		{12, 45, 0},
+		{9, 5, 0},
+		{23, 59, 59},
+		{0, 0, 1},
+		{7, 33, 17},
+	}
+	for _, c := range casos {
+		d := time.Date(2026, 8, 24, c.h, c.m, c.s, 0, FusoDaCasa())
+		serie := serieDoExcel(d)
+
+		// O caminho de volta, com o mesmo arredondamento que os leitores usam.
+		segundos := int(math.Round((serie - math.Floor(serie)) * 86400))
+		h, m, s := segundos/3600, (segundos/60)%60, segundos%60
+		if h != c.h || m != c.m || s != c.s {
+			t.Fatalf("%02d:%02d:%02d virou %02d:%02d:%02d (série %v)",
+				c.h, c.m, c.s, h, m, s, serie)
+		}
+	}
 }

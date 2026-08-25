@@ -1,4 +1,4 @@
-// rev 7 — baleryan, o motor do FrotaHub
+// rev 8 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -27,6 +27,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
@@ -35,7 +36,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "7"
+const Revisao = "8"
 
 type motor struct {
 	cfg  *config.Config
@@ -74,6 +75,10 @@ func main() {
 	arm := armazem.Novo(cfg)
 	trilogo.NovoModulo(trilogo.Novo(cfg, bd, arm), seg, m.perm, bd).Montar(mux)
 	trilogo.NovaConsulta(bd, seg, m.perm, arm).Montar(mux)
+	// Orçamentos usa o mesmo armazém do Trílogo — os arquivos são do mesmo
+	// cliente e o endereçamento por sha256 é o mesmo. Dois armazéns seriam duas
+	// verdades sobre onde um arquivo está.
+	orcamentos.Novo(cfg, bd, seg, m.perm, arm, hist).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".

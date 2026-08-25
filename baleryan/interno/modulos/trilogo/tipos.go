@@ -142,6 +142,9 @@ type Custo struct {
 	DocumentNumber string   `json:"documentNumber"`
 	IssueDate      string   `json:"issueDate"`
 	Company        struct {
+		// O id é o que o lançamento precisa mandar de volta em CompanyId. Levantado
+		// em 25/08/2026: 35 = FROTA - INSTALAÇÕES.
+		ID   int    `json:"id"`
 		Name string `json:"name"`
 	} `json:"company"`
 	// É AQUI que moram os nossos orçamentos — não junto das fotos.

@@ -159,6 +159,26 @@ type Trilogo struct {
 	// Quantos chamados por lote na atualização. O motor do plano gratuito pode
 	// adormecer no meio; lote pequeno significa perder pouco e retomar rápido.
 	Lote int
+
+	// O id da empresa prestadora DENTRO do Trílogo, que o lançamento de custo
+	// precisa mandar em `CompanyId`.
+	//
+	// POR QUE NÃO É CONSTANTE NO CÓDIGO
+	//
+	//	O 35 de Instalações foi levantado capturando a rede em 25/08/2026. O da
+	//	Civil ainda não foi — e um número errado aqui lança o custo na empresa
+	//	errada, dentro do sistema do cliente. Preferimos RECUSAR o lançamento a
+	//	chutar: sem o id, a rota responde com a frase que diz o que falta.
+	EmpresaInstalacoes int
+	EmpresaCivil       int
+}
+
+// EmpresaDaConta devolve o id da empresa prestadora, ou zero se não sabemos.
+func (t Trilogo) EmpresaDaConta(conta string) int {
+	if conta == "civil" {
+		return t.EmpresaCivil
+	}
+	return t.EmpresaInstalacoes
 }
 
 // SoLinkPadrao é a lista que vale quando ninguém disse outra coisa.
@@ -198,17 +218,29 @@ type Conta struct {
 	Senha string
 }
 
-// Dropbox guarda o arquivo-mestre.
-type Dropbox struct {
-	AppKey       string
-	AppSecret    string
-	RefreshToken string
-	Raiz         string
+// O DROPBOX SAIU DO STACK EM 25/08/2026.
+//
+// Ele era o arquivo-mestre — as pastas 10 e 11, a rede de segurança que uma vez
+// recuperou 15 orçamentos perdidos. Quem assume esse papel agora é o R2, por
+// duas escolhas que juntas fazem o mesmo trabalho e um pouco mais:
+//
+//	o endereço do arquivo é o sha256 do conteúdo, então duplicar é impossível;
+//	nada é apagado do R2 — "excluir" preenche `oculto_em` no banco e pronto.
+//
+// A consequência prática é que o "desfazer" da tela é um update, e não um
+// resgate de lixeira de terceiro. Nenhuma variável DROPBOX_* é lida.
+
+// IA é a terceira camada da leitura de nota fiscal.
+//
+// A primeira é o XML (exato, de graça); a segunda é o OCR com expressão regular
+// (pega a chave de acesso e o valor); a terceira estrutura o resto. As duas
+// primeiras não precisam de configuração nenhuma.
+type IA struct {
+	Chave  string
+	Modelo string
 }
 
-func (d Dropbox) Ligado() bool {
-	return d.AppKey != "" && d.AppSecret != "" && d.RefreshToken != ""
-}
+func (i IA) Ligada() bool { return i.Chave != "" }
 
 // Runtime é como o processo roda.
 type Runtime struct {
@@ -224,8 +256,8 @@ func (r Runtime) Producao() bool { return r.Ambiente == "producao" }
 type Config struct {
 	Supabase Supabase
 	R2       R2
-	Dropbox  Dropbox
 	Trilogo  Trilogo
+	IA       IA
 	Runtime  Runtime
 	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
 	Papel     string
@@ -243,7 +275,7 @@ func (c Config) Resumo() map[string]any {
 		"ambiente": c.Runtime.Ambiente,
 		"supabase": c.Supabase.URL != "",
 		"r2":       c.R2.Ligado(),
-		"dropbox":  c.Dropbox.Ligado(),
+		"ia":       c.IA.Ligada(),
 		"trilogo":  c.Trilogo.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
@@ -281,13 +313,17 @@ func Carregar() (*Config, error) {
 		SoLink:           l.lista("TRILOGO_SO_LINK", SoLinkPadrao),
 		Paralelo:         l.inteiro("TRILOGO_PARALELO", 12, 1, 32),
 		Lote:             l.inteiro("TRILOGO_LOTE", 150, 10, 1000),
+		// 35 é o valor levantado da conta Instalações. O da Civil nasce zero de
+		// propósito: zero é "não sei", e "não sei" recusa o lançamento.
+		EmpresaInstalacoes: l.inteiro("TRILOGO_EMPRESA_INSTALACOES", 35, 0, 1<<30),
+		EmpresaCivil:       l.inteiro("TRILOGO_EMPRESA_CIVIL", 0, 0, 1<<30),
 	}
 
-	dbx := Dropbox{
-		AppKey:       l.texto("DROPBOX_APP_KEY", "", false, ""),
-		AppSecret:    l.segredo("DROPBOX_APP_SECRET", false, 0, ""),
-		RefreshToken: l.segredo("DROPBOX_REFRESH_TOKEN", false, 0, ""),
-		Raiz:         l.texto("DROPBOX_RAIZ", "/FROTAHUB", false, ""),
+	// A leitura da nota, camada 3. Sem chave, o motor continua subindo: as
+	// camadas 1 e 2 funcionam sozinhas, só com menos alcance.
+	ia := IA{
+		Chave:  l.segredo("GEMINI_API_KEY", false, 0, ""),
+		Modelo: l.texto("GEMINI_MODELO", "gemini-2.5-flash", false, ""),
 	}
 
 	// QUEM ESTÁ LIGANDO
@@ -305,7 +341,7 @@ func Carregar() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Supabase: sb, R2: r2, Dropbox: dbx, Trilogo: tri, Runtime: rt,
+		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Runtime: rt,
 		Papel: papel,
 		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),
@@ -324,9 +360,6 @@ func Carregar() (*Config, error) {
 	if cfg.Runtime.Producao() {
 		if !cfg.R2.Ligado() {
 			l.problema("R2_* — em produção o armazenamento dos arquivos vivos é obrigatório.")
-		}
-		if !cfg.Dropbox.Ligado() {
-			l.problema("DROPBOX_* — em produção o arquivo-mestre é obrigatório.")
 		}
 		for _, o := range cfg.Runtime.OrigensCORS {
 			if o == "*" {

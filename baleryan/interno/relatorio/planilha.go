@@ -120,8 +120,20 @@ func celula(ref string, v any, tipo Tipo) string {
 			if tipo == DataHora {
 				estilo = 3
 			}
+			// PRECISÃO TOTAL, E NÃO SEIS CASAS
+			//
+			//	Seis casas de um DIA são 86 milésimos de segundo de resolução.
+			//	Parece bastante até alguém abrir o arquivo com um leitor de
+			//	verdade: 09:05:00 saía como 09:04:59,981. O Excel esconde isso ao
+			//	exibir, porque o formato arredonda para o minuto — então o
+			//	defeito atravessaria a conferência visual inteira e só apareceria
+			//	numa fórmula que compara horários.
+			//
+			//	`-1` escreve a representação mais curta que volta ao mesmo
+			//	float64. É o número que a gente calculou, e não uma versão
+			//	aparada dele.
 			return fmt.Sprintf(`<c r="%s" s="%d"><v>%s</v></c>`, ref, estilo,
-				strconv.FormatFloat(serieDoExcel(d), 'f', 6, 64))
+				strconv.FormatFloat(serieDoExcel(d), 'f', -1, 64))
 		}
 		return ""
 	}
@@ -229,7 +241,8 @@ const relacoesDaPasta = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </Relationships>`
 
 // Os estilos, na ordem em que o código os usa:
-//   0 comum · 1 cabeçalho · 2 data · 3 data e hora · 4 dinheiro
+//
+//	0 comum · 1 cabeçalho · 2 data · 3 data e hora · 4 dinheiro
 const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <numFmts count="3">

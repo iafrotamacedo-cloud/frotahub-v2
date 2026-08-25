@@ -16,6 +16,7 @@ import { EmBreve } from './telas/EmBreve'
 import { Usuarios } from './telas/usuarios/Usuarios'
 import { Categorias } from './telas/categorias/Categorias'
 import { MinhaConta } from './telas/MinhaConta'
+import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { useExpiracao } from './sessao/inatividade'
 
@@ -197,7 +198,7 @@ export default function App() {
 
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura
             confortável atrapalha mais do que ajuda. */}
-        <main className={'content' + (atual?.tela === 'trilogo-dados' ? ' content-largo' : '')}>
+        <main className={'content' + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos') ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
           ) : atual?.sub?.length ? (
@@ -228,6 +229,14 @@ export default function App() {
             <Categorias />
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
+          ) : atual?.tela === 'orcamentos' ? (
+            // A sub-tela também vem do endereço, pelo mesmo motivo do ticket
+            // abaixo: voltar tem que fechar a sub-tela, não sair do sistema.
+            <Orcamentos
+              onde={extra[0]}
+              abrir={onde => navegar(caminho, [onde])}
+              voltar={() => navegar(caminho)}
+            />
           ) : atual?.tela === 'trilogo-dados' ? (
             // O ticket aberto vem do ENDEREÇO, não de um estado escondido: é o
             // que faz o voltar do navegador fechar a ficha em vez de sair do

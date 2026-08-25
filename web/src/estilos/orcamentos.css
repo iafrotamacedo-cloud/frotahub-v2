@@ -1,0 +1,344 @@
+/* rev 1 — as telas do módulo Orçamentos
+ *
+ * A FRONTEIRA DOS DOIS TEMAS
+ *   O que é MENU e o que é CHROME (barra de topo, barra de inserção, avisos)
+ *   fica escuro. O que é LISTA fica claro, do cabeçalho ao rodapé de paginação.
+ *   Menu é lugar de escolher; lista é lugar de ler.
+ *
+ * AS MEDIDAS EM CENTÍMETRO
+ *   O dono especificou a tela em centímetros. A 96 dpi, 1 cm = 37,8 px. As
+ *   medidas abaixo trazem o valor em cm no comentário para que a conferência
+ *   com o desenho continue possível depois.
+ */
+
+/* O módulo inteiro é uma superfície escura: menu escuro é a regra, e uma ilha
+   escura boiando no cinza claro da página fica pior que os dois temas puros.
+   O que fica claro é a TABELA, que é o lugar de ler. */
+.orc-painel, .orc-tela {
+  display: flex; flex-direction: column; min-height: 0; flex: 1;
+  background: var(--d-bg); border-radius: var(--r-l);
+  padding: 14px; margin: -4px 0;
+}
+.orc-painel { gap: 14px; }
+
+/* ---------- barra de topo (escura) ---------- */
+
+.orc-topo, .orc-barra {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; height: 46px; flex: 0 0 46px;
+  border-radius: var(--r-m);
+  background: var(--d-bg2); border: 1px solid var(--d-line);
+  color: var(--d-txt2); font-size: 12.5px;
+}
+.orc-barra-titulo { font-weight: 650; color: var(--d-txt); font-size: 13px; }
+.orc-barra-dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.orc-topo { margin-bottom: 14px; }
+.orc-pulso {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 0 3px rgba(63, 164, 106, .16);
+}
+
+.orc-voltar {
+  border: 1px solid var(--d-line2); background: var(--d-card2); color: var(--d-txt2);
+  border-radius: 7px; height: 28px; padding: 0 11px; font-size: 12px; cursor: pointer;
+}
+.orc-voltar:hover { color: var(--d-txt); border-color: var(--red-lift); }
+
+/* ---------- barra de inserção: 2 cm abaixo do topo, 4 cm de altura ---------- */
+
+.orc-insercao {
+  margin-top: 76px;            /* 2 cm */
+  height: 151px;               /* 4 cm */
+  flex: 0 0 151px;
+  border-radius: var(--r-l);
+  border: 1px dashed var(--d-line2);
+  background: linear-gradient(180deg, var(--d-card2), var(--d-card));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
+  transition: border-color var(--transicao), background var(--transicao);
+}
+.orc-insercao.sobre { border-color: var(--red-lift); background: rgba(209, 73, 76, .07); }
+.orc-insercao p { margin: 0; font-size: 13px; color: var(--d-txt2); }
+.orc-insercao .linha { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.orc-insercao .caixa {
+  width: 330px; max-width: 60vw; height: 34px;
+  border-radius: 9px; border: 1px solid var(--d-line2); background: var(--d-bg2);
+  color: var(--d-mut); font-size: 12.5px;
+  display: flex; align-items: center; padding: 0 12px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+.orc-bt {
+  height: 34px; padding: 0 15px; border-radius: 9px;
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--d-line2); background: var(--d-card3); color: var(--d-txt2);
+}
+.orc-bt:hover:not(:disabled) { color: var(--d-txt); border-color: var(--red-lift); }
+.orc-bt.forte { background: var(--red); border-color: var(--red-d); color: #fff; }
+.orc-bt.forte:hover:not(:disabled) { background: var(--red-h); }
+.orc-bt:disabled { opacity: .45; cursor: default; }
+
+.orc-bt-fino {
+  border: 1px solid var(--line); background: var(--card); color: var(--gray);
+  border-radius: 7px; height: 28px; padding: 0 10px; font-size: 11.5px; cursor: pointer;
+}
+.orc-bt-fino.ligado { border-color: var(--red); color: var(--red); }
+
+/* ---------- a lista (clara) ---------- */
+
+/* `flex: 0 1 auto` e não `1`: a lista curta encolhe até o tamanho do conteúdo em
+   vez de esticar um vazio branco até o rodapé da janela. Quem segura a lista
+   longa é o teto de altura medido em `useAlturaDeTela`. */
+.orc-lista {
+  margin-top: 18px; flex: 0 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  border-radius: var(--r-l); background: var(--card); border: 1px solid var(--line);
+  overflow: hidden;
+}
+.orc-lista-cab {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 16px; border-bottom: 1px solid var(--line); background: #FBFBFC;
+  flex: 0 0 auto;
+}
+.orc-lista-cab h2 { margin: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); }
+.orc-lista-cab em { font-style: normal; font-size: 11.5px; color: var(--mut); }
+.orc-lista-cab select, .orc-filtros select, .orc-filtros input {
+  height: 28px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--card); color: var(--txt); font-size: 12px; padding: 0 8px;
+}
+.orc-busca {
+  margin-left: auto; height: 28px; width: 280px; max-width: 40vw;
+  border-radius: 7px; border: 1px solid var(--line); padding: 0 10px; font-size: 12px;
+}
+
+.orc-rolagem { flex: 1; min-height: 0; overflow: auto; }
+
+.orc-tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; color: var(--txt); }
+.orc-tabela th {
+  position: sticky; top: 0; z-index: 1;
+  font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--gray);
+  font-weight: 650; text-align: left; padding: 9px 16px;
+  border-bottom: 1px solid var(--line); background: #F8F9FA;
+}
+.orc-tabela td { padding: 8px 16px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+.orc-tabela tbody tr:nth-child(even) td { background: #FCFCFD; }
+.orc-tabela tbody tr:hover td { background: var(--red-050); }
+
+.orc-nome { display: block; font-weight: 500; color: var(--ink); }
+.orc-detalhe { display: block; margin-top: 2px; font-size: 11px; color: var(--mut); }
+
+.orc-acoes { text-align: right; white-space: nowrap; }
+.orc-acoes button {
+  border: 0; background: none; cursor: pointer;
+  color: var(--red); font-weight: 600; font-size: 11.5px; margin-left: 12px; padding: 2px 0;
+}
+.orc-acoes button.mut { color: var(--gray); font-weight: 500; }
+.orc-acoes button.forte {
+  border: 1px solid var(--red); border-radius: 7px; padding: 3px 10px;
+}
+.orc-acoes button:hover { text-decoration: underline; }
+.orc-acoes .orc-mais {
+  border: 1px solid var(--line); border-radius: 6px; width: 24px; height: 22px;
+  color: var(--red); font-size: 14px; line-height: 1;
+}
+
+.orc-vazio { color: var(--mut); font-style: italic; padding: 22px 16px; text-align: center; }
+.orc-vazio.grande { padding: 46px 16px; }
+
+/* Os tickets da linha, quebrando a cada quatro — o único lugar da tabela onde a
+   quebra é permitida. */
+.orc-tks-celula { display: flex; flex-direction: column; gap: 2px; }
+.orc-tks-celula span { font-variant-numeric: tabular-nums; }
+
+.orc-selo {
+  display: inline-block; font-size: 10.5px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+}
+.orc-selo.ok    { background: var(--ok-bg);   color: var(--ok); }
+.orc-selo.aviso { background: var(--warn-bg); color: var(--warn); }
+.orc-selo.ruim  { background: var(--err-bg);  color: var(--err); }
+.orc-selo.espera{ background: var(--line-2);  color: var(--gray); }
+
+.orc-marca { color: var(--ok); font-weight: 700; }
+.orc-traco { color: var(--mut); }
+
+.orc-rodape {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line);
+  background: #FBFBFC; font-size: 11.5px; color: var(--gray);
+}
+.orc-paginas { display: flex; align-items: center; gap: 10px; }
+.orc-paginas button { border: 0; background: none; cursor: pointer; color: var(--red); font-size: 11.5px; }
+.orc-paginas button:disabled { color: var(--mut); cursor: default; }
+.orc-paginas b { font-variant-numeric: tabular-nums; color: var(--ink); }
+.orc-paginas select { height: 24px; border-radius: 6px; border: 1px solid var(--line); font-size: 11.5px; }
+
+/* ---------- filtros ---------- */
+
+.orc-filtros {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding: 10px 14px;
+  border-radius: var(--r-m); background: var(--d-bg2); border: 1px solid var(--d-line);
+}
+.orc-filtros select, .orc-filtros input {
+  background: var(--d-card2); border-color: var(--d-line2); color: var(--d-txt2);
+}
+/* Os dois campos de data andam juntos: sem isto o segundo quebra sozinho para a
+   linha de baixo e o "até" fica órfão. */
+.orc-periodo { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; color: var(--d-mut); font-size: 12px; }
+.orc-busca-ticket { width: 90px; font-variant-numeric: tabular-nums; }
+
+/* ---------- extração: o botão que abre em dois ---------- */
+
+.orc-extrair { position: relative; display: inline-block; }
+.orc-extrair-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 5;
+  display: flex; flex-direction: column; min-width: 110px;
+  background: var(--d-card2); border: 1px solid var(--d-line2);
+  border-radius: 9px; box-shadow: var(--sh-escura-3); overflow: hidden;
+}
+.orc-extrair-menu button {
+  border: 0; background: none; color: var(--d-txt2);
+  padding: 9px 14px; text-align: left; font-size: 12.5px; cursor: pointer;
+}
+.orc-extrair-menu button:hover { background: var(--d-card3); color: var(--d-txt); }
+
+/* ---------- o aviso de exclusão: 2 cm ---------- */
+
+.orc-desfaz {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px; z-index: 40;
+  height: 76px;                /* 2 cm */
+  min-width: 470px; max-width: 92vw;
+  display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  background: var(--d-card); border: 1px solid var(--d-line2);
+  border-radius: 12px; box-shadow: var(--sh-escura-3); color: var(--d-txt);
+}
+.orc-desfaz .tx { font-size: 13px; min-width: 0; }
+.orc-desfaz .tx b { font-weight: 650; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orc-desfaz .tx small { display: block; margin-top: 3px; font-size: 11px; color: var(--d-mut); }
+.orc-desfaz .bts { margin-left: auto; display: flex; gap: 9px; flex: 0 0 auto; }
+
+/* ---------- a ficha da nota com a barra de tickets: 1 cm, e cresce ---------- */
+
+/* A ficha substitui a tela inteira, então ela também é uma superfície escura —
+   senão a barra de tickets vira uma ilha preta boiando no cinza da página. */
+.orc-ficha {
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
+  background: var(--d-bg); border-radius: var(--r-l); padding: 14px; margin: -4px 0;
+}
+.orc-ficha-barra {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  min-height: 38px;            /* 1 cm — e cresce sozinha quando os tickets quebram */
+  padding: 6px 12px;
+  border-radius: var(--r-m); background: var(--d-bg2); border: 1px solid var(--d-line);
+}
+.orc-tks { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.orc-tk {
+  font-size: 11.5px; font-variant-numeric: tabular-nums;
+  padding: 3px 9px; border-radius: 20px;
+  background: var(--d-card3); color: var(--d-txt2); border: 1px solid var(--d-line2);
+}
+.orc-tk.solto { border-color: var(--warn); color: var(--warn); }
+.orc-tk.novo { border-color: var(--red-lift); color: var(--red-lift); cursor: pointer; }
+.orc-tk-campo {
+  width: 84px; height: 28px; border-radius: 7px;
+  border: 1px solid var(--d-line2); background: var(--d-card2); color: var(--d-txt);
+  padding: 0 9px; font-size: 12.5px; font-variant-numeric: tabular-nums;
+}
+.orc-ficha-nota {
+  margin-top: 10px; flex: 1; min-height: 0;
+  border-radius: var(--r-l); border: 1px solid var(--line); background: var(--card); overflow: hidden;
+}
+.orc-ficha-nota iframe { width: 100%; height: 100%; border: 0; }
+
+/* ---------- correções ---------- */
+
+.orc-abas { display: flex; gap: 10px; margin-top: 14px; }
+.orc-aba {
+  flex: 1; display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px; cursor: pointer; text-align: left;
+  border-radius: var(--r-m); border: 1px solid var(--d-line);
+  background: var(--d-card); color: var(--d-txt2); font: inherit;
+}
+.orc-aba b { font-size: 22px; line-height: 1; color: var(--d-mut); font-variant-numeric: tabular-nums; }
+.orc-aba span { font-size: 12px; }
+.orc-aba.ligada { border-color: var(--red-lift); background: var(--d-card2); }
+.orc-aba.ligada b { color: var(--red-lift); }
+
+.orc-janela {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(10, 8, 9, .62);
+  display: grid; place-items: center; padding: 24px;
+}
+.orc-janela-caixa {
+  width: min(720px, 100%); max-height: 86vh; overflow: auto;
+  background: var(--card); border-radius: var(--r-l); border: 1px solid var(--line);
+  box-shadow: var(--sh-3); padding: 20px 22px;
+}
+.orc-janela-caixa h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
+.orc-dica { margin: 0 0 14px; font-size: 12.5px; color: var(--gray); }
+
+.orc-candidatos { display: flex; flex-direction: column; gap: 8px; }
+.orc-candidato {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  padding: 10px 12px; cursor: pointer; font: inherit;
+  border: 1px solid var(--line); border-radius: var(--r-m); background: var(--card);
+}
+.orc-candidato:hover { border-color: var(--red); background: var(--red-050); }
+.orc-candidato b { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.orc-candidato .loja { font-size: 12px; color: var(--txt); }
+.orc-candidato .desc { font-size: 11.5px; color: var(--gray); }
+.orc-candidato .porque { font-size: 11px; color: var(--mut); font-style: italic; }
+
+.orc-manual {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 12.5px; color: var(--gray);
+}
+.orc-manual input {
+  height: 30px; width: 170px; border-radius: 7px; border: 1px solid var(--line);
+  padding: 0 10px; font-size: 12.5px;
+}
+.orc-manual .orc-bt { background: var(--card); color: var(--txt); border-color: var(--line); }
+
+/* ---------- avisos e resumos ---------- */
+
+.orc-ok {
+  margin: 12px 0 0; padding: 10px 14px; border-radius: var(--r-m);
+  background: var(--ok-bg); color: var(--ok); font-size: 12.5px; font-weight: 500;
+}
+.orc-resumo {
+  margin-top: 12px; border-radius: var(--r-m);
+  border: 1px solid var(--line); background: var(--card); overflow: hidden;
+}
+.orc-resumo .cab {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; background: #FBFBFC; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.orc-resumo .cab button { margin-left: auto; border: 0; background: none; color: var(--red); cursor: pointer; font-size: 11.5px; }
+.orc-resumo ul { margin: 0; padding: 10px 14px 12px 30px; font-size: 12px; }
+.orc-resumo ul.avisos li { color: var(--warn); }
+.orc-resumo ul.ruins li { color: var(--err); }
+
+.orc-bloqueio {
+  margin-top: 12px; padding: 16px 18px;
+  border-radius: var(--r-m); border: 1px solid var(--warn); background: var(--warn-bg);
+}
+.orc-bloqueio h3 { margin: 0 0 6px; font-size: 14.5px; color: var(--warn); }
+.orc-bloqueio p { margin: 0 0 10px; font-size: 12.5px; color: var(--txt); }
+.orc-bloqueio table { font-size: 12.5px; margin-bottom: 10px; }
+.orc-bloqueio table td { padding: 2px 14px 2px 0; }
+.orc-bloqueio table td:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+.orc-saidas { font-weight: 600; }
+.orc-bloqueio ul { margin: 4px 0 12px; padding-left: 22px; font-size: 12.5px; }
+
+.orc-nota-de-rodape {
+  margin: 12px 2px 0; font-size: 11.5px; color: var(--mut); line-height: 1.5;
+}
+.orc-nota-de-rodape b { color: var(--gray); }
+
+@media (max-width: 1080px) {
+  .orc-insercao { margin-top: 24px; }
+  .orc-abas { flex-wrap: wrap; }
+  .orc-aba { flex: 1 1 45%; }
+  .orc-desfaz { min-width: 0; width: calc(100vw - 28px); height: auto; padding: 12px 16px; flex-wrap: wrap; }
+}

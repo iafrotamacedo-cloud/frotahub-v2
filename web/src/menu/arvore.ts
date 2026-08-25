@@ -1,4 +1,4 @@
-// rev 6 — a árvore de menus
+// rev 7 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -33,7 +33,7 @@ export interface ItemMenu {
 export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados'
+export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
@@ -55,6 +55,14 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             desc: 'Os chamados do contrato, como o robô os trouxe',
             tela: 'trilogo-dados',
             rotina: 'CONTRATO_TRILOGO_DADOS',
+          },
+          {
+            t: 'Orçamentos',
+            rota: 'orcamentos',
+            icone: 'lista',
+            desc: 'Notas, rateio, lançamento no Trílogo e as planilhas de controle',
+            tela: 'orcamentos',
+            rotina: 'CONTRATO_ORCAMENTOS',
           },
         ],
       },

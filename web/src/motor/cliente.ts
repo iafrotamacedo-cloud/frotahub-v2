@@ -1,4 +1,4 @@
-// rev 2 — a conversa do front com o baleryan
+// rev 3 — a conversa do front com o baleryan
 //
 // Existe para que nenhuma tela precise saber montar cabeçalho, achar o token da
 // sessão ou traduzir erro. Tela chama `motor(...)` e recebe o resultado ou uma
@@ -15,14 +15,23 @@ import { supabase } from '../supabase/cliente'
 const BASE = (import.meta.env.VITE_MOTOR_URL ?? '').replace(/\/+$/, '')
 
 export class ErroMotor extends Error {
-  constructor(public status: number, mensagem: string) {
+  /**
+   * O corpo inteiro da resposta que falhou.
+   *
+   * POR QUE ELE VIAJA JUNTO
+   *   Alguns erros do motor não são só uma frase: o bloqueio do teto vem com o
+   *   quanto o ticket já tem, o quanto é este orçamento e as saídas possíveis.
+   *   Se o cliente ficasse só com a mensagem, a tela mostraria "passou do teto"
+   *   e jogaria fora justamente a parte que resolve.
+   */
+  constructor(public status: number, mensagem: string, public corpo?: unknown) {
     super(mensagem)
     this.name = 'ErroMotor'
   }
 }
 
 interface Opcoes {
-  metodo?: 'GET' | 'POST' | 'PATCH' | 'PUT'
+  metodo?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   corpo?: unknown
 }
 
@@ -63,7 +72,7 @@ export async function motor<T>(caminho: string, opcoes: Opcoes = {}): Promise<T>
     // O motor escreve o erro para ser lido por gente (P-18). Se por algum motivo
     // não vier assim, a tela ainda diz alguma coisa útil.
     const msg = (corpo as { erro?: string } | null)?.erro
-    throw new ErroMotor(resposta.status, msg || 'Alguma coisa deu errado do nosso lado. Tente de novo.')
+    throw new ErroMotor(resposta.status, msg || 'Alguma coisa deu errado do nosso lado. Tente de novo.', corpo)
   }
 
   return corpo as T
@@ -133,4 +142,50 @@ function nomeDoCabecalho(cabecalho: string | null): string | null {
   if (utf8) { try { return decodeURIComponent(utf8[1]) } catch { /* segue para o simples */ } }
   const simples = /filename="?([^";]+)"?/i.exec(cabecalho)
   return simples ? simples[1] : null
+}
+
+/**
+ * Envia arquivos para o motor.
+ *
+ * POR QUE NÃO PASSA PELO `motor()`
+ *   Porque ali o corpo vira JSON e o cabeçalho diz `application/json`. Um
+ *   arquivo dentro de JSON precisaria virar base64 — 33% mais bytes subindo, e
+ *   o motor teria que decodificar na memória antes de saber o tamanho.
+ *
+ *   Com `FormData` o navegador monta o multipart e escolhe o próprio limite de
+ *   fronteira. Definir `Content-Type` à mão aqui QUEBRA o envio, porque o
+ *   limite não entraria junto — é o erro clássico, e por isso o cabeçalho está
+ *   ausente de propósito.
+ */
+export async function enviarArquivos<T>(caminho: string, arquivos: File[]): Promise<T> {
+  if (!BASE) {
+    throw new ErroMotor(0, 'O endereço do motor não foi configurado nesta publicação (VITE_MOTOR_URL).')
+  }
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new ErroMotor(401, 'A sua sessão expirou. Entre de novo.')
+
+  const forma = new FormData()
+  for (const a of arquivos) forma.append('arquivos', a, a.name)
+
+  let resposta: Response
+  try {
+    resposta = await fetch(BASE + caminho, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: forma,
+    })
+  } catch {
+    throw new ErroMotor(0, 'Não consegui enviar os arquivos. Confira a conexão e tente de novo.')
+  }
+
+  const bruto = await resposta.text()
+  let corpo: unknown = null
+  if (bruto) { try { corpo = JSON.parse(bruto) } catch { corpo = null } }
+
+  if (!resposta.ok) {
+    const msg = (corpo as { erro?: string } | null)?.erro
+    throw new ErroMotor(resposta.status, msg || 'Não consegui enviar os arquivos.', corpo)
+  }
+  return corpo as T
 }

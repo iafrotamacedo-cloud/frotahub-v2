@@ -1,0 +1,319 @@
+/* rev 1 — o tema escuro dos menus
+ *
+ * A REGRA, DITA PELO DONO EM 25/08/2026
+ *   Todos os MENUS em tema escuro. O tema claro fica para a exibição das LISTAS.
+ *
+ * POR QUE ISSO FAZ SENTIDO ALÉM DO GOSTO
+ *   Menu é lugar de decidir; lista é lugar de ler. Texto escuro sobre fundo
+ *   claro é mais confortável para percorrer trezentas linhas de tabela, e um
+ *   painel escuro faz os contadores saltarem em vez de competir com o branco da
+ *   tabela ao lado. A troca de tema vira a fronteira entre "escolher" e "ler".
+ *
+ * ONDE A FRONTEIRA PASSA
+ *   escuro: a barra de topo, o painel dos cinco botões, a barra de inserção,
+ *           os avisos flutuantes
+ *   claro:  o painel da tabela, do cabeçalho ao rodapé de paginação
+ */
+:root {
+  --d-bg: #100D0E;
+  --d-bg2: #171314;
+  --d-card: #1E1A1B;
+  --d-card2: #262021;
+  --d-card3: #2E2728;
+  --d-line: #2F2728;
+  --d-line2: #3A3132;
+  --d-txt: #EFEBEC;
+  --d-txt2: #B9B1B3;
+  --d-mut: #7E7476;
+  --d-fraco: #5E5455;
+
+  /* O vermelho da marca não tem contraste suficiente sobre fundo quase preto.
+     Este é o mesmo vermelho, clareado até passar no contraste — a identidade
+     continua, a legibilidade também. */
+  --red-lift: #D2494C;
+  --red-glow: rgba(209, 73, 76, .22);
+
+  --sh-escura-2: 0 6px 20px rgba(0, 0, 0, .35);
+  --sh-escura-3: 0 22px 54px rgba(0, 0, 0, .5);
+}
+
+/* --------------------------------------------------------------------------
+   o painel: as barras verticais
+   -------------------------------------------------------------------------- */
+
+.pn {
+  display: flex;
+  gap: 14px;
+  /* Altura cheia do que sobra da tela. As barras vão do topo à base, como o
+     dono desenhou — e não crescem com o conteúdo, senão a última barra
+     empurraria a página para baixo. */
+  min-height: 0;
+  flex: 1;
+}
+
+.pn-col {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-l);
+  border: 1px solid var(--d-line);
+  background: linear-gradient(180deg, var(--d-card2) 0%, var(--d-card) 46%, #1A1617 100%);
+  box-shadow: var(--sh-escura-2);
+  overflow: hidden;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  transition: flex-grow var(--transicao), border-color var(--transicao),
+              box-shadow var(--transicao), transform var(--transicao);
+}
+
+.pn-col::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--faixa, var(--d-line2));
+}
+
+.pn-col::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(220px 150px at 50% 0%, var(--red-glow), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transicao);
+}
+
+.pn-col:hover,
+.pn-col:focus-visible {
+  border-color: var(--d-line2);
+  box-shadow: var(--sh-escura-3);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.pn-col:hover::after,
+.pn-col:focus-visible::after { opacity: 1; }
+
+.pn-corpo {
+  /* É um <button>, e botão nasce com fundo e borda do sistema. Sem zerar os
+     dois, o cinza padrão do navegador cobre o gradiente escuro da coluna
+     inteira — e a tela aparece clara com o texto claro em cima, ilegível. */
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 18px 20px;
+  transition: opacity var(--transicao);
+}
+
+.pn-selo {
+  width: 44px; height: 44px;
+  border-radius: 11px;
+  display: grid; place-items: center;
+  border: 1px solid var(--d-line2);
+  background: var(--d-card3);
+  color: var(--d-txt2);
+  flex: 0 0 auto;
+}
+.pn-selo svg { width: 21px; height: 21px; }
+
+.pn-col.viva .pn-selo {
+  color: var(--red-lift);
+  border-color: rgba(209, 73, 76, .35);
+  background: rgba(209, 73, 76, .10);
+}
+
+.pn-medida { margin-top: 26px; }
+
+.pn-num {
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  color: var(--d-mut);
+  font-variant-numeric: tabular-nums;
+}
+.pn-col.viva .pn-num { color: var(--d-txt); }
+
+.pn-rot {
+  margin-top: 5px;
+  font-size: 11px;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  color: var(--d-mut);
+  font-weight: 600;
+}
+.pn-col.viva .pn-rot { color: var(--red-lift); }
+
+/* A prévia é o que transforma uma barra alta e vazia num painel de trabalho:
+   as últimas linhas da própria etapa, lidas sem clicar. */
+.pn-previa {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--d-line);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.pn-previa .cap {
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--d-fraco);
+  font-weight: 600;
+  margin-bottom: 9px;
+}
+.pn-previa i {
+  font-style: normal;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .035);
+  font-size: 11.5px;
+  color: var(--d-txt2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pn-previa i:last-child { border-bottom: 0; }
+.pn-previa i b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.pn-previa i u {
+  text-decoration: none;
+  margin-left: auto;
+  color: var(--d-fraco);
+  font-size: 10.5px;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.pn-previa.vazio { border-top: 0; }
+.pn-previa .nada { font-size: 11.5px; color: var(--d-fraco); font-style: italic; padding: 6px 0; }
+
+.pn-col h3 {
+  margin-top: 18px;
+  font-size: 15.5px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  line-height: 1.25;
+  color: var(--d-txt);
+}
+.pn-sub { margin-top: 7px; font-size: 11.5px; line-height: 1.45; color: var(--d-mut); }
+
+.pn-rodape {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--d-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--d-mut);
+}
+.pn-seta { opacity: .55; transition: transform var(--transicao), opacity var(--transicao); }
+.pn-col:hover .pn-seta { opacity: 1; transform: translateX(3px); }
+
+/* --------------------------------------------------------------------------
+   o botão que se abre em quatro
+   -------------------------------------------------------------------------- */
+
+/* A coluna cresce e as vizinhas encolhem. Os sub-botões nascem do centro para
+   os extremos, em quadrados — foi assim que o dono desenhou, e é a razão do
+   aspect-ratio: em duas colunas, quatro blocos empilhados ficariam com o dobro
+   da largura da altura, que é o oposto de quadrado. */
+.pn-col.aberta { flex-grow: 2.9; }
+.pn-col.aberta .pn-corpo { opacity: 0; pointer-events: none; position: absolute; inset: 0; }
+
+.pn-quatro {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transicao);
+}
+.pn-col.aberta .pn-quatro { opacity: 1; pointer-events: auto; }
+
+.pn-quatro .cab { display: flex; align-items: baseline; gap: 9px; margin-bottom: 14px; }
+.pn-quatro .cab h3 { margin: 0; font-size: 14px; }
+.pn-quatro .cab em { font-style: normal; font-size: 11px; color: var(--d-mut); }
+
+.pn-grade {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-content: center;
+}
+
+.pn-sub4 {
+  aspect-ratio: 1;
+  border-radius: var(--r-m);
+  border: 1px solid var(--d-line2);
+  background: linear-gradient(180deg, #292223 0%, #201B1C 100%);
+  padding: 16px 15px 14px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .30);
+  transform: scale(.82);
+  opacity: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: transform .26s cubic-bezier(.34, 1.4, .5, 1), opacity .18s, border-color var(--transicao);
+}
+.pn-col.aberta .pn-sub4 { transform: scale(1); opacity: 1; }
+.pn-col.aberta .pn-sub4:nth-child(1) { transition-delay: .02s; }
+.pn-col.aberta .pn-sub4:nth-child(2) { transition-delay: .05s; }
+.pn-col.aberta .pn-sub4:nth-child(3) { transition-delay: .08s; }
+.pn-col.aberta .pn-sub4:nth-child(4) { transition-delay: .11s; }
+.pn-sub4:hover { border-color: var(--red-lift); }
+
+.pn-sub4 .n {
+  font-size: 32px; line-height: 1; font-weight: 700; letter-spacing: -.03em;
+  color: var(--d-mut); font-variant-numeric: tabular-nums;
+}
+.pn-sub4.viva .n { color: var(--red-lift); }
+.pn-sub4 .lin {
+  flex: 1; min-height: 0; overflow: hidden;
+  margin: 13px 0 12px; padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, .05);
+}
+.pn-sub4 .lin i {
+  font-style: normal; display: flex; gap: 6px; padding: 4px 0;
+  font-size: 11px; color: var(--d-txt2); white-space: nowrap; overflow: hidden;
+}
+.pn-sub4 .lin i b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.pn-sub4 .lin i u { text-decoration: none; margin-left: auto; color: var(--d-fraco); font-size: 10px; }
+.pn-sub4 .lin .nada { font-size: 11px; color: var(--d-fraco); font-style: italic; padding: 4px 0; }
+.pn-sub4 .t { font-size: 12.5px; font-weight: 600; line-height: 1.25; color: var(--d-txt); }
+.pn-sub4 .d { margin-top: 5px; font-size: 10.5px; line-height: 1.4; color: var(--d-mut); }
+
+/* Telas estreitas: as barras deixam de ser colunas e viram cartões empilhados.
+   Cinco colunas de 190px são ilegíveis; cinco cartões de altura fixa, não. */
+@media (max-width: 1080px) {
+  .pn { flex-direction: column; }
+  .pn-col { min-height: 168px; }
+  .pn-col .pn-previa { display: none; }
+  .pn-col .pn-medida { margin-top: 14px; }
+  .pn-col.aberta { flex-grow: 1; }
+  .pn-col.aberta .pn-sub4 { aspect-ratio: auto; min-height: 96px; }
+  .pn-col.aberta .pn-sub4 .lin { display: none; }
+}
