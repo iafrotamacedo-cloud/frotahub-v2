@@ -78,7 +78,37 @@ export interface Orcamento {
   chamado_descricao: string | null
   notas: string | null
   davs: string | null
+
+  // ---- a 015 ----
+  // Por que a ÚLTIMA tentativa de lançar foi recusada. Nulo = nunca tentado.
+  // É esta coluna que separa "está na fila" de "deu problema": quem nunca foi
+  // tentado não é uma correção, é trabalho a fazer.
+  lancamento_bloqueio: Bloqueio | null
+  // A frase do Trílogo, palavra por palavra. Nunca traduzir na tela: é ela que
+  // explica o caso que a categoria não cobre.
+  lancamento_bloqueio_detalhe: string | null
+  lancamento_tentado_em: string | null
+  lancamento_tentativas: number
+
+  ticket_status: string | null
+  ticket_status_codigo: number | null
+  reaberto: boolean | null
+  motivo_reabertura: string | null
+  // Quem tem que agir. Calculado do status do ticket AGORA — muda sozinho
+  // quando o chamado anda, sem ninguém regravar nada.
+  destino: Destino | null
+  avisado_em: string | null
 }
+
+export type Bloqueio =
+  | 'ticket_status'
+  | 'ticket_recusado'
+  | 'teto'
+  | 'sem_empresa'
+  | 'trilogo_fora'
+  | 'desconhecido'
+
+export type Destino = 'pode_lancar' | 'cliente' | 'encarregados' | 'sem_chamado' | 'outro'
 
 export interface TicketDoDocumento {
   id: string
@@ -94,7 +124,7 @@ export interface Correcoes {
     documento_id: string
     documentos: { id: string; nome_arquivo: string; numero: string | null; valor_total: number | null }
   }>
-  nao_lancados: Orcamento[]
+  recusados: Orcamento[]
   apagados: Orcamento[]
   aguardando: Orcamento[]
 }

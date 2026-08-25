@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -107,6 +108,74 @@ func Entrar(ctx context.Context, conta, email, senha string) (*Sessao, error) {
 	return s, nil
 }
 
+// ErroDoTrilogo é uma recusa DELES, com a frase deles dentro.
+//
+// POR QUE ISTO PRECISOU EXISTIR
+//
+//	Antes, uma recusa virava a string "…/CreateTicketCost devolveu 400" e o corpo
+//	da resposta era descartado. Em 25/08/2026, testando contra o Trílogo de
+//	verdade, os dois 400 que recebemos diziam:
+//
+//	  "Necessário anexar a nota fiscal referente ao número informado."
+//	  "Está ação não é permitida para tickets com o status 'Aberto' ou 'Em execução'"
+//
+//	São duas causas completamente diferentes, com conserto diferente, e as duas
+//	chegavam à tela como o mesmo "devolveu 400". A frase é o diagnóstico.
+//
+// NÃO DECIDA LENDO A FRASE
+//
+//	A segunda mensagem MENTE por omissão: cita só 'Aberto' e 'Em execução', mas o
+//	ticket 126211 estava 'Arquivado' e foi recusado do mesmo jeito. A frase serve
+//	para a pessoa entender, não para o programa ramificar.
+type ErroDoTrilogo struct {
+	Caminho string
+	Codigo  int
+	Corpo   string
+}
+
+func (e *ErroDoTrilogo) Error() string {
+	if e.Corpo == "" {
+		return fmt.Sprintf("%s devolveu %d", e.Caminho, e.Codigo)
+	}
+	return fmt.Sprintf("%s devolveu %d: %s", e.Caminho, e.Codigo, e.Corpo)
+}
+
+// Recusa desembrulha o erro até achar uma recusa do Trílogo, se houver.
+func Recusa(err error) (*ErroDoTrilogo, bool) {
+	var e *ErroDoTrilogo
+	if errors.As(err, &e) {
+		return e, true
+	}
+	return nil, false
+}
+
+// frasedeles tira a frase de dentro do JSON de erro. O Trílogo responde
+// {"message":"..."}; quando não responder, fica o texto cru, cortado — porque um
+// HTML de 40 kB de página de erro não ajuda ninguém dentro de um log.
+func frasedeles(bruto []byte) string {
+	bruto = bytes.TrimSpace(bruto)
+	if len(bruto) == 0 {
+		return ""
+	}
+	var env struct {
+		Message string `json:"message"`
+		Error   string `json:"error"`
+		Title   string `json:"title"`
+	}
+	if json.Unmarshal(bruto, &env) == nil {
+		for _, s := range []string{env.Message, env.Error, env.Title} {
+			if s = strings.TrimSpace(s); s != "" {
+				return s
+			}
+		}
+	}
+	s := strings.TrimSpace(string(bruto))
+	if len(s) > 400 {
+		s = s[:400] + "…"
+	}
+	return s
+}
+
 func (s *Sessao) pedir(ctx context.Context, metodo, caminho string, corpo []byte, destino any) error {
 	s.mu.Lock()
 	token := s.token
@@ -132,12 +201,24 @@ func (s *Sessao) pedir(ctx context.Context, metodo, caminho string, corpo []byte
 	defer resp.Body.Close()
 	bruto, _ := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 
+	// A ORDEM DESTAS DUAS CONFERÊNCIAS IMPORTA, E ELA ESTAVA TROCADA
+	//
+	//	Antes, o corpo vazio era conferido PRIMEIRO e devolvia nil — então um 400
+	//	sem corpo passava como sucesso. É o irmão gêmeo da armadilha que já nos
+	//	mordeu no robô, onde um 200 vazio virava chamado de número zero.
+	//
+	//	Agora o código vem antes. Vazio só é sucesso quando o Trílogo disse que
+	//	deu certo.
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return &ErroDoTrilogo{
+			Caminho: caminho,
+			Codigo:  resp.StatusCode,
+			Corpo:   frasedeles(bruto),
+		}
+	}
 	// 204 é resposta legítima e vazia em vários endereços do Trílogo.
 	if resp.StatusCode == http.StatusNoContent || len(bytes.TrimSpace(bruto)) == 0 {
 		return nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s devolveu %d", caminho, resp.StatusCode)
 	}
 	if destino == nil {
 		return nil

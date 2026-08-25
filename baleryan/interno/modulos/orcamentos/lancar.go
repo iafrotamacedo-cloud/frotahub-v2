@@ -1,4 +1,4 @@
-// rev 1 — lançar o orçamento no Trílogo, por API
+// rev 2 — lançar o orçamento no Trílogo, por API
 //
 // O contrato das chamadas está em docs/api-trilogo.md, levantado por captura de
 // rede na tela real em 25/08/2026 — não deduzido.
@@ -34,6 +34,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
 
@@ -83,6 +84,9 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 	if empresa == 0 {
 		// Recusar é melhor que chutar: um CompanyId errado lança o custo na
 		// empresa errada dentro do sistema do cliente.
+		det := fmt.Sprintf("TRILOGO_EMPRESA_%s não está configurada no servidor",
+			map[string]string{"civil": "CIVIL", "instalacoes": "INSTALACOES"}[conta])
+		m.bloquear(r.Context(), p, id, orc, "sem_empresa", det)
 		web.Falhar(w, http.StatusFailedDependency, fmt.Sprintf(
 			"Não sei o id da empresa prestadora da conta %q no Trílogo. "+
 				"Configure TRILOGO_EMPRESA_%s no servidor antes de lançar por aqui.",
@@ -113,6 +117,9 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		//   A resposta diz quanto o ticket já tem, quanto é este orçamento e
 		//   qual é o teto. Bloqueio sem saída visível é o que faz o usuário
 		//   criar planilha paralela.
+		m.bloquear(r.Context(), p, id, orc, "teto", fmt.Sprintf(
+			"o ticket já tem %s lançado; com %s passa do teto de %s",
+			jaLa.Reais(), valor.Reais(), par.Teto.Reais()))
 		web.Responder(w, http.StatusConflict, map[string]any{
 			"erro": fmt.Sprintf(
 				"Entre a geração e agora, o ticket %d mudou: já tem %s lançado. "+
@@ -126,6 +133,51 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 				"aprovar este orçamento com a autorização do cliente",
 				"reduzir o valor gerando de novo",
 				"apagar este orçamento",
+			},
+		})
+		return
+	}
+
+	// PASSO 1b — O STATUS DO TICKET, ANTES DE GASTAR QUALQUER COISA
+	//
+	// POR QUE AQUI, E NÃO LÁ NA FRENTE
+	//
+	//	A ordem antiga era: gerar PDF, guardar no R2, SUBIR NO TRÍLOGO, criar o
+	//	custo. Quando o custo era recusado, o arquivo já tinha subido — e ficava
+	//	órfão no S3 do cliente, sem dono e sem endpoint conhecido para apagar.
+	//	Medido em 25/08/2026: o `TESTE_FROTAHUB_126211.pdf` que o teste deixou lá.
+	//
+	//	Com 39 orçamentos travados e uma tentativa por dia, isso seriam ~270
+	//	arquivos órfãos por semana no armazém deles.
+	//
+	// SÓ RECUSO O QUE FOI PROVADO QUE ELES RECUSAM
+	//
+	//	A lista abaixo tem três status medidos contra o Trílogo de verdade. Status
+	//	que eu não conheço PASSA e vai tentar: se um dia eles liberarem outro, o
+	//	lançamento funciona sozinho, sem alguém precisar lembrar de mexer aqui.
+	//	Uma conferência nossa nunca deve ser mais restritiva que a deles.
+	if d, err := sessao.Detalhe(r.Context(), ticket); err != nil {
+		m.bloquear(r.Context(), p, id, orc, "trilogo_fora", err.Error())
+		m.erro(w, "não consegui ler o chamado no Trílogo", err)
+		return
+	} else if d == nil || d.ID != ticket {
+		// O 200 COM CORPO VAZIO
+		//	O Trílogo responde assim quando o chamado não é da conta que perguntou.
+		//	Sem esta conferência, viraria um Detalhe zerado e o status 0 passaria.
+		det := fmt.Sprintf("a conta %s não devolveu o chamado %d", conta, ticket)
+		m.bloquear(r.Context(), p, id, orc, "ticket_recusado", det)
+		web.Falhar(w, http.StatusConflict, det+". Confira o número e a conta.")
+		return
+	} else if nome, travado := statusQueRecusa[d.Status]; travado {
+		det := fmt.Sprintf("o Trílogo não aceita custo em chamado %s (status %d)", nome, d.Status)
+		m.bloquear(r.Context(), p, id, orc, "ticket_status", det)
+		web.Responder(w, http.StatusConflict, map[string]any{
+			"erro":          det,
+			"ticket":        ticket,
+			"ticket_status": nome,
+			"saidas": []string{
+				"esperar o chamado andar e tentar de novo",
+				"cobrar de quem resolve: " + quemResolve(d.Status),
 			},
 		})
 		return
@@ -160,7 +212,22 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 	// PASSO 6 — cria e CONFIRMA.
 	custoID, err := sessao.CriarCusto(r.Context(), custo)
 	if err != nil {
-		m.erro(w, "o Trílogo recusou o lançamento", err)
+		// Passou pela conferência do passo 1b e mesmo assim foi recusado. Pode ser
+		// o status tendo mudado entre a leitura e o envio, ou uma regra que não
+		// conhecemos. Guarda a frase deles e chama de desconhecido — que é a
+		// verdade, e é melhor do que adivinhar lendo o texto.
+		flag, det := "desconhecido", err.Error()
+		if e, ok := trilogo.Recusa(err); ok {
+			det = e.Corpo
+		} else {
+			flag = "trilogo_fora"
+		}
+		m.bloquear(r.Context(), p, id, orc, flag, det)
+		web.Responder(w, http.StatusConflict, map[string]any{
+			"erro":    "O Trílogo recusou o lançamento.",
+			"trilogo": det,
+			"ticket":  ticket,
+		})
 		return
 	}
 
@@ -171,6 +238,10 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		"trilogo_custo_id":   custoID,
 		"trilogo_permalink":  subido.Permalink,
 		"arquivo_pdf_sha256": sha,
+		// Deu certo: a marca do bloqueio anterior some. Ela descreve a ÚLTIMA
+		// tentativa, e a última tentativa agora é esta.
+		"lancamento_bloqueio":         nil,
+		"lancamento_bloqueio_detalhe": nil,
 	}
 	if err := m.bd.Atualizar(r.Context(), "orcamentos",
 		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), campos); err != nil {
@@ -200,6 +271,69 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		"permalink":        subido.Permalink,
 		"valor":            valor.Float(),
 	})
+}
+
+// Os status em que o Trílogo PROVADAMENTE recusa custo, medidos em 25/08/2026
+// contra o sistema de verdade.
+//
+// A MENSAGEM DELES É INCOMPLETA — NÃO USE A FRASE PARA DECIDIR
+//
+//	O 400 diz "não é permitida para tickets com o status 'Aberto' ou 'Em
+//	execução'". O ticket 126211 estava ARQUIVADO e foi recusado do mesmo jeito.
+//	Quem ramificasse pelo texto concluiria que arquivado passa. Aqui a decisão é
+//	pelo CÓDIGO, que não mente.
+//
+// O mapa é deliberadamente curto: o que não está aqui vai tentar. Conferência
+// nossa nunca pode ser mais restritiva que a deles.
+var statusQueRecusa = map[int]string{
+	1: "Aberto",
+	3: "Arquivado",
+	7: "Em execução",
+}
+
+// quemResolve traduz o status em quem tem que agir — a mesma regra que a view
+// `orcamentos_lista` usa na coluna `destino`, e pelo mesmo motivo: aberto e em
+// execução são serviço nosso; arquivado só o cliente destrava.
+//
+// A view é a fonte para as listas; isto aqui é só a frase da resposta. Se um dia
+// as duas discordarem, a view é que vale.
+func quemResolve(status int) string {
+	switch status {
+	case 1, 7:
+		return "os encarregados, para concluir o serviço"
+	case 3:
+		return "o cliente, que é quem reabre chamado arquivado"
+	}
+	return "quem cuida do chamado"
+}
+
+// bloquear grava POR QUE não deu, e não interrompe nada quando falha.
+//
+// POR QUE ELE ENGOLE O PRÓPRIO ERRO
+//
+//	Ele é chamado no caminho de uma recusa que já vai ser respondida ao usuário.
+//	Se a gravação da marca falhasse e virasse um segundo erro, a pessoa receberia
+//	uma mensagem sobre o banco no lugar da mensagem sobre o Trílogo — trocando o
+//	diagnóstico verdadeiro por um ruído. Falhou: vai para o log e a vida segue.
+//
+// `lancamento_tentativas` VEM DA LINHA QUE JÁ ESTÁ NA MÃO
+//
+//	O PostgREST não faz `tentativas = tentativas + 1`. Como o orçamento inteiro já
+//	foi lido no começo do lançamento, o valor de agora sai dali — sem uma segunda
+//	ida ao banco só para somar um.
+func (m *Modulo) bloquear(ctx context.Context, p *seguranca.Principal, id string,
+	orc map[string]any, flag, detalhe string) {
+
+	campos := map[string]any{
+		"lancamento_bloqueio":         flag,
+		"lancamento_bloqueio_detalhe": detalhe,
+		"lancamento_tentado_em":       time.Now().UTC().Format(time.RFC3339),
+		"lancamento_tentativas":       int(numeroDe(orc["lancamento_tentativas"])) + 1,
+	}
+	if err := m.bd.Atualizar(ctx, "orcamentos",
+		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), campos); err != nil {
+		log.Printf("orcamentos: não consegui marcar o bloqueio %q em %s: %v", flag, id, err)
+	}
 }
 
 // entrarNoTrilogo abre uma sessão na conta certa.

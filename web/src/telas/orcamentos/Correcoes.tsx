@@ -1,4 +1,4 @@
-// rev 1 — Correções (2.4), as quatro frentes
+// rev 2 — Correções (2.4), as quatro frentes
 //
 // A ORDEM DA TELA "SEM ASSOCIAÇÃO" É O CORAÇÃO DESTE ARQUIVO
 //
@@ -16,13 +16,13 @@ import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta } from './Arquivos'
 import {
   emReais, emDataHora, contaPorExtenso,
-  type Correcoes as Dados, type Candidato,
+  type Correcoes as Dados, type Candidato, type Bloqueio,
 } from './tipos'
 
 const FRENTES = [
   { chave: 'sem-ticket', titulo: 'Sem ticket', desc: 'Notas lidas em que nenhum ticket foi encontrado' },
   { chave: 'sem-associacao', titulo: 'Sem associação', desc: 'Tickets escritos que não batem com a nossa base' },
-  { chave: 'nao-lancados', titulo: 'Não lançados', desc: 'Orçamentos gerados que ainda não foram para o Trílogo' },
+  { chave: 'recusados', titulo: 'Recusados', desc: 'O Trílogo não aceitou o lançamento — e por quê' },
   { chave: 'apagados', titulo: 'Apagados', desc: 'O que foi excluído — e pode voltar' },
 ]
 
@@ -48,7 +48,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
     switch (c) {
       case 'sem-ticket': return dados.sem_ticket.length
       case 'sem-associacao': return dados.sem_associacao.length
-      case 'nao-lancados': return dados.nao_lancados.length
+      case 'recusados': return dados.recusados.length
       default: return dados.apagados.length
     }
   }
@@ -81,7 +81,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
-          {qual === 'nao-lancados' && <NaoLancados dados={dados} />}
+          {qual === 'recusados' && <Recusados dados={dados} />}
           {qual === 'apagados' && <Apagados dados={dados} recarregar={carregar} />}
         </div>
       )}
@@ -271,26 +271,102 @@ function Candidatos({ documento, ticket, fechar, concluir }: {
 // 2.4.3 e 2.4.4
 // ---------------------------------------------------------------------------
 
-function NaoLancados({ dados }: { dados: Dados }) {
-  if (!dados.nao_lancados.length) {
-    return <p className="orc-vazio grande">Nada parado: todo orçamento gerado já está no Trílogo.</p>
+// O QUE CADA MOTIVO OFERECE DE SAÍDA
+//
+//   A tela não mostra as mesmas opções para todo mundo: oferecer "corrigir o
+//   ticket" a quem esbarrou no teto é pedir para a pessoa tentar o caminho que
+//   não resolve. Cada motivo abre só o que faz sentido para ele.
+//
+//   Repare no `ticket_status`: ele NÃO oferece nada de editar. O problema não é
+//   nosso — é o chamado que ainda não andou. Fingir que existe conserto aqui
+//   dentro seria empurrar a pessoa para uma manobra.
+const SAIDAS: Record<Bloqueio, { rotulo: string; cor: string; opcoes: string[] }> = {
+  ticket_status: {
+    rotulo: 'O chamado não aceita custo ainda',
+    cor: 'espera',
+    opcoes: ['Reconferir status agora', 'Incluir na lista de cobrança'],
+  },
+  ticket_recusado: {
+    rotulo: 'Ticket não encontrado nesta conta',
+    cor: 'erro',
+    opcoes: ['Corrigir o ticket', 'Apagar o orçamento'],
+  },
+  teto: {
+    rotulo: 'Passa do teto com o que já está lançado',
+    cor: 'erro',
+    opcoes: ['Aprovar com autorização', 'Gerar de novo com valor menor', 'Apagar o orçamento'],
+  },
+  sem_empresa: {
+    rotulo: 'Falta configurar a empresa no servidor',
+    cor: 'erro',
+    opcoes: ['Avisar quem administra'],
+  },
+  trilogo_fora: {
+    rotulo: 'O Trílogo não respondeu',
+    cor: 'espera',
+    opcoes: ['Tentar de novo'],
+  },
+  desconhecido: {
+    rotulo: 'O Trílogo recusou',
+    cor: 'erro',
+    opcoes: ['Tentar de novo'],
+  },
+}
+
+function Recusados({ dados }: { dados: Dados }) {
+  if (!dados.recusados.length) {
+    return (
+      <p className="orc-vazio grande">
+        Nenhuma recusa. O que está na fila de lançar ainda não foi tentado —
+        e isso não é problema, é trabalho a fazer.
+      </p>
+    )
   }
   return (
     <div className="orc-rolagem">
       <table className="orc-tabela">
         <thead>
-          <tr><th>Ticket</th><th>Loja</th><th>Nota</th><th style={{ textAlign: 'right' }}>Valor</th><th>Gerado em</th></tr>
+          <tr>
+            <th>Ticket</th><th>Loja</th><th style={{ textAlign: 'right' }}>Valor</th>
+            <th>Por que não subiu</th><th>Quem resolve</th><th>Tentado</th>
+          </tr>
         </thead>
         <tbody>
-          {dados.nao_lancados.map(o => (
-            <tr key={o.id}>
-              <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span></td>
-              <td>{o.loja ?? '–'}</td>
-              <td>{o.notas ?? '–'}</td>
-              <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
-              <td>{emDataHora(o.criado_em)}</td>
-            </tr>
-          ))}
+          {dados.recusados.map(o => {
+            const s = o.lancamento_bloqueio ? SAIDAS[o.lancamento_bloqueio] : null
+            return (
+              <tr key={o.id}>
+                <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span></td>
+                <td>{o.loja ?? '–'}</td>
+                <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
+                <td>
+                  <span className={`orc-marca ${s?.cor ?? ''}`}>{s?.rotulo ?? 'Recusado'}</span>
+                  {/* A frase do Trílogo, como ela veio. É o que explica o caso
+                      que a categoria não cobre — e o que a pessoa lê quando a
+                      categoria não basta. */}
+                  {o.lancamento_bloqueio_detalhe && (
+                    <div className="orc-sub">{o.lancamento_bloqueio_detalhe}</div>
+                  )}
+                  {s && <div className="orc-sub opcoes">{s.opcoes.join(' · ')}</div>}
+                </td>
+                <td>
+                  {o.destino === 'cliente' ? 'Cliente'
+                    : o.destino === 'encarregados' ? 'Encarregados'
+                    : o.destino === 'pode_lancar' ? 'Já liberou — pode tentar'
+                    : '–'}
+                  {o.reaberto && o.motivo_reabertura && (
+                    <div className="orc-sub">reaberto: {o.motivo_reabertura}</div>
+                  )}
+                </td>
+                <td>
+                  {o.lancamento_tentado_em ? emDataHora(o.lancamento_tentado_em) : '–'}
+                  {o.lancamento_tentativas > 1 && (
+                    <div className="orc-sub">{o.lancamento_tentativas} tentativas</div>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

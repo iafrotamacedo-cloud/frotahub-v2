@@ -1,10 +1,10 @@
-// rev 1 — as quatro frentes de Correções
+// rev 2 — as quatro frentes de Correções
 //
 // A tela abre em quatro quadrados, e cada um é uma pergunta diferente:
 //
 //	sem ticket           a nota foi lida, mas ninguém achou ticket nela
 //	sem associação       o ticket foi escrito, mas não existe na nossa base
-//	não lançados         o orçamento existe e ainda não está no Trílogo
+//	recusados            o Trílogo recusou o lançamento — e por quê
 //	apagados             o que foi excluído, e pode voltar
 //
 // A DICA QUE MUDOU O DESENHO DE "SEM ASSOCIAÇÃO"
@@ -57,10 +57,25 @@ func (m *Modulo) correcoes(w http.ResponseWriter, r *http.Request) {
 		"&documentos.cliente_id=eq."+cli+"&documentos.oculto_em=is.null"+
 		"&order=ticket&limit=500", &semAssociacao)
 
-	// 2.4.3 — gerados que ainda não foram lançados.
-	var naoLancados []map[string]any
+	// 2.4.3 — os que FORAM TENTADOS e o Trílogo recusou.
+	//
+	// ANTES ISTO TRAZIA TODO ORÇAMENTO `gerado`, E ERA O DEFEITO DA TELA
+	//
+	//	Orçamento recém-nascido não é uma correção: é trabalho na fila. Trazendo
+	//	os dois juntos, Correções vivia cheia e ninguém distinguia o que ali era
+	//	problema de verdade — que é justamente a pergunta que a tela existe para
+	//	responder.
+	//
+	//	`lancamento_bloqueio` só é escrito quando uma tentativa é RECUSADA. Então
+	//	quem nunca foi tentado não aparece aqui por construção, não por um filtro
+	//	que alguém precisa lembrar de manter.
+	//
+	//	Eles continuam na fila de lançar, com a marca à vista — o lugar de esperar
+	//	é a fila, não a lista de defeitos.
+	var recusados []map[string]any
 	_ = m.bd.Buscar(ctx, "orcamentos_lista?cliente_id=eq."+cli+
-		"&status=eq.gerado&order=criado_em&limit=500&select=*", &naoLancados)
+		"&status=eq.gerado&lancamento_bloqueio=not.is.null"+
+		"&order=lancamento_tentado_em.desc&limit=500&select=*", &recusados)
 
 	// 2.4.4 — a lixeira que não é lixeira: nada foi apagado de verdade.
 	var apagados []map[string]any
@@ -76,7 +91,7 @@ func (m *Modulo) correcoes(w http.ResponseWriter, r *http.Request) {
 	web.Responder(w, http.StatusOK, map[string]any{
 		"sem_ticket":     ouVazio(semTicket),
 		"sem_associacao": ouVazio(semAssociacao),
-		"nao_lancados":   ouVazio(naoLancados),
+		"recusados":      ouVazio(recusados),
 		"apagados":       ouVazio(apagados),
 		"aguardando":     ouVazio(aguardando),
 	})
