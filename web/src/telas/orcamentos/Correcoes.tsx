@@ -10,8 +10,7 @@
 //
 //	Por isso a tela sugere candidatos ANTES de pedir qualquer coisa: o usuário
 //	confere e confirma. Digitar fica para quando nenhuma sugestão serve.
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAlturaDeTela } from '../../componentes/alturaDeTela'
+import { useCallback, useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta } from './Arquivos'
@@ -32,8 +31,6 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
   const [qual, setQual] = useState(frente ?? 'sem-ticket')
   const [erro, setErro] = useState('')
 
-  const painel = useRef<HTMLDivElement>(null)
-  useAlturaDeTela(painel, [dados, qual])
 
   const carregar = useCallback(async () => {
     try {
@@ -76,7 +73,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 
       {erro && <p className="erro">{erro}</p>}
       {!dados ? <Carregando /> : (
-        <div className="orc-lista" ref={painel}>
+        <div className="orc-lista">
           <div className="orc-lista-cab">
             <h2>{FRENTES.find(f => f.chave === qual)?.titulo}</h2>
             <em>{FRENTES.find(f => f.chave === qual)?.desc}</em>

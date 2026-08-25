@@ -15,7 +15,6 @@
 //	sem prazo e sem medo. Com o Dropbox fora do stack, esta coluna é a rede de
 //	segurança que a lixeira dele era.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAlturaDeTela } from '../../componentes/alturaDeTela'
 import { motor, enviarArquivos } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import {
@@ -44,8 +43,6 @@ export function Arquivos({ fila, voltar }: Props) {
   // transformaria "desfazer" numa corrida contra o relógio.
   const [desfazer, setDesfazer] = useState<{ id: string; nome: string } | null>(null)
 
-  const painel = useRef<HTMLDivElement>(null)
-  useAlturaDeTela(painel, [pagina, ocultos, fila])
 
   const carregar = useCallback(async () => {
     setOcupado(true)
@@ -110,7 +107,7 @@ export function Arquivos({ fila, voltar }: Props) {
 
       <Insercao fila={fila} aoTerminar={carregar} aoFalhar={setErro} />
 
-      <div className="orc-lista" ref={painel}>
+      <div className="orc-lista">
         <div className="orc-lista-cab">
           <h2>{ocultos ? 'Arquivos excluídos' : 'Arquivos inseridos'}</h2>
           <em>{pagina ? `${pagina.total.toLocaleString('pt-BR')} no total` : '—'}</em>

@@ -17,6 +17,8 @@ import { Usuarios } from './telas/usuarios/Usuarios'
 import { Categorias } from './telas/categorias/Categorias'
 import { MinhaConta } from './telas/MinhaConta'
 import { Orcamentos } from './telas/orcamentos/Orcamentos'
+import { Painel } from './componentes/Painel'
+import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { useExpiracao } from './sessao/inatividade'
 
@@ -68,6 +70,17 @@ export default function App() {
   if (!perfil) return <Login entrar={entrar} expirou={expirou} />
 
   const atual = caminho[caminho.length - 1]
+
+  // QUAIS TELAS SÃO ESCURAS
+  //
+  //	A regra do dono: menu escuro, listagem clara. Menu aqui é a tela inicial,
+  //	qualquer tela que só oferece caminhos (as que têm `sub`) e o painel de
+  //	Orçamentos — que também é um menu, só que com contadores.
+  //
+  //	As telas que SÃO listagem (chamados do Trílogo, usuários, categorias)
+  //	continuam claras da barra de cima até o rodapé. Dentro das escuras, o
+  //	quadro branco é só a tabela.
+  const ehEscura = caminho.length === 0 || !!atual?.sub?.length || atual?.tela === 'orcamentos'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -97,7 +110,7 @@ export default function App() {
   }
 
   return (
-    <div className={'lay' + (recolhida ? ' recolhida' : '')}>
+    <div className={'lay' + (recolhida ? ' recolhida' : '') + (ehEscura ? ' escura' : '')}>
       <div className="sd-back" onClick={alternarNav} />
 
       {/* O puxador vive FORA da barra: recolhida, a barra some, e ele precisa
@@ -198,30 +211,25 @@ export default function App() {
 
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura
             confortável atrapalha mais do que ajuda. */}
-        <main className={'content' + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos') ? ' content-largo' : '')}>
+        <main className={'content'
+          + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura) ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
           ) : atual?.sub?.length ? (
+            // O MESMO desenho de barras da tela inicial e do painel de
+            // Orçamentos. Um esquema de menu só para o programa inteiro.
             <>
               <header className="hero">
                 <h1>{atual.t}</h1>
                 <p>{atual.desc}</p>
               </header>
-              <div className="mods">
-                {atual.sub.map(filho => (
-                  <button
-                    key={filho.t}
-                    className={'mod' + (filho.breve ? ' breve' : '')}
-                    onClick={() => navegar([...caminho, filho])}
-                    type="button"
-                  >
-                    <div className="ic"><Icone nome={filho.icone} /></div>
-                    <h3>{filho.t}</h3>
-                    <p>{filho.desc}</p>
-                    {filho.breve && <p style={{ marginTop: 10 }}><span className="selo">Em breve</span></p>}
-                  </button>
-                ))}
-              </div>
+              <Painel
+                etapas={etapasDoMenu(atual.sub)}
+                aoEscolher={rota => {
+                  const filho = atual.sub!.find(f => f.rota === rota)
+                  if (filho) navegar([...caminho, filho])
+                }}
+              />
             </>
           ) : atual?.tela === 'usuarios' ? (
             <Usuarios perfil={perfil} />

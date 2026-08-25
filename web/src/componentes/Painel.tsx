@@ -35,15 +35,26 @@ export interface Etapa {
   titulo: string
   descricao: string
   icone: ReactNode
-  /** `null` vira traço: "não há nenhum" é diferente de "não sei quantos". */
-  numero: number | null
-  rotulo: string
+  /**
+   * O contador. `null` vira traço ("não há nenhum" é diferente de "não sei
+   * quantos"); AUSENTE tira o número da barra inteira.
+   *
+   * Menu de navegação não tem fila para contar — "Configurações" não tem
+   * quantidade. Nesses casos a barra fica só com ícone, título e descrição, e
+   * o espaço do número não vira um traço solto pedindo explicação.
+   */
+  numero?: number | null
+  rotulo?: string
   rodape?: string
   faixa?: string
   previaTitulo?: string
   previa?: LinhaDaPrevia[]
   /** Quando vazio, a prévia mostra esta frase em vez de sumir. */
   previaVazia?: string
+  /** Barra apagada, que não abre. É o "Em breve" da árvore de menus. */
+  desabilitada?: boolean
+  /** Selo pequeno no rodapé — hoje só o "Em breve". */
+  selo?: string
   /**
    * Quando existe, a etapa NÃO abre ao clicar: ela se parte em quatro ao passar
    * o mouse, e quem abre é cada filho.
@@ -66,22 +77,32 @@ interface Props {
 }
 
 export function Painel({ etapas, aoEscolher }: Props) {
+  // MENU DE NAVEGAÇÃO É OUTRA COISA DE UM PAINEL DE TRABALHO
+  //
+  //	Sem contador e sem prévia, não há o que preencher a barra — e o desenho do
+  //	painel (título lá embaixo, número lá em cima) deixa um vazio enorme no meio
+  //	que não quer dizer nada. Aqui o rótulo sobe para junto do ícone e a barra
+  //	ganha uma largura de gente: duas opções não devem virar dois muros de 700px.
+  const simples = etapas.every(e => e.numero === undefined && !e.filhos?.length)
+
   // Qual etapa está aberta em quatro. Estado, e não `:hover` puro no CSS,
   // porque o teclado também precisa abrir — e `:focus-within` sozinho fecharia
   // a coluna assim que o foco passasse para um dos sub-botões.
   const [aberta, setAberta] = useState<string | null>(null)
 
   return (
-    <div className="pn">
+    <div className={'pn' + (simples ? ' simples' : '')}>
       {etapas.map(e => {
         const temFilhos = !!e.filhos?.length
         const estaAberta = temFilhos && aberta === e.chave
         const viva = (e.numero ?? 0) > 0
+        const temContador = e.numero !== undefined
 
         return (
           <div
             key={e.chave}
-            className={'pn-col' + (viva ? ' viva' : '') + (estaAberta ? ' aberta' : '')}
+            className={'pn-col' + (viva ? ' viva' : '') + (estaAberta ? ' aberta' : '')
+              + (e.desabilitada ? ' apagada' : '')}
             style={{ ['--faixa' as string]: e.faixa ?? (viva ? 'var(--red-h)' : 'var(--d-line2)') }}
             onMouseEnter={() => temFilhos && setAberta(e.chave)}
             onMouseLeave={() => temFilhos && setAberta(null)}
@@ -90,6 +111,7 @@ export function Painel({ etapas, aoEscolher }: Props) {
             <button
               type="button"
               className="pn-corpo"
+              disabled={e.desabilitada}
               onClick={() => (temFilhos ? setAberta(estaAberta ? null : e.chave) : aoEscolher(e.chave))}
               // Quando a coluna está aberta, o corpo sai do caminho: deixá-lo
               // focável faria o Tab passar por um botão invisível.
@@ -97,19 +119,25 @@ export function Painel({ etapas, aoEscolher }: Props) {
             >
               <span className="pn-selo">{e.icone}</span>
 
-              <span className="pn-medida">
-                <span className="pn-num">{e.numero === null ? '–' : formatar(e.numero)}</span>
-                <span className="pn-rot" style={{ display: 'block' }}>{e.rotulo}</span>
-              </span>
+              {temContador && (
+                <span className="pn-medida">
+                  <span className="pn-num">{e.numero === null ? '–' : formatar(e.numero!)}</span>
+                  <span className="pn-rot" style={{ display: 'block' }}>{e.rotulo}</span>
+                </span>
+              )}
 
-              <Previa titulo={e.previaTitulo} linhas={e.previa} vazia={e.previaVazia} numero={e.numero} />
+              {!simples && (
+                <Previa titulo={e.previaTitulo} linhas={e.previa} vazia={e.previaVazia} numero={e.numero} />
+              )}
 
               <h3>{e.titulo}</h3>
               <span className="pn-sub" style={{ display: 'block' }}>{e.descricao}</span>
 
+              {simples && <span className="pn-espaco" />}
+
               <span className="pn-rodape">
-                <span>{e.rodape ?? ''}</span>
-                <span className="pn-seta" aria-hidden>→</span>
+                <span>{e.selo ? <b className="pn-selo-breve">{e.selo}</b> : (e.rodape ?? '')}</span>
+                {!e.desabilitada && <span className="pn-seta" aria-hidden>→</span>}
               </span>
             </button>
 
@@ -168,7 +196,12 @@ function Previa({ titulo, linhas, vazia, numero }: {
 }) {
   // Sem prévia a coluna ainda precisa do espaço flexível, senão o título sobe
   // para o meio da barra e a etapa sem prévia fica desalinhada das outras.
-  if (!titulo) return <span className="pn-previa vazio" />
+  //
+  // A classe é `pn-sem-previa`, e não `vazio`: `.vazio` já existe em telas.css
+  // como caixa de estado vazio, com fundo BRANCO — e apareceu como um retângulo
+  // branco no meio da barra escura. Classe curta em folha compartilhada é
+  // colisão esperando acontecer; o prefixo do módulo resolve.
+  if (!titulo) return <span className="pn-previa pn-sem-previa" />
   return (
     <span className="pn-previa">
       <span className="cap" style={{ display: 'block' }}>{titulo}</span>

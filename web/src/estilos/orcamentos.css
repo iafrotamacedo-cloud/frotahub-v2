@@ -11,13 +11,11 @@
  *   com o desenho continue possível depois.
  */
 
-/* O módulo inteiro é uma superfície escura: menu escuro é a regra, e uma ilha
-   escura boiando no cinza claro da página fica pior que os dois temas puros.
-   O que fica claro é a TABELA, que é o lugar de ler. */
+/* Sem fundo, sem moldura, sem canto arredondado: quem é escuro agora é a casca
+   inteira (`.lay.escura`, em escuro.css). O módulo só se organiza por dentro.
+   O único retângulo claro da tela é a tabela. */
 .orc-painel, .orc-tela {
   display: flex; flex-direction: column; min-height: 0; flex: 1;
-  background: var(--d-bg); border-radius: var(--r-l);
-  padding: 14px; margin: -4px 0;
 }
 .orc-painel { gap: 14px; }
 
@@ -87,8 +85,8 @@
 /* ---------- a lista (clara) ---------- */
 
 /* `flex: 0 1 auto` e não `1`: a lista curta encolhe até o tamanho do conteúdo em
-   vez de esticar um vazio branco até o rodapé da janela. Quem segura a lista
-   longa é o teto de altura medido em `useAlturaDeTela`. */
+   vez de esticar um vazio branco até o rodapé da janela; a longa é espremida
+   pela casca, e quem rola é a `.orc-rolagem` de dentro. */
 .orc-lista {
   margin-top: 18px; flex: 0 1 auto; min-height: 0;
   display: flex; flex-direction: column;
@@ -219,12 +217,7 @@
 
 /* ---------- a ficha da nota com a barra de tickets: 1 cm, e cresce ---------- */
 
-/* A ficha substitui a tela inteira, então ela também é uma superfície escura —
-   senão a barra de tickets vira uma ilha preta boiando no cinza da página. */
-.orc-ficha {
-  display: flex; flex-direction: column; flex: 1; min-height: 0;
-  background: var(--d-bg); border-radius: var(--r-l); padding: 14px; margin: -4px 0;
-}
+.orc-ficha { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .orc-ficha-barra {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   min-height: 38px;            /* 1 cm — e cresce sozinha quando os tickets quebram */

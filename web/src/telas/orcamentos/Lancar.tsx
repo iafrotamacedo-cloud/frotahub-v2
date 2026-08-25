@@ -10,8 +10,7 @@
 //	Porque entre um e outro existe uma decisão humana: conferir o documento. Um
 //	botão só — "gerar e lançar" — parece mais prático e é justamente o que faz um
 //	erro de leitura chegar ao cliente sem passar por ninguém.
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAlturaDeTela } from '../../componentes/alturaDeTela'
+import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
@@ -91,8 +90,6 @@ export function Lancar({ voltar }: { voltar: () => void }) {
     }
   }
 
-  const painel = useRef<HTMLDivElement>(null)
-  useAlturaDeTela(painel, [pagina, status])
 
   return (
     <div className="orc-tela">
@@ -111,7 +108,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
       {erro && <p className="erro">{erro}</p>}
       {bloqueio && <Bloqueio dados={bloqueio} fechar={() => setBloqueio(null)} />}
 
-      <div className="orc-lista" ref={painel}>
+      <div className="orc-lista">
         <div className="orc-lista-cab">
           <h2>Orçamentos</h2>
           <em>{pagina ? `${pagina.total.toLocaleString('pt-BR')} no filtro` : '—'}</em>

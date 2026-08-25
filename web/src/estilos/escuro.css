@@ -38,6 +38,64 @@
 }
 
 /* --------------------------------------------------------------------------
+   a casca escura
+   --------------------------------------------------------------------------
+
+   A REGRA, E ONDE ELA PASSA
+     Menu é lugar de escolher; listagem é lugar de ler. Nas telas de menu a
+     casca inteira é escura — barra de cima, área de trabalho, tudo — e o único
+     retângulo claro é a tabela.
+
+     Antes o painel era uma ilha escura boiando no cinza claro da página, com
+     canto arredondado e uma moldura branca em volta. Ficava pior que qualquer
+     um dos dois temas puro: parecia um quadro pendurado na parede errada.
+   -------------------------------------------------------------------------- */
+
+/* A ALTURA É DO CSS, NÃO DE CONTA EM JAVASCRIPT
+ *
+ *   A primeira versão media a janela e escrevia a altura em pixel. Funcionava, e
+ *   era frágil pelo motivo de sempre: a conta e o layout discordavam. O flex
+ *   pedia uma altura, o JavaScript pedia outra, e sobravam 120px de vazio no pé
+ *   da tela que ninguém sabia de onde vinham.
+ *
+ *   Com a casca sendo uma coluna de altura fixa, cada peça de dentro só diz se
+ *   cresce ou não. Sem medir nada, e sem discordar de ninguém.
+ */
+.lay.escura { height: 100vh; overflow: hidden; }
+.lay.escura .main { background: var(--d-bg); min-height: 0; }
+.lay.escura .content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 22px;
+}
+
+.lay.escura .top {
+  background: var(--d-bg2);
+  border-bottom-color: var(--d-line);
+  /* O desfoque existia para o branco translúcido da versão clara; no escuro ele
+     só deixa a barra suja quando a tabela passa por baixo. */
+  backdrop-filter: none;
+}
+.lay.escura .top .crumb { color: var(--d-mut); }
+.lay.escura .top .titulo { color: var(--d-txt); }
+
+.lay.escura .content { background: transparent; }
+
+.lay.escura .hero h1 { color: var(--d-txt); }
+.lay.escura .hero p { color: var(--d-mut); }
+
+/* O puxador da barra lateral fica sobre o fundo escuro: precisa deixar de ser
+   um botão branco. */
+.lay.escura .sd-puxador {
+  background: var(--d-card2);
+  border-color: var(--d-line2);
+  color: var(--d-txt2);
+}
+.lay.escura .sd-puxador:hover { color: var(--red-lift); border-color: var(--red-lift); }
+
+/* --------------------------------------------------------------------------
    o painel: as barras verticais
    -------------------------------------------------------------------------- */
 
@@ -46,9 +104,14 @@
   gap: 14px;
   /* Altura cheia do que sobra da tela. As barras vão do topo à base, como o
      dono desenhou — e não crescem com o conteúdo, senão a última barra
-     empurraria a página para baixo. */
+     empurraria a página para baixo.
+     `overflow: hidden` com o teto medido em `useAlturaDeTela` é o que garante
+     que MENU NUNCA GANHA BARRA DE ROLAGEM: quem encolhe é a prévia dentro da
+     barra, nunca a lista de opções. Opção escondida embaixo é opção que não
+     existe para quem opera. */
   min-height: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .pn-col {
@@ -199,7 +262,7 @@
   flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
 }
-.pn-previa.vazio { border-top: 0; }
+.pn-previa.pn-sem-previa { border-top: 0; }
 .pn-previa .nada { font-size: 11.5px; color: var(--d-fraco); font-style: italic; padding: 6px 0; }
 
 .pn-col h3 {
@@ -211,6 +274,45 @@
   color: var(--d-txt);
 }
 .pn-sub { margin-top: 7px; font-size: 11.5px; line-height: 1.45; color: var(--d-mut); }
+
+/* --------------------------------------------------------------------------
+   menu de navegação: a mesma barra, sem contador
+   -------------------------------------------------------------------------- */
+
+/* Largura de gente. Duas opções num monitor largo não podem virar dois muros:
+   a barra continua vertical, mas com a mesma largura que teria num painel de
+   cinco — assim o desenho é o mesmo em toda tela do programa. */
+.pn.simples { justify-content: flex-start; }
+.pn.simples .pn-col { flex: 0 1 300px; max-width: 300px; }
+
+/* O rótulo sobe para junto do ícone, e o vazio vai para baixo dele. */
+.pn.simples h3 { margin-top: 22px; }
+.pn-espaco { flex: 1; min-height: 0; }
+
+/* Sem contador não existe "viva", mas o ícone continua sendo o da marca: numa
+   tela de navegação, tudo que está ali é para ser usado. */
+.pn.simples .pn-col:not(.apagada) .pn-selo {
+  color: var(--red-lift);
+  border-color: rgba(209, 73, 76, .35);
+  background: rgba(209, 73, 76, .10);
+}
+
+/* "Em breve": a barra existe para dar a medida do que falta, mas não abre. */
+.pn-col.apagada { opacity: .5; box-shadow: none; }
+.pn-col.apagada:hover { transform: none; box-shadow: none; border-color: var(--d-line); }
+.pn-col.apagada::after { display: none; }
+.pn-col.apagada .pn-corpo { cursor: default; }
+
+.pn-selo-breve {
+  font-weight: 600;
+  font-size: 9.5px;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  color: var(--d-mut);
+  border: 1px solid var(--d-line2);
+  border-radius: 20px;
+  padding: 2px 8px;
+}
 
 .pn-rodape {
   margin-top: 14px;

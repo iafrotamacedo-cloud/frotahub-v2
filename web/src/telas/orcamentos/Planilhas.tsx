@@ -12,8 +12,7 @@
 //	ainda não existe. A tela DIZ isso, em vez de mostrar uma coluna de traços que
 //	parece informação. No sistema antigo essas duas colunas existiam, ninguém as
 //	escrevia, e a planilha reportava falso para sempre como se fosse verdade.
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useAlturaDeTela } from '../../componentes/alturaDeTela'
+import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
@@ -66,8 +65,6 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 
   const soLancados = tipo === 'lancados'
 
-  const painel = useRef<HTMLDivElement>(null)
-  useAlturaDeTela(painel, [pagina, tipo])
 
   return (
     <div className="orc-tela">
@@ -120,7 +117,7 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 
       {erro && <p className="erro">{erro}</p>}
 
-      <div className="orc-lista" ref={painel}>
+      <div className="orc-lista">
         <div className="orc-lista-cab">
           <h2>{soLancados ? 'Orçamentos lançados' : 'Orçamentos gerados'}</h2>
           <em>{pagina ? `${pagina.total.toLocaleString('pt-BR')} no filtro` : '—'}</em>

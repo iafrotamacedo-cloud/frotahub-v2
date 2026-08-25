@@ -1,9 +1,14 @@
-// rev 2 — a tela inicial
+// rev 3 — a tela inicial
 //
-// Mostra os blocos do sistema. O que ainda não existe aparece marcado, para dar a
-// medida do que falta (CORE-23).
+// Os blocos do sistema, no mesmo desenho de barras verticais do painel de
+// Orçamentos. É a decisão do dono em 25/08/2026: um esquema de menu só para o
+// programa inteiro — quem aprende a operar uma tela sabe operar todas.
+//
+// O que ainda não existe aparece apagado, para dar a medida do que falta
+// (CORE-23).
 import { type ItemMenu } from '../menu/arvore'
-import { Icone } from '../componentes/Icone'
+import { etapasDoMenu } from '../menu/etapas'
+import { Painel } from '../componentes/Painel'
 
 interface Props {
   nome: string
@@ -22,21 +27,13 @@ export function Inicio({ nome, arvore, abrir }: Props) {
         <p>Escolha por onde começar.</p>
       </header>
 
-      <div className="mods">
-        {arvore.map(item => (
-          <button
-            key={item.t}
-            className={'mod' + (item.breve ? ' breve' : '')}
-            onClick={() => abrir([item])}
-            type="button"
-          >
-            <div className="ic"><Icone nome={item.icone} /></div>
-            <h3>{item.t}</h3>
-            <p>{item.desc}</p>
-            {item.breve && <p style={{ marginTop: 10 }}><span className="selo">Em breve</span></p>}
-          </button>
-        ))}
-      </div>
+      <Painel
+        etapas={etapasDoMenu(arvore)}
+        aoEscolher={rota => {
+          const item = arvore.find(i => i.rota === rota)
+          if (item) abrir([item])
+        }}
+      />
     </>
   )
 }
