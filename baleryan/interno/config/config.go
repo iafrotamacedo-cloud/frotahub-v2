@@ -21,6 +21,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // ErroDeConfiguracao é devolvido por Carregar quando a configuração está incompleta.
@@ -106,6 +107,48 @@ func (l *leitor) lista(nome string, padrao []string) []string {
 	return saida
 }
 
+// numeros lê uma lista de números inteiros positivos.
+//
+// SEPARADOR GENEROSO, VALOR RIGOROSO
+//
+//	Esta lista chega COLADA à mão, de uma planilha ou de uma consulta ao banco —
+//	ou seja, com vírgula, com espaço, com quebra de linha, e às vezes com os
+//	três. Aceitar qualquer um deles como separador não custa nada e evita a
+//	rodada que falha porque sobrou um "\n" no fim.
+//
+//	O que NÃO é generoso é o conteúdo: pedaço que não seja um inteiro positivo
+//	vira problema de configuração e o programa não sobe. É de propósito. Um
+//	número de chamado digitado errado leria o chamado errado — e no modo `alvos`
+//	essa lista é a única coisa que decide o que vai ser gravado. Melhor recusar
+//	a lista inteira do que ler um chamado que ninguém pediu.
+//
+//	Repetido entra uma vez só: pedir duas vezes o mesmo chamado seria trabalho
+//	dobrado sem efeito nenhum.
+func (l *leitor) numeros(nome string) []int {
+	v := l.bruto(nome)
+	if v == "" {
+		return nil
+	}
+	partes := strings.FieldsFunc(v, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	})
+	vistos := map[int]bool{}
+	saida := make([]int, 0, len(partes))
+	for _, p := range partes {
+		n, err := strconv.Atoi(p)
+		if err != nil || n <= 0 {
+			l.problema("%s — %q não é um número de chamado.", nome, p)
+			continue
+		}
+		if vistos[n] {
+			continue
+		}
+		vistos[n] = true
+		saida = append(saida, n)
+	}
+	return saida
+}
+
 // ---------------------------------------------------------------------------
 // grupos
 // ---------------------------------------------------------------------------
@@ -159,6 +202,20 @@ type Trilogo struct {
 	// Quantos chamados por lote na atualização. O motor do plano gratuito pode
 	// adormecer no meio; lote pequeno significa perder pouco e retomar rápido.
 	Lote int
+
+	// Os chamados que o modo `alvos` vai buscar, pelo número.
+	//
+	// POR QUE É CONFIGURAÇÃO, E NÃO UMA CONSULTA AO BANCO
+	//
+	//	Seria tentador o robô descobrir sozinho quais chamados faltam. Mas então
+	//	a lista do que ele grava passaria a depender de uma consulta que pode
+	//	mudar entre o momento em que se decide rodar e o momento em que se roda.
+	//	Aqui a lista é DITADA, escrita à mão no disparo, e fica registrada no log
+	//	do Actions: dá para conferir depois exatamente o que foi pedido.
+	//
+	//	Vazia em toda rodada que não seja `alvos` — e o modo `alvos` recusa
+	//	rodar sem ela.
+	Alvos []int
 
 	// O id da empresa prestadora DENTRO do Trílogo, que o lançamento de custo
 	// precisa mandar em `CompanyId`.
@@ -313,6 +370,7 @@ func Carregar() (*Config, error) {
 		SoLink:           l.lista("TRILOGO_SO_LINK", SoLinkPadrao),
 		Paralelo:         l.inteiro("TRILOGO_PARALELO", 12, 1, 32),
 		Lote:             l.inteiro("TRILOGO_LOTE", 150, 10, 1000),
+		Alvos:            l.numeros("TRILOGO_ALVOS"),
 		// 35 é o valor levantado da conta Instalações. O da Civil nasce zero de
 		// propósito: zero é "não sei", e "não sei" recusa o lançamento.
 		EmpresaInstalacoes: l.inteiro("TRILOGO_EMPRESA_INSTALACOES", 35, 0, 1<<30),

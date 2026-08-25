@@ -1,6 +1,6 @@
-// rev 1 — o robô do Trílogo
+// rev 2 — o robô do Trílogo
 //
-// TRÊS MODOS, UM CÓDIGO SÓ (CORE-06)
+// QUATRO MODOS, UM CÓDIGO SÓ (CORE-06)
 //
 //	levantamento — lê tudo desde a data de corte e grava chamado, timeline,
 //	               custos e a FICHA de cada arquivo com o tamanho real, obtido
@@ -12,7 +12,13 @@
 //	atualizacao  — a mesma leitura, com marca d'água: só os chamados cujo
 //	               `dateOfLastChange` passou da última rodada concluída.
 //
-// A diferença entre eles é a janela e o que se faz com os arquivos. Nada mais.
+//	alvos        — lê CHAMADOS DITADOS, pelo número, e mais nenhum. Não tem
+//	               janela, não tem marca d'água, não varre lista.
+//
+// Entre os três primeiros a diferença é a janela e o que se faz com os arquivos.
+// O quarto é de outra natureza: não pergunta "o que mudou?", pergunta "traga
+// estes". É o modo de buscar um punhado de chamados antigos sem arrastar junto
+// tudo o que foi criado entre eles e hoje.
 //
 // POR QUE EM LOTES
 //
@@ -48,7 +54,22 @@ const (
 	ModoLevantamento = "levantamento"
 	ModoCopia        = "copia"
 	ModoAtualizacao  = "atualizacao"
+	ModoAlvos        = "alvos"
 )
+
+// Modos é a lista completa, para quem precisa validar sem repetir os nomes.
+// `robo_execucoes.modo` tem um CHECK com exatamente estes valores (migração 012):
+// modo novo aqui sem migração lá é uma rodada que morre na primeira linha.
+var Modos = []string{ModoLevantamento, ModoCopia, ModoAtualizacao, ModoAlvos}
+
+func modoConhecido(m string) bool {
+	for _, x := range Modos {
+		if x == m {
+			return true
+		}
+	}
+	return false
+}
 
 // A data de onde a carga inicial começa. Decisão do dono.
 var DataDeCorte = time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
@@ -116,6 +137,10 @@ type Resultado struct {
 	Completo         bool   `json:"completo"` // falso = sobrou trabalho; chame de novo
 	Erro             string `json:"erro,omitempty"`
 	Duracao          string `json:"duracao"`
+	// Só o modo `alvos` preenche: os números pedidos que não existem em conta
+	// nenhuma. Não é erro da rodada — é resposta, e precisa aparecer. Uma lista
+	// de 71 que grava 66 sem dizer quais cinco faltaram é pior que um erro.
+	NaoEncontrados []int `json:"nao_encontrados,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -123,8 +148,8 @@ type Resultado struct {
 // ---------------------------------------------------------------------------
 
 func (s *Servico) Rodar(ctx context.Context, modo, clienteID, disparadoPor string) (*Resultado, error) {
-	if modo != ModoLevantamento && modo != ModoCopia && modo != ModoAtualizacao {
-		return nil, fmt.Errorf("modo desconhecido: %s", modo)
+	if !modoConhecido(modo) {
+		return nil, fmt.Errorf("modo desconhecido: %s (conheço %s)", modo, strings.Join(Modos, ", "))
 	}
 	if modo != ModoCopia && !s.cfg.Trilogo.Ligado() {
 		return nil, fmt.Errorf("as credenciais do Trílogo não estão configuradas (TRILOGO_*)")
@@ -144,6 +169,8 @@ func (s *Servico) Rodar(ctx context.Context, modo, clienteID, disparadoPor strin
 	switch modo {
 	case ModoCopia:
 		erroDaRodada = s.copiar(ctx, clienteID, r)
+	case ModoAlvos:
+		erroDaRodada = s.lerAlvos(ctx, clienteID, r)
 	default:
 		erroDaRodada = s.ler(ctx, modo, clienteID, r)
 	}
@@ -282,7 +309,7 @@ func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado)
 			fronteiras = append(fronteiras, fronteira)
 		}
 
-		if err := s.processar(ctx, sessao, clienteID, aFazer, r); err != nil {
+		if err := s.processar(ctx, sessao, clienteID, numerosDe(aFazer), r); err != nil {
 			return err
 		}
 		log.Printf("[trilogo] %s · conta %s · %d na lista · %d pendentes · %d processados",
@@ -322,12 +349,108 @@ func menorInstante(ts []time.Time) time.Time {
 	return menor
 }
 
+// ---------------------------------------------------------------------------
+// Leitura por alvo — chamados ditados, pelo número
+// ---------------------------------------------------------------------------
+
+// lerAlvos lê exatamente os chamados da lista, e mais nenhum.
+//
+// POR QUE ISTO NÃO É UMA JANELA MAIOR
+//
+//	A alternativa óbvia seria mandar o `levantamento` voltar mais no tempo. Mas
+//	os chamados que faltam podem estar a um ano de distância: a janela leria
+//	dezenas de milhares para aproveitar algumas dezenas, e — o que importa mais —
+//	dependeria de um FILTRO para não gravar todo o resto. Filtro é código, e
+//	código erra. Aqui a garantia é de outra ordem: o que não está na lista não
+//	chega a ser consultado. Não existe caminho pelo qual uma linha de outro
+//	chamado seja escrita.
+//
+// AS DUAS CONTAS
+//
+//	Cada chamado pertence a uma delas, e nem sempre se sabe qual. Então pergunta
+//	à primeira; o que ela não conhece vai para a segunda. "Não é desta conta" é a
+//	resposta esperada em boa parte das perguntas, não um erro — por isso o lote
+//	roda em modo tolerante (ver `colher`).
+//
+// UMA RODADA SÓ
+//
+//	Não há cursor nem marca d'água para avançar: a lista é finita e conhecida
+//	desde o começo. A rodada devolve `Completo` e o laço de fora não repete.
+func (s *Servico) lerAlvos(ctx context.Context, clienteID string, r *Resultado) error {
+	pedidos := s.cfg.Trilogo.Alvos
+	if len(pedidos) == 0 {
+		return fmt.Errorf("o modo %s precisa da lista de chamados em TRILOGO_ALVOS "+
+			"(números separados por vírgula, espaço ou quebra de linha)", ModoAlvos)
+	}
+	r.ChamadosLidos = len(pedidos)
+	log.Printf("[trilogo] alvos · %d chamado(s) pedidos: %s", len(pedidos), listaDeNumeros(pedidos))
+
+	faltam := pedidos
+	for _, conta := range s.cfg.Trilogo.Contas() {
+		if len(faltam) == 0 {
+			break
+		}
+		sessao, err := Entrar(ctx, conta.Nome, conta.Email, conta.Senha)
+		if err != nil {
+			return fmt.Errorf("conta %s: %w", conta.Nome, err)
+		}
+
+		const porLote = 50
+		var ausentes []int
+		for i := 0; i < len(faltam); i += porLote {
+			fim := min(i+porLote, len(faltam))
+			fora, err := s.umLote(ctx, sessao, clienteID, faltam[i:fim], r, true)
+			if err != nil {
+				return err
+			}
+			ausentes = append(ausentes, fora...)
+		}
+		log.Printf("[trilogo] alvos · conta %s · %d perguntados · %d gravados · %d são de outra conta",
+			conta.Nome, len(faltam), len(faltam)-len(ausentes), len(ausentes))
+		faltam = ausentes
+	}
+
+	r.Completo = true
+	r.NaoEncontrados = faltam
+	if len(faltam) > 0 {
+		// Não derruba a rodada: os outros foram gravados e isso é trabalho bom.
+		// Mas tem que ficar GRITADO no log, senão some no meio dos números.
+		log.Printf("[trilogo] AVISO: %d chamado(s) não existem em NENHUMA das contas: %s",
+			len(faltam), listaDeNumeros(faltam))
+	}
+	return nil
+}
+
+func listaDeNumeros(ns []int) string {
+	p := make([]string, len(ns))
+	for i, n := range ns {
+		p[i] = strconv.Itoa(n)
+	}
+	return strings.Join(p, ", ")
+}
+
+// numerosDe extrai só o que o resto do caminho usa: o número do chamado.
+//
+// A lista serve para DESCOBRIR quais chamados ler; da descoberta em diante o
+// `Resumo` não é mais consultado — tudo vem do `Detalhe`. Reduzir a passagem ao
+// número é o que permite o modo `alvos` reaproveitar exatamente o mesmo caminho
+// de gravação sem ter uma lista de onde tirar `Resumo` nenhum.
+func numerosDe(rs []Resumo) []int {
+	ns := make([]int, len(rs))
+	for i, t := range rs {
+		ns[i] = t.ID
+	}
+	return ns
+}
+
 // processar busca o detalhe de cada chamado em paralelo e grava em lotes.
-func (s *Servico) processar(ctx context.Context, sessao *Sessao, clienteID string, alvos []Resumo, r *Resultado) error {
+func (s *Servico) processar(ctx context.Context, sessao *Sessao, clienteID string, numeros []int, r *Resultado) error {
 	const porLote = 50
-	for i := 0; i < len(alvos); i += porLote {
-		fim := min(i+porLote, len(alvos))
-		if err := s.umLote(ctx, sessao, clienteID, alvos[i:fim], r); err != nil {
+	for i := 0; i < len(numeros); i += porLote {
+		fim := min(i+porLote, len(numeros))
+		// Aqui os números vieram da lista da própria conta: se um não responde,
+		// é falha de verdade e a rodada para.
+		if _, err := s.umLote(ctx, sessao, clienteID, numeros[i:fim], r, false); err != nil {
 			return err
 		}
 	}
@@ -335,68 +458,110 @@ func (s *Servico) processar(ctx context.Context, sessao *Sessao, clienteID strin
 }
 
 type colhido struct {
-	resumo  Resumo
 	detalhe *Detalhe
 	custos  []Custo
 	// tamanho de cada arquivo, medido sem baixar: url -> (bytes, tipo)
 	medidas map[string][2]string
 }
 
-func (s *Servico) umLote(ctx context.Context, sessao *Sessao, clienteID string, alvos []Resumo, r *Resultado) error {
-	// --- 1) buscar tudo do Trílogo, em paralelo -----------------------------
-	colhidos := make([]*colhido, len(alvos))
+// colher busca detalhe, custos e a ficha dos arquivos de cada chamado, em
+// paralelo. Devolve também os números que a conta NÃO conhece.
+//
+// POR QUE CONFERIR `d.ID` CONTRA O NÚMERO PEDIDO
+//
+//	O nosso `pedir` trata corpo vazio como sucesso — e com razão: em vários
+//	endereços do Trílogo, vazio é resposta legítima. Só que a resposta a um
+//	chamado que não é desta conta também é vazia. Sem esta conferência, o que
+//	volta é um `Detalhe` ZERADO sem erro nenhum, e o caminho de gravação
+//	escreveria um chamado de NÚMERO 0 para cada ticket da outra conta. O modo
+//	`alvos` consulta as duas contas de propósito, então isso deixaria de ser
+//	hipótese e passaria a acontecer em metade das chamadas.
+//
+// `tolerante` diz o que fazer com quem não respondeu: no caminho normal os
+// números vieram da lista da própria conta e faltar é falha; no modo `alvos` é
+// a resposta esperada, e o número vai para a conta seguinte.
+func (s *Servico) colher(ctx context.Context, sessao *Sessao, numeros []int, tolerante bool) ([]*colhido, []int, error) {
+	colhidos := make([]*colhido, len(numeros))
+	ausente := make([]bool, len(numeros))
 	vagas := make(chan struct{}, s.cfg.Trilogo.Paralelo)
 	var espera sync.WaitGroup
 	var mu sync.Mutex
 	var primeiroErro error
 
-	for i, alvo := range alvos {
+	for i, numero := range numeros {
 		espera.Add(1)
-		go func(i int, alvo Resumo) {
+		go func(i, numero int) {
 			defer espera.Done()
 			vagas <- struct{}{}
 			defer func() { <-vagas }()
 
-			d, err := sessao.Detalhe(ctx, alvo.ID)
+			d, err := sessao.Detalhe(ctx, numero)
+			if err == nil && (d == nil || d.ID != numero) {
+				err = fmt.Errorf("a conta %s não devolveu este chamado", sessao.Conta)
+			}
 			if err != nil {
+				if tolerante {
+					ausente[i] = true
+					return
+				}
 				mu.Lock()
 				if primeiroErro == nil {
-					primeiroErro = fmt.Errorf("chamado %d: %w", alvo.ID, err)
+					primeiroErro = fmt.Errorf("chamado %d: %w", numero, err)
 				}
 				mu.Unlock()
 				return
 			}
-			c, _ := sessao.Custos(ctx, alvo.ID) // sem custo é o caso comum, não é erro
+			c, _ := sessao.Custos(ctx, numero) // sem custo é o caso comum, não é erro
 
-			col := &colhido{resumo: alvo, detalhe: d, custos: c, medidas: map[string][2]string{}}
+			col := &colhido{detalhe: d, custos: c, medidas: map[string][2]string{}}
 			for _, url := range urlsDoChamado(d, c) {
 				if n, tipo, err := Medir(ctx, s.http, url); err == nil {
 					col.medidas[url] = [2]string{strconv.FormatInt(n, 10), tipo}
 				}
 			}
 			colhidos[i] = col
-		}(i, alvo)
+		}(i, numero)
 	}
 	espera.Wait()
 	if primeiroErro != nil {
-		return primeiroErro
+		return nil, nil, primeiroErro
+	}
+
+	var faltaram []int
+	for i, n := range numeros {
+		if ausente[i] {
+			faltaram = append(faltaram, n)
+		}
+	}
+	return colhidos, faltaram, nil
+}
+
+// umLote colhe e grava. Devolve os números que esta conta não conhece.
+func (s *Servico) umLote(ctx context.Context, sessao *Sessao, clienteID string, numeros []int, r *Resultado, tolerante bool) ([]int, error) {
+	// --- 1) buscar tudo do Trílogo, em paralelo -----------------------------
+	colhidos, ausentes, err := s.colher(ctx, sessao, numeros, tolerante)
+	if err != nil {
+		return nil, err
 	}
 
 	// --- 2) unidades --------------------------------------------------------
 	unidades, err := s.garantirUnidades(ctx, clienteID, colhidos)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// --- 3) chamados --------------------------------------------------------
 	ids, err := s.gravarChamados(ctx, clienteID, sessao.Conta, colhidos, unidades)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	r.ChamadosGravados += len(ids)
 
 	// --- 4) timeline, custos e fichas de arquivo ----------------------------
-	return s.gravarFilhos(ctx, colhidos, ids, r)
+	if err := s.gravarFilhos(ctx, colhidos, ids, r); err != nil {
+		return nil, err
+	}
+	return ausentes, nil
 }
 
 func urlsDoChamado(d *Detalhe, custos []Custo) []string {

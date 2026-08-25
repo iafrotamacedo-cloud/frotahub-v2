@@ -1,7 +1,8 @@
-// rev 3 — o robô fora do motor
+// rev 4 — o robô fora do motor
 //
-// Este programa existe para as duas passadas pesadas — levantamento e cópia —
-// que rodam no GitHub Actions, no botão, e não no motor.
+// Este programa existe para as passadas que rodam no GitHub Actions, no botão, e
+// não no motor: as duas pesadas — levantamento e cópia — e a de alvo, que é
+// leve mas é de dono.
 //
 // POR QUE NÃO NO MOTOR
 //
@@ -33,7 +34,7 @@ func main() {
 
 	modo := strings.TrimSpace(os.Getenv("MODO"))
 	if modo == "" {
-		log.Fatal("diga o MODO: levantamento, copia ou atualizacao")
+		log.Fatalf("diga o MODO: %s", strings.Join(trilogo.Modos, ", "))
 	}
 	slug := os.Getenv("CLIENTE_SLUG")
 	if slug == "" {
@@ -84,6 +85,7 @@ func main() {
 			total.BytesSoLink += r.BytesSoLink
 			total.ArquivosCopiados += r.ArquivosCopiados
 			total.BytesCopiados += r.BytesCopiados
+			total.NaoEncontrados = append(total.NaoEncontrados, r.NaoEncontrados...)
 			log.Printf("volta %d · %s", volta, resumo(r))
 		}
 		if err != nil {
@@ -122,6 +124,12 @@ func main() {
 	}
 	if total.BytesCopiados > 0 {
 		log.Printf("copiados para o armazém: %s", tamanhoLegivel(total.BytesCopiados))
+	}
+	// Repetido no fim de propósito: no modo `alvos` esta é a única informação
+	// que o dono precisa levar da rodada, e no meio do log ela passa batida.
+	if len(total.NaoEncontrados) > 0 {
+		log.Printf("NÃO ENCONTRADOS em conta nenhuma (%d): %v",
+			len(total.NaoEncontrados), total.NaoEncontrados)
 	}
 }
 
