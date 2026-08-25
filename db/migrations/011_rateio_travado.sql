@@ -1,5 +1,5 @@
 -- =============================================================================
--- 011 — a nota rateada não passa com ticket solto                        rev 1
+-- 011 — a nota rateada não passa com ticket solto                        rev 2
 -- =============================================================================
 --
 -- POR QUE ISTO É CORREÇÃO, E NÃO PREFERÊNCIA
@@ -13,11 +13,18 @@
 --   nota. A regra passa a ser: a nota só é processada quando TODOS os tickets
 --   dela existem.
 --
--- O QUE ESTA MIGRATION FAZ
+-- A COLUNA NOVA VAI NO FIM, E ISSO NÃO É ESTILO
 --
---   Acrescenta à visão da lista os tickets SOLTOS (os que não casaram) e uma
---   coluna dizendo se a nota está pronta. Assim a tela mostra o problema onde
---   ele acontece, em vez de o usuário descobrir só quando a geração recusa.
+--   `create or replace view` no Postgres só sabe ACRESCENTAR coluna no fim. Ele
+--   compara posição por posição; uma coluna nova no meio faz a de trás parecer
+--   renomeada, e ele recusa:
+--
+--       42P16: cannot change name of view column "itens" to "ticket_soltos"
+--
+--   A rev 1 desta migration fazia exatamente isso. A alternativa seria
+--   `drop view ... cascade`, que derruba junto tudo que depende da visão — e o
+--   painel depende. Acrescentar no fim resolve sem derrubar nada, e a ordem das
+--   colunas não importa para quem lê: o motor e a tela leem por NOME.
 --
 -- É segura de rodar duas vezes.
 -- =============================================================================
@@ -30,12 +37,13 @@ select d.id, d.cliente_id, d.fila, d.tipo, d.numero, d.dav_numero, d.chave_acess
        d.nome_arquivo, d.arquivo_sha256, d.inserido_em, d.oculto_em,
        coalesce(t.quantos, 0)  as tickets,
        coalesce(t.lista, '{}') as ticket_numeros,
-
-       -- Os que o usuário escreveu e a nossa base não conhece. É esta lista que
-       -- a tela pinta de âmbar, e é ela que trava a geração.
-       coalesce(t.soltos, '{}') as ticket_soltos,
-
        coalesce(i.quantos, 0)  as itens,
+
+       -- ---- daqui para baixo é o que a 011 acrescenta ----
+
+       -- Os tickets que o usuário escreveu e a nossa base não conhece. É esta
+       -- lista que a tela pinta de âmbar, e é ela que trava a geração.
+       coalesce(t.soltos, '{}') as ticket_soltos,
 
        -- Pronta = lida, com pelo menos um ticket, e nenhum ticket solto.
        (d.status = 'lido'
@@ -55,8 +63,9 @@ left join lateral (
 ) i on true;
 
 
--- O painel também passa a contar as notas travadas por ticket solto: é um
--- número que o usuário precisa ver ANTES de clicar em gerar e não achar nada.
+-- O painel também passa a contar as notas travadas e as prontas: são números
+-- que o usuário precisa ver ANTES de clicar em gerar e não achar nada.
+-- Mesma regra de ordem: as duas colunas novas vão no FIM.
 create or replace view orcamentos_painel
 with (security_invoker = true) as
 select cl.id as cliente_id,
@@ -74,11 +83,6 @@ select cl.id as cliente_id,
   (select count(*) from documento_tickets t
      join documentos d on d.id = t.documento_id
      where d.cliente_id = cl.id and d.oculto_em is null and t.chamado_id is null) as sem_associacao,
-  (select count(*) from documentos_lista dl
-     where dl.cliente_id = cl.id and dl.oculto_em is null
-       and array_length(dl.ticket_soltos, 1) > 0) as notas_travadas,
-  (select count(*) from documentos_lista dl
-     where dl.cliente_id = cl.id and dl.oculto_em is null and dl.pronto_para_gerar) as prontas_para_gerar,
   (select count(*) from orcamentos o
      where o.cliente_id = cl.id and o.status = 'aguardando_aprovacao') as aguardando_aprovacao,
   (select count(*) from orcamentos o
@@ -86,11 +90,21 @@ select cl.id as cliente_id,
   (select count(*) from orcamentos o
      where o.cliente_id = cl.id and o.status <> 'removido') as no_total,
   (select coalesce(sum(o.valor), 0) from orcamentos o
-     where o.cliente_id = cl.id and o.status <> 'removido') as valor_total
+     where o.cliente_id = cl.id and o.status <> 'removido') as valor_total,
+
+  -- ---- daqui para baixo é o que a 011 acrescenta ----
+
+  (select count(*) from documentos_lista dl
+     where dl.cliente_id = cl.id and dl.oculto_em is null
+       and array_length(dl.ticket_soltos, 1) > 0) as notas_travadas,
+  (select count(*) from documentos_lista dl
+     where dl.cliente_id = cl.id and dl.oculto_em is null and dl.pronto_para_gerar) as prontas_para_gerar
 from clientes cl;
 
 -- =============================================================================
 -- CONFERÊNCIA
 --   select nome_arquivo, ticket_numeros, ticket_soltos, pronto_para_gerar
 --     from documentos_lista where oculto_em is null order by inserido_em desc;
+--
+--   select notas_travadas, prontas_para_gerar from orcamentos_painel;
 -- =============================================================================
