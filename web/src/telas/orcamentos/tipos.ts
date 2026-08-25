@@ -14,6 +14,15 @@ export interface Painel {
   apagados: number
   notas_travadas: number
   prontas_para_gerar: number
+
+  // ---- a 015 ----
+  // `a_lancar` conta TODO orçamento gerado — é o tamanho da fila.
+  // `recusados` conta só os que já foram tentados e o Trílogo negou. A diferença
+  // entre os dois é a diferença entre "trabalho a fazer" e "problema".
+  recusados: number
+  prontos_para_lancar: number
+  esperando_cliente: number
+  esperando_equipe: number
   no_total: number
   valor_total: number
   ultima_insercao?: string | null

@@ -102,7 +102,9 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       icone: <IconeRobo />,
       numero: d.a_lancar,
       rotulo: 'na fila',
-      previaTitulo: 'próximos da fila',
+      // A fila inteira não é o que dá para fazer hoje: parte dela espera o
+      // chamado andar. O subtítulo diz quanto sai agora.
+      previaTitulo: `próximos da fila — ${d.prontos_para_lancar} podem subir agora`,
       previa: fila(d.previa?.lancar),
       previaVazia: 'nada esperando lançamento',
     },
@@ -113,14 +115,16 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       icone: <IconeAviso />,
       // O número da coluna é a SOMA das quatro frentes: é o que o usuário
       // precisa saber antes de passar o mouse.
-      numero: d.sem_ticket + d.sem_associacao + d.apagados,
+      // A soma das quatro frentes. `recusados` entrou no lugar de `a_lancar`:
+      // orçamento que ainda não foi tentado não é correção, é fila.
+      numero: d.sem_ticket + d.sem_associacao + d.recusados + d.apagados,
       rotulo: 'pendências',
       faixa: '#B8801F',
       previaTitulo: 'o que travou',
       previa: [
         { texto: 'Sem ticket', fim: String(d.sem_ticket) },
         { texto: 'Sem associação', fim: String(d.sem_associacao) },
-        { texto: 'Não lançados', fim: String(d.a_lancar) },
+        { texto: 'Recusados', fim: String(d.recusados) },
         { texto: 'Apagados', fim: String(d.apagados) },
       ],
       filhos: [
@@ -139,11 +143,11 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
           previaVazia: 'todos os tickets casaram',
         },
         {
-          chave: 'correcoes:nao-lancados',
-          titulo: 'Não lançados',
-          descricao: 'Gerados, ainda fora do Trílogo',
-          numero: d.a_lancar,
-          previaVazia: 'nada parado aqui',
+          chave: 'correcoes:recusados',
+          titulo: 'Recusados',
+          descricao: 'O Trílogo não aceitou — e por quê',
+          numero: d.recusados,
+          previaVazia: 'nenhuma recusa',
         },
         {
           chave: 'correcoes:apagados',
