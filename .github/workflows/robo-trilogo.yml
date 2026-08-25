@@ -15,6 +15,11 @@ name: Robô Trílogo
 #                  passada que responde "quantos GB isto vai custar?".
 #   copia        — busca os bytes dos arquivos e manda para o R2.
 #   atualizacao  — só o que mudou desde a última rodada concluída.
+#   alvos        — lê SÓ os chamados cujos números você digitar no campo
+#                  "Tickets", e mais nenhum. Sem janela de tempo: serve para
+#                  buscar chamados antigos demais para qualquer janela — e para
+#                  garantir que nenhuma linha de outro chamado seja gravada,
+#                  porque o que não está na lista não chega a ser consultado.
 on:
   # O cron do GitHub é em UTC, e Fortaleza é UTC−3. 6h daqui são 9h lá; 20h daqui
   # são 23h lá. Por sorte a janela inteira cabe no mesmo dia em UTC, então não
@@ -35,7 +40,12 @@ on:
         required: true
         default: levantamento
         type: choice
-        options: [levantamento, copia, atualizacao]
+        options: [levantamento, copia, atualizacao, alvos]
+      tickets:
+        description: "Só para o modo alvos: os números dos chamados (vírgula, espaço ou linha)"
+        required: false
+        default: ""
+        type: string
 
 # Duas rodadas ao mesmo tempo dariam trabalho repetido e log confuso.
 #
@@ -72,6 +82,11 @@ jobs:
           # Rodada agendada não tem `inputs`: cai no `atualizacao`.
           MODO: ${{ github.event.inputs.modo || 'atualizacao' }}
           CLIENTE_SLUG: frota-macedo
+
+          # Só o modo `alvos` lê isto. Vazio nos outros — e vazio na rodada
+          # agendada, que não tem `inputs`. Um número inválido aqui NÃO é
+          # ignorado: o programa recusa subir, para não ler o chamado errado.
+          TRILOGO_ALVOS: ${{ github.event.inputs.tickets }}
 
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
