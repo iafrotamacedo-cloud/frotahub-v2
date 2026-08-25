@@ -62,7 +62,12 @@ Content-Type: application/json
 | `CompanyId` | conta |
 |---|---|
 | 35 | FROTA - INSTALAÇÕES |
-| ? | FROTA - CIVIL (levantar) |
+| 72 | FROTA - CIVIL |
+
+O id da Civil foi levantado em 25/08/2026 por dois caminhos independentes, que
+concordaram: `session.sessionUser.supplier` no navegador logado como Frota Civil,
+e o `company.id` de dois custos reais lidos por `GetTicketCosts`. Um caminho só
+seria um palpite bem informado; dois que batem é levantamento.
 
 `source: 1` = "custo adicional" (é o que a tela cria).
 
@@ -121,6 +126,5 @@ Registrado aqui só para não redescobrirem depois e acharem que foi esqueciment
 
 ## O que ainda falta levantar
 
-- `CompanyId` da conta FROTA - CIVIL.
 - O código de `Type` para "Mão de obra e Materiais".
 - Se existe endpoint de edição (`UpdateTicketCost`) — a tela tem "EDITAR".

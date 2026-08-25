@@ -59,23 +59,22 @@ O builder passa sempre, independente da matriz.
 | variável | valor | o que acontece sem ela |
 |---|---|---|
 | `TRILOGO_EMPRESA_INSTALACOES` | `35` | já é o padrão |
-| `TRILOGO_EMPRESA_CIVIL` | **falta levantar** | o lançamento da conta Civil é RECUSADO com a frase explicando |
+| `TRILOGO_EMPRESA_CIVIL` | `72` | o lançamento da conta Civil é RECUSADO com a frase explicando |
 | `GEMINI_API_KEY` | a chave | a nota entra sem itens, pedindo conferência |
 | `GEMINI_MODELO` | `gemini-2.5-flash` | já é o padrão |
 
 **As variáveis `DROPBOX_*` podem sair.** O Dropbox saiu do stack; o motor não as
 lê mais, e em produção elas deixaram de ser obrigatórias.
 
-### Como levantar o `TRILOGO_EMPRESA_CIVIL`
+### De onde vêm esses dois números
 
-Logado na conta **Frota Civil**, abra um ticket que já tenha custo e chame:
+Levantados no Trílogo, não deduzidos: o 35 na captura de rede de 25/08/2026, e o
+72 no mesmo dia, por dois caminhos que concordaram — a sessão do navegador
+logado como Frota Civil e o `company.id` de custos reais.
 
-```
-GET https://web.api.trilogo.app/api/Ticket/GetTicketCosts/?ticketId=<numero>
-```
-
-O `company.id` da resposta é o número. Recusar em vez de chutar é proposital:
-`CompanyId` errado lança o custo na empresa errada dentro do sistema do cliente.
+Recusar em vez de chutar continua sendo a regra para qualquer conta nova:
+`CompanyId` errado não dá erro, ele lança o custo na empresa errada dentro do
+sistema do cliente, e ninguém percebe até alguém conferir o relatório.
 
 ---
 
