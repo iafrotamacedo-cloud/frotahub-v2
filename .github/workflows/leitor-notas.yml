@@ -1,0 +1,65 @@
+name: Leitor de notas
+
+# POR QUE ISTO RODA AQUI E NÃO NO MOTOR
+#
+#   OCR não é Go puro: precisa do Tesseract e de um conversor de PDF para
+#   imagem. Instalar os dois no contêiner do motor derrubaria a regra de zero
+#   dependência e engordaria um serviço que roda num plano que adormece.
+#
+#   Aqui há tempo, disco e liberdade para instalar o que for. O motor só
+#   enfileira o trabalho; este robô lê a fila, faz o trabalho pesado e grava o
+#   resultado. É o mesmo desenho do robô do Trílogo.
+
+on:
+  schedule:
+    # De 30 em 30 minutos, no horário comercial de Fortaleza (UTC−3).
+    # 09:00–23:00 UTC = 06:00–20:00 aqui.
+    - cron: "5,35 9-23 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: leitor-notas
+  cancel-in-progress: false
+
+jobs:
+  ler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: baleryan/go.sum
+
+      # O dicionário em português importa: sem ele o Tesseract lê "MANUTENÇÃO"
+      # como "MANUTENCAG" e a observação — que é de onde sai o ticket — vira
+      # ruído.
+      - name: Instalar OCR
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils tesseract-ocr tesseract-ocr-por
+
+      - name: Ler as notas da fila
+        working-directory: baleryan
+        env:
+          PAPEL: robo
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          # Sem esta chave o robô ainda roda: as camadas 1 e 2 funcionam
+          # sozinhas, e a nota entra com chave de acesso e valor, sem itens,
+          # pedindo conferência na tela. Com ela, entra completa.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # O robô do Trílogo exige as duas contas para subir; o leitor não as
+          # usa, mas compartilha a mesma configuração.
+          TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
+          TRILOGO_SENHA_INSTALACOES: ${{ secrets.TRILOGO_SENHA_INSTALACOES }}
+          TRILOGO_EMAIL_CIVIL: ${{ secrets.TRILOGO_EMAIL_CIVIL }}
+          TRILOGO_SENHA_CIVIL: ${{ secrets.TRILOGO_SENHA_CIVIL }}
+        run: go run ./cmd/leitor
