@@ -62,7 +62,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
     setLancando(o.id)
     setAviso('')
     try {
-      const r = await motor<{ trilogo_custo_id: number }>(`/orcamentos/${o.id}/lancar`, { metodo: 'POST' })
+      const r = await motor<{ trilogo_custo_id: number }>(`/orcamentos/ficha/${o.id}/lancar`, { metodo: 'POST' })
       setAviso(`Ticket ${o.ticket}: lançado no Trílogo (custo nº ${r.trilogo_custo_id}).`)
       await carregar()
     } catch (e) {
@@ -84,7 +84,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
       'Escreva a referência — e-mail, conversa, print. Fica registrado com o seu nome.')
     if (!nota) return
     try {
-      await motor(`/orcamentos/${o.id}/aprovar`, { metodo: 'POST', corpo: { nota } })
+      await motor(`/orcamentos/ficha/${o.id}/aprovar`, { metodo: 'POST', corpo: { nota } })
       await carregar()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui aprovar.')
@@ -167,7 +167,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                     </td>
                     <td>{emDataHora(o.criado_em)}</td>
                     <td className="orc-acoes">
-                      <button type="button" onClick={() => void baixarDoMotor(`/orcamentos/${o.id}/pdf`)}>pdf</button>
+                      <button type="button" onClick={() => void baixarDoMotor(`/orcamentos/ficha/${o.id}/pdf`)}>pdf</button>
                       {o.status === 'gerado' && (
                         <button type="button" className="forte" disabled={lancando === o.id} onClick={() => void lancar(o)}>
                           {lancando === o.id ? 'lançando…' : 'lançar'}

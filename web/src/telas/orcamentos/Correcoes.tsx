@@ -305,7 +305,7 @@ function Apagados({ dados, recarregar }: { dados: Dados; recarregar: () => Promi
 
   async function restaurar(id: string) {
     try {
-      await motor(`/orcamentos/${id}/restaurar`, { metodo: 'POST' })
+      await motor(`/orcamentos/ficha/${id}/restaurar`, { metodo: 'POST' })
       await recarregar()
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui restaurar.')

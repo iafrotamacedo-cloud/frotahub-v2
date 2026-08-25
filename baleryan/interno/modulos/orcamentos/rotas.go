@@ -97,13 +97,31 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /orcamentos/documentos/{id}/tickets/{ticket}", m.soltarTicket)
 
 	// 2.3 — gerar e lançar
+	//
+	// POR QUE UM ORÇAMENTO MORA EM /orcamentos/ficha/{id} E NÃO EM /orcamentos/{id}
+	//
+	//	Porque o segundo derruba o motor na subida. O roteador do Go recusa dois
+	//	padrões em que nenhum é mais específico que o outro, e
+	//	`GET /orcamentos/{id}/pdf` contra `GET /orcamentos/documentos/{id}` é
+	//	exatamente isso: o endereço "/orcamentos/documentos/pdf" casa com os dois,
+	//	e o Go não tem como escolher. Ele não avisa em compilação nem em `go vet`
+	//	— entra em pânico no `Montar`, ou seja, no primeiro segundo do processo em
+	//	produção.
+	//
+	//	A saída é a mesma que os documentos já usavam: um SUBSTANTIVO antes do id.
+	//	Com "ficha" ali, todo segundo pedaço do caminho é palavra fixa —
+	//	painel, documentos, gerar, ficha, correcoes, planilhas — e a ambiguidade
+	//	deixa de ser possível, não só de acontecer.
+	//
+	//	"ficha" é a palavra que o sistema já usa para UM registro aberto (a ficha
+	//	do chamado). Aqui é a ficha do orçamento.
 	mux.HandleFunc("GET /orcamentos", m.listarOrcamentos)
 	mux.HandleFunc("POST /orcamentos/gerar", m.gerar)
-	mux.HandleFunc("POST /orcamentos/{id}/lancar", m.lancar)
-	mux.HandleFunc("POST /orcamentos/{id}/aprovar", m.aprovar)
-	mux.HandleFunc("DELETE /orcamentos/{id}", m.apagarOrcamento)
-	mux.HandleFunc("POST /orcamentos/{id}/restaurar", m.restaurarOrcamento)
-	mux.HandleFunc("GET /orcamentos/{id}/pdf", m.pdfDoOrcamento)
+	mux.HandleFunc("POST /orcamentos/ficha/{id}/lancar", m.lancar)
+	mux.HandleFunc("POST /orcamentos/ficha/{id}/aprovar", m.aprovar)
+	mux.HandleFunc("DELETE /orcamentos/ficha/{id}", m.apagarOrcamento)
+	mux.HandleFunc("POST /orcamentos/ficha/{id}/restaurar", m.restaurarOrcamento)
+	mux.HandleFunc("GET /orcamentos/ficha/{id}/pdf", m.pdfDoOrcamento)
 
 	// 2.4 — as quatro frentes
 	mux.HandleFunc("GET /orcamentos/correcoes", m.correcoes)

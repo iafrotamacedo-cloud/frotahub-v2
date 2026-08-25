@@ -1,6 +1,7 @@
 package orcamentos
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -163,4 +164,67 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// ---------------------------------------------------------------------------
+// as rotas
+// ---------------------------------------------------------------------------
+
+// ESTE TESTE EXISTE POR CAUSA DE UM MOTOR QUE NÃO SUBIU
+//
+//	O roteador do Go recusa dois padrões em que nenhum é mais específico que o
+//	outro. `GET /orcamentos/{id}/pdf` e `GET /orcamentos/documentos/{id}` são
+//	esse caso: "/orcamentos/documentos/pdf" casa com os dois.
+//
+//	O compilador não vê. `go vet` não vê. Os testes de unidade não viam, porque
+//	nenhum deles montava as rotas. O erro só aparecia quando o processo subia —
+//	e apareceu, em produção, dois segundos depois do deploy.
+//
+//	Montar num mux de verdade custa microssegundos e transforma uma queda de
+//	produção numa linha vermelha aqui.
+func TestMontarNaoEntraEmPanico(t *testing.T) {
+	defer func() {
+		if p := recover(); p != nil {
+			t.Fatalf("as rotas se atropelam e o motor não sobe: %v", p)
+		}
+	}()
+	// Os campos podem ser nulos: `Montar` só registra os métodos, não os chama.
+	(&Modulo{}).Montar(http.NewServeMux())
+}
+
+// E este confere que cada endereço cai no lugar certo — porque "não entrou em
+// pânico" não é o mesmo que "resolve como eu quis".
+func TestCadaEnderecoCaiNoSeuLugar(t *testing.T) {
+	mux := http.NewServeMux()
+	(&Modulo{}).Montar(mux)
+
+	const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+	casos := []struct{ metodo, caminho, padrao string }{
+		{"GET", "/orcamentos/painel", "GET /orcamentos/painel"},
+		{"GET", "/orcamentos/documentos", "GET /orcamentos/documentos"},
+		{"GET", "/orcamentos/documentos/" + id, "GET /orcamentos/documentos/{id}"},
+		{"GET", "/orcamentos/documentos/" + id + "/arquivo", "GET /orcamentos/documentos/{id}/arquivo"},
+		{"DELETE", "/orcamentos/documentos/" + id, "DELETE /orcamentos/documentos/{id}"},
+		{"POST", "/orcamentos/documentos/" + id + "/tickets", "POST /orcamentos/documentos/{id}/tickets"},
+		{"PATCH", "/orcamentos/documentos/" + id + "/tickets", "PATCH /orcamentos/documentos/{id}/tickets"},
+		{"DELETE", "/orcamentos/documentos/" + id + "/tickets/130328", "DELETE /orcamentos/documentos/{id}/tickets/{ticket}"},
+		{"GET", "/orcamentos", "GET /orcamentos"},
+		{"POST", "/orcamentos/gerar", "POST /orcamentos/gerar"},
+		{"GET", "/orcamentos/ficha/" + id + "/pdf", "GET /orcamentos/ficha/{id}/pdf"},
+		{"POST", "/orcamentos/ficha/" + id + "/lancar", "POST /orcamentos/ficha/{id}/lancar"},
+		{"POST", "/orcamentos/ficha/" + id + "/aprovar", "POST /orcamentos/ficha/{id}/aprovar"},
+		{"POST", "/orcamentos/ficha/" + id + "/restaurar", "POST /orcamentos/ficha/{id}/restaurar"},
+		{"DELETE", "/orcamentos/ficha/" + id, "DELETE /orcamentos/ficha/{id}"},
+		{"GET", "/orcamentos/correcoes", "GET /orcamentos/correcoes"},
+		{"GET", "/orcamentos/correcoes/candidatos", "GET /orcamentos/correcoes/candidatos"},
+		{"GET", "/orcamentos/planilhas", "GET /orcamentos/planilhas"},
+		{"GET", "/orcamentos/planilhas.xlsx", "GET /orcamentos/planilhas.xlsx"},
+		{"GET", "/orcamentos/planilhas.pdf", "GET /orcamentos/planilhas.pdf"},
+	}
+	for _, c := range casos {
+		_, padrao := mux.Handler(httptest.NewRequest(c.metodo, c.caminho, nil))
+		if padrao != c.padrao {
+			t.Errorf("%s %s caiu em %q, esperava %q", c.metodo, c.caminho, padrao, c.padrao)
+		}
+	}
 }
