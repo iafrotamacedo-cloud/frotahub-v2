@@ -31,6 +31,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +52,19 @@ const (
 
 // A data de onde a carga inicial começa. Decisão do dono.
 var DataDeCorte = time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+
+// FolgaDoRelogio — quanto se volta no tempo antes da marca d'água, ao filtrar.
+//
+// Existe porque o relógio do Trílogo e o nosso não são o mesmo, e porque um
+// chamado pode mudar no exato instante da leitura anterior. Reprocessar alguns é
+// barato; perder um, não.
+//
+// ERA UMA HORA, E ISSO CUSTAVA CARO. A folga entra em TODA volta, então vira
+// retrabalho a cada lote: com uma hora de folga e chamados mudando de minuto em
+// minuto, um lote de 75 gastava 60 refazendo e só 15 andavam de fato — 300
+// chamados levavam 16 voltas em vez de 5. A diferença entre os dois relógios é
+// de segundos, não de horas.
+const FolgaDoRelogio = 5 * time.Minute
 
 // O Trílogo devolve data e hora SEM fuso, no horário de Fortaleza — é o mesmo
 // que aparece na tela dele. Guardar como se fosse UTC jogaria tudo três horas
@@ -149,35 +163,65 @@ func (s *Servico) Rodar(ctx context.Context, modo, clienteID, disparadoPor strin
 // Leitura (levantamento e atualização)
 // ---------------------------------------------------------------------------
 
+// ler traz o que mudou no Trílogo.
+//
+// A MARCA D'ÁGUA É UM CURSOR, E CURSOR SÓ SERVE SE ANDAR
+//
+//	A primeira versão só gravava a marca quando a rodada varria TUDO. Como cada
+//	rodada processa um lote e devolve "faltou", a marca nunca era gravada — e a
+//	rodada seguinte recomeçava da data de corte, pegava os mesmos 150 e devolvia
+//	"faltou" outra vez. Laço infinito: nove rodadas seguidas lendo 1.600 e
+//	gravando os mesmos 150, até o corte de tempo do Actions matar o processo.
+//
+//	O conserto tem três partes:
+//
+//	1. Processar do MAIS ANTIGO para o mais novo. Pegando sempre os 150 mais
+//	   recentes, o lote seguinte é o mesmo lote. Pegando os mais antigos, cada
+//	   volta empurra a fronteira para a frente.
+//
+//	2. Gravar a marca do que FOI PROCESSADO, e não do que foi visto. A marca
+//	   passa a significar "tudo que mudou até aqui já entrou" — que é o único
+//	   significado que permite continuar de onde parou.
+//
+//	3. Orçamento POR CONTA. O limite era um só, descontado na primeira conta e
+//	   chegando zerado na segunda: a Civil rodava sem limite nenhum, e nas
+//	   rodadas em que a Instalações consumia tudo, a Civil não andava nunca.
+//
+//	A marca gravada é a MENOR fronteira entre as contas — o ponto até onde todas
+//	terminaram. Guardar a maior faria a conta atrasada pular o que não leu.
 func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado) error {
 	foraDoEscopo, err := s.unidadesForaDoEscopo(ctx, clienteID)
 	if err != nil {
 		return err
 	}
 
-	// A marca d'água só existe na atualização, e vem da última rodada CONCLUÍDA.
-	// Se viesse de uma rodada interrompida, os chamados que ela não processou
-	// seriam pulados para sempre.
-	var marca time.Time
+	// `marcaGravada` é o que está no banco; `desde` é ela com a folga do relógio,
+	// para o filtro. O avanço é sempre comparado com a GRAVADA, senão a folga
+	// faria a marca andar para trás.
+	var marcaGravada time.Time
 	if modo == ModoAtualizacao {
-		if marca, err = s.ultimaMarca(ctx, clienteID); err != nil {
+		if marcaGravada, err = s.ultimaMarca(ctx, clienteID); err != nil {
 			return err
 		}
-		// Uma hora de folga: relógios não são iguais, e é barato reprocessar
-		// alguns chamados a mais. Perder um é que não pode.
-		if !marca.IsZero() {
-			marca = marca.Add(-time.Hour)
+	}
+	desde := marcaGravada
+	if !desde.IsZero() {
+		desde = desde.Add(-FolgaDoRelogio)
+	}
+
+	contas := s.cfg.Trilogo.Contas()
+	porConta := 0
+	if modo == ModoAtualizacao && len(contas) > 0 {
+		porConta = s.cfg.Trilogo.Lote / len(contas)
+		if porConta < 25 {
+			porConta = 25
 		}
 	}
 
-	limite := 0
-	if modo == ModoAtualizacao {
-		limite = s.cfg.Trilogo.Lote
-	}
-	var novaMarca time.Time
 	sobrou := false
+	var fronteiras []time.Time
 
-	for _, conta := range s.cfg.Trilogo.Contas() {
+	for _, conta := range contas {
 		sessao, err := Entrar(ctx, conta.Nome, conta.Email, conta.Senha)
 		if err != nil {
 			return err
@@ -196,47 +240,86 @@ func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado)
 		if err != nil {
 			return fmt.Errorf("conta %s: %w", conta.Nome, err)
 		}
-
-		var aFazer []Resumo
-		for _, t := range lista {
-			if t.Criacao().Before(DataDeCorte) {
-				continue
-			}
-			if foraDoEscopo[t.Company.ID] {
-				continue
-			}
-			if alt := hora(t.DateOfLastChange); !alt.IsZero() {
-				if alt.After(novaMarca) {
-					novaMarca = alt
-				}
-				if !marca.IsZero() && !alt.After(marca) {
-					continue // nada mudou desde a última leitura
-				}
-			}
-			aFazer = append(aFazer, t)
-		}
 		r.ChamadosLidos += len(lista)
 
-		if limite > 0 && len(aFazer) > limite {
-			aFazer = aFazer[:limite]
-			sobrou = true
+		var pendentes []Resumo
+		var maisNovoDaConta time.Time
+		for _, t := range lista {
+			if t.Criacao().Before(DataDeCorte) || foraDoEscopo[t.Company.ID] {
+				continue
+			}
+			alt := hora(t.DateOfLastChange)
+			if alt.After(maisNovoDaConta) {
+				maisNovoDaConta = alt
+			}
+			// Chamado sem data de alteração entra sempre: não dá para saber se
+			// mudou, e deixar de fora seria apostar que não.
+			if !desde.IsZero() && !alt.IsZero() && !alt.After(desde) {
+				continue
+			}
+			pendentes = append(pendentes, t)
 		}
-		if limite > 0 {
-			limite -= len(aFazer)
+
+		// Do mais antigo para o mais novo: é isto que faz a fronteira andar.
+		sort.SliceStable(pendentes, func(i, j int) bool {
+			return hora(pendentes[i].DateOfLastChange).Before(hora(pendentes[j].DateOfLastChange))
+		})
+
+		aFazer := pendentes
+		fronteira := maisNovoDaConta // conta em dia: chegou até o fim da lista
+		if porConta > 0 && len(aFazer) > porConta {
+			aFazer = aFazer[:porConta]
+			sobrou = true
+			// A fronteira é a alteração do ÚLTIMO processado. O que vier depois
+			// dele fica para a próxima volta.
+			if ultima := hora(aFazer[len(aFazer)-1].DateOfLastChange); !ultima.IsZero() {
+				fronteira = ultima
+			} else {
+				fronteira = marcaGravada // sem data confiável, não move a marca
+			}
+		}
+		if !fronteira.IsZero() {
+			fronteiras = append(fronteiras, fronteira)
 		}
 
 		if err := s.processar(ctx, sessao, clienteID, aFazer, r); err != nil {
 			return err
 		}
-		log.Printf("[trilogo] %s · conta %s · %d na janela · %d processados", modo, conta.Nome, len(lista), len(aFazer))
+		log.Printf("[trilogo] %s · conta %s · %d na lista · %d pendentes · %d processados",
+			modo, conta.Nome, len(lista), len(pendentes), len(aFazer))
 	}
 
 	r.Completo = !sobrou
-	// A marca d'água só avança se a rodada varreu tudo.
-	if r.Completo && !novaMarca.IsZero() {
-		s.marcarAgua(ctx, r.ExecucaoID, novaMarca)
+
+	if modo == ModoAtualizacao {
+		if nova := menorInstante(fronteiras); !nova.IsZero() && nova.After(marcaGravada) {
+			s.marcarAgua(ctx, r.ExecucaoID, nova)
+			log.Printf("[trilogo] marca d'água avançou para %s", nova.Format(time.RFC3339))
+		} else if !r.Completo {
+			// Não andou e ainda falta: a próxima volta faria exatamente o mesmo
+			// trabalho. Melhor parar e dizer.
+			log.Printf("[trilogo] AVISO: o lote não fez a marca d'água avançar (marca %s). "+
+				"Pode haver mais de %d chamados com o mesmo horário de alteração.",
+				marcaGravada.Format(time.RFC3339), porConta)
+		}
 	}
 	return nil
+}
+
+// menorInstante devolve a menor fronteira — o ponto até onde TODAS as contas
+// chegaram. Instantes zerados (conta vazia) não entram na conta: uma conta sem
+// chamado nenhum não pode segurar o progresso das outras.
+func menorInstante(ts []time.Time) time.Time {
+	var menor time.Time
+	for _, t := range ts {
+		if t.IsZero() {
+			continue
+		}
+		if menor.IsZero() || t.Before(menor) {
+			menor = t
+		}
+	}
+	return menor
 }
 
 // processar busca o detalhe de cada chamado em paralelo e grava em lotes.
@@ -819,7 +902,29 @@ func (s *Servico) ultimaMarca(ctx context.Context, clienteID string) (time.Time,
 	return t, nil
 }
 
+// fecharAbandonadas marca como interrompidas as rodadas que ficaram penduradas
+// em "rodando".
+//
+// Elas acontecem: o Actions corta por tempo, o Render dorme, a rede cai. A linha
+// fica lá para sempre — e, pior, a trava do botão "Atualizar agora" enxerga essa
+// linha e recusa leituras novas por trinta minutos. Uma rodada morta não pode
+// bloquear as vivas.
+func (s *Servico) fecharAbandonadas(ctx context.Context, clienteID string) {
+	limite := time.Now().UTC().Add(-JanelaDaRodada).Format(time.RFC3339)
+	_ = s.bd.Atualizar(ctx, "robo_execucoes",
+		"cliente_id=eq."+banco.Escapar(clienteID)+"&robo=eq.trilogo"+
+			"&situacao=eq.rodando&comecou_em=lt."+banco.Escapar(limite),
+		map[string]any{
+			"situacao":    "interrompida",
+			"erro":        "a rodada não foi encerrada; provavelmente o processo morreu antes de terminar",
+			"terminou_em": time.Now().UTC().Format(time.RFC3339),
+		})
+}
+
 func (s *Servico) abrirExecucao(ctx context.Context, modo, clienteID, quem string) (string, error) {
+	// Antes de abrir a próxima, enterra as que ficaram penduradas.
+	s.fecharAbandonadas(ctx, clienteID)
+
 	var fora []struct {
 		ID string `json:"id"`
 	}

@@ -42,6 +42,10 @@ type mundo struct {
 	pendentes      []map[string]any
 	ultimaConsulta string
 	logins         []string
+	// A marca d'água como o banco a guarda: escrita pelo PATCH, lida pelo GET.
+	// Sem isto o dublê respondia "não tem marca" para sempre, e o laço infinito
+	// do cursor passava despercebido.
+	marcaDagua string
 }
 
 func (m *mundo) registrar(tabela string, linhas []map[string]any) {
@@ -148,7 +152,14 @@ func novoMundo(t *testing.T) *mundo {
 				}
 				json.NewEncoder(w).Encode(fora)
 			case tabela == "robo_execucoes":
-				json.NewEncoder(w).Encode([]map[string]any{})
+				m.mu.Lock()
+				marca := m.marcaDagua
+				m.mu.Unlock()
+				if marca == "" || !strings.Contains(q, "marca_dagua") {
+					json.NewEncoder(w).Encode([]map[string]any{})
+					return
+				}
+				json.NewEncoder(w).Encode([]map[string]any{{"marca_dagua": marca}})
 			case tabela == "arquivos":
 				fora := []map[string]any{}
 				for _, s := range m.arquivosJaTem {
@@ -171,6 +182,11 @@ func novoMundo(t *testing.T) *mundo {
 		if r.Method == http.MethodPatch {
 			var campos map[string]any
 			json.NewDecoder(r.Body).Decode(&campos)
+			if marca, ok := campos["marca_dagua"].(string); ok && tabela == "robo_execucoes" {
+				m.mu.Lock()
+				m.marcaDagua = marca
+				m.mu.Unlock()
+			}
 			campos["__filtro"] = q
 			m.registrar("PATCH:"+tabela, []map[string]any{campos})
 			w.WriteHeader(204)

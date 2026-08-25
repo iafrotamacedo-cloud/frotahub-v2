@@ -1,4 +1,4 @@
-// rev 2 — o robô fora do motor
+// rev 3 — o robô fora do motor
 //
 // Este programa existe para as duas passadas pesadas — levantamento e cópia —
 // que rodam no GitHub Actions, no botão, e não no motor.
@@ -61,7 +61,17 @@ func main() {
 	var total trilogo.Resultado
 
 	// Repete enquanto sobrar trabalho. Cada volta é uma rodada registrada no
-	// banco, e o teto de voltas evita girar para sempre se algo travar.
+	// banco.
+	//
+	// O TETO DE VOLTAS NÃO É UM GUARDA-CHUVA SUFICIENTE
+	//
+	//	Ele existia — 500 voltas — e mesmo assim o robô girou nove vezes lendo a
+	//	base inteira sem sair do lugar, até o corte de tempo do Actions matar o
+	//	processo. Teto alto só transforma laço infinito em laço demorado.
+	//
+	//	O guarda que faltava é este: se DUAS voltas seguidas não gravam nada, a
+	//	próxima faria o mesmo trabalho pela terceira vez. Melhor parar e dizer.
+	semProgresso := 0
 	for volta := 1; volta <= 500; volta++ {
 		r, err := svc.Rodar(ctx, modo, clienteID, "actions")
 		if r != nil {
@@ -81,6 +91,17 @@ func main() {
 		}
 		if r == nil || r.Completo {
 			break
+		}
+		if r.ChamadosGravados == 0 && r.ArquivosCopiados == 0 {
+			semProgresso++
+			if semProgresso >= 2 {
+				log.Printf("parei na volta %d: duas voltas seguidas sem gravar nada, "+
+					"e a rodada continua dizendo que falta trabalho. "+
+					"A próxima faria o mesmo — isto é sintoma de cursor travado.", volta)
+				break
+			}
+		} else {
+			semProgresso = 0
 		}
 		if ctx.Err() != nil {
 			log.Print("cancelado; paro entre lotes, sem deixar nada pela metade")
