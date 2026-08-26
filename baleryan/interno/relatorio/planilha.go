@@ -31,7 +31,7 @@ func (t Tabela) Planilha() ([]byte, error) {
 	partes := []struct{ nome, corpo string }{
 		{"[Content_Types].xml", tiposDeConteudo},
 		{"_rels/.rels", relacoesRaiz},
-		{"xl/workbook.xml", pastaDeTrabalho},
+		{"xl/workbook.xml", t.pasta()},
 		{"xl/_rels/workbook.xml.rels", relacoesDaPasta},
 		{"xl/styles.xml", estilos},
 		{"xl/worksheets/sheet1.xml", t.folha()},
@@ -228,11 +228,47 @@ const relacoesRaiz = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>`
 
-const pastaDeTrabalho = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+func (t Tabela) pasta() string {
+	return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheets><sheet name="Chamados" sheetId="1" r:id="rId1"/></sheets>
+<sheets><sheet name="` + nomeDaAba(t) + `" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`
+}
+
+// nomeDaAba obedece às regras do Excel: até 31 caracteres, sem : \\ / ? * [ ],
+// nunca em branco. Um nome fora dessas regras não vira aviso — o arquivo
+// simplesmente não abre.
+func nomeDaAba(t Tabela) string {
+	bruto := t.Aba
+	if strings.TrimSpace(bruto) == "" {
+		bruto = t.Titulo
+	}
+	// O travessão e o que vem depois dele são subtítulo disfarçado de título:
+	// "Orçamentos montados — 2026-08" vira "Orçamentos montados".
+	if i := strings.Index(bruto, " — "); i > 0 {
+		bruto = bruto[:i]
+	}
+	var s []rune
+	for _, r := range bruto {
+		if strings.ContainsRune(`:\/?*[]`, r) {
+			continue
+		}
+		s = append(s, r)
+		if len(s) == 31 {
+			break
+		}
+	}
+	limpo := strings.TrimSpace(strings.Trim(string(s), "'"))
+	if limpo == "" {
+		return "Planilha"
+	}
+	// O nome vira ATRIBUTO XML. Um "&" cru aqui não dá aviso nenhum: derruba o
+	// arquivo inteiro na abertura.
+	var b bytes.Buffer
+	xml.EscapeText(&b, []byte(limpar(limpo)))
+	return b.String()
+}
 
 const relacoesDaPasta = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

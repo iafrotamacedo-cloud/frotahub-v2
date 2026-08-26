@@ -1,22 +1,40 @@
-// rev 1 — Lançar orçamentos (2.3)
+// rev 2 — Lançar orçamentos (2.3)
 //
-// Duas ações e uma lista:
+// Esta tela LANÇA. Só isso.
 //
-//	GERAR   transforma as notas lidas em orçamentos, aplicando margem e teto
-//	LANÇAR  sobe o PDF e cria o custo no Trílogo, por API
+// O BOTÃO DE GERAR SAIU DAQUI, E NÃO FOI SÓ ARRUMAÇÃO
 //
-// POR QUE GERAR E LANÇAR SÃO SEPARADOS
+//	Ele era o único botão vermelho da tela — o lugar onde, em todo o resto do
+//	sistema, mora a ação principal. Numa tela chamada "Lançar orçamentos", com 72
+//	esperando para subir, o botão mais destacado fazia outra coisa.
 //
-//	Porque entre um e outro existe uma decisão humana: conferir o documento. Um
-//	botão só — "gerar e lançar" — parece mais prático e é justamente o que faz um
-//	erro de leitura chegar ao cliente sem passar por ninguém.
-import { useCallback, useEffect, useState } from 'react'
+//	E fazia errado. O botão de gerar já existe na tela de Notas, e de lá ele
+//	manda a `fila` junto: quem está no rateio gera o rateio e não encosta na
+//	outra fila. Daqui ele mandava o corpo vazio — que no motor significa "as
+//	duas filas". Ou seja: a porta duplicada não era nem uma cópia da outra, era
+//	a versão que mistura o que o campo `fila` existe para separar (CORE-06).
+//
+// LANÇAR EM LOTE É O NAVEGADOR CHAMANDO A MESMA ROTA, UMA A UMA
+//
+//	Não existe rota de lote no motor, de propósito. Setenta e dois lançamentos
+//	são setenta e duas gerações de PDF, subidas ao R2 e chamadas ao Trílogo: numa
+//	requisição só, isso estoura qualquer tempo limite e não mostra nada enquanto
+//	roda. Aqui o laço é da tela — ela vê o andamento, dá para parar no meio, e a
+//	regra de lançar continua existindo UMA vez, na rota de sempre.
+//
+// QUEM ENTRA NO LOTE
+//
+//	Só `destino === 'pode_lancar'`, que a view calcula do status do ticket AGORA.
+//	Não é a flag de bloqueio antiga: medimos 7 de 26 bloqueados destravando
+//	sozinhos em seis dias. Tentar um chamado Arquivado é gastar uma subida de PDF
+//	para receber a mesma recusa de ontem.
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
-import { BarraDeVolta, Paginacao, ResumoDaGeracao } from './Arquivos'
+import { BarraDeVolta, Paginacao } from './Arquivos'
 import {
   emReais, emDataHora, contaPorExtenso,
-  type Orcamento, type Pagina, type ResultadoDaGeracao,
+  type Orcamento, type Pagina,
 } from './tipos'
 
 export function Lancar({ voltar }: { voltar: () => void }) {
@@ -26,10 +44,12 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   const [status, setStatus] = useState('gerado')
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
-  const [gerando, setGerando] = useState(false)
   const [lancando, setLancando] = useState<string | null>(null)
-  const [resultados, setResultados] = useState<ResultadoDaGeracao[] | null>(null)
   const [bloqueio, setBloqueio] = useState<BloqueioDoTeto | null>(null)
+  const [lote, setLote] = useState<Lote | null>(null)
+  // Parar é um `ref`, não um estado: o laço já está rodando quando a pessoa
+  // clica, e um estado só chegaria nele no próximo desenho da tela.
+  const parar = useRef(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -43,38 +63,68 @@ export function Lancar({ voltar }: { voltar: () => void }) {
 
   useEffect(() => { void carregar() }, [carregar])
 
-  async function gerar() {
-    setGerando(true)
-    setResultados(null)
+  // subirUm é a única chamada de lançamento da tela. O botão da linha e o lote
+  // passam os dois por aqui — assim não existe uma segunda versão da regra que
+  // um dia deixa de concordar com a primeira.
+  async function subirUm(o: Orcamento): Promise<Resultado> {
     try {
-      const r = await motor<{ resultados: ResultadoDaGeracao[] }>('/orcamentos/gerar', { metodo: 'POST', corpo: {} })
-      setResultados(r.resultados)
-      await carregar()
+      const r = await motor<{ trilogo_custo_id: number }>(
+        `/orcamentos/ficha/${o.id}/lancar`, { metodo: 'POST' })
+      return { ok: true, custo: r.trilogo_custo_id }
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não consegui gerar.')
-    } finally {
-      setGerando(false)
+      const corpo = (e as { corpo?: BloqueioDoTeto }).corpo
+      if (corpo?.saidas) return { ok: false, teto: corpo, motivo: frasedoTeto(corpo) }
+      return { ok: false, motivo: e instanceof Error ? e.message : 'Não consegui lançar.' }
     }
   }
 
   async function lancar(o: Orcamento) {
     setLancando(o.id)
     setAviso('')
-    try {
-      const r = await motor<{ trilogo_custo_id: number }>(`/orcamentos/ficha/${o.id}/lancar`, { metodo: 'POST' })
-      setAviso(`Ticket ${o.ticket}: lançado no Trílogo (custo nº ${r.trilogo_custo_id}).`)
+    const r = await subirUm(o)
+    setLancando(null)
+    if (r.ok) {
+      setAviso(`Ticket ${o.ticket}: lançado no Trílogo (custo nº ${r.custo}).`)
       await carregar()
-    } catch (e) {
-      // O CONFLITO DE TETO NÃO É UM ERRO QUALQUER
-      //   Ele vem com números e com saídas. Mostrar só a frase jogaria fora
-      //   justamente a parte que resolve — e é assim que o usuário acaba
-      //   montando planilha paralela para entender o que travou.
-      const corpo = (e as { corpo?: BloqueioDoTeto }).corpo
-      if (corpo?.saidas) setBloqueio(corpo)
-      else setErro(e instanceof Error ? e.message : 'Não consegui lançar.')
-    } finally {
-      setLancando(null)
+      return
     }
+    // O CONFLITO DE TETO NÃO É UM ERRO QUALQUER
+    //   Ele vem com números e com saídas. Mostrar só a frase jogaria fora
+    //   justamente a parte que resolve — e é assim que o usuário acaba
+    //   montando planilha paralela para entender o que travou.
+    if (r.teto) setBloqueio(r.teto)
+    else setErro(r.motivo)
+    await carregar()
+  }
+
+  async function lancarTodos() {
+    const fila = (pagina?.linhas ?? []).filter(podeSubir)
+    if (fila.length === 0) return
+    parar.current = false
+    setAviso('')
+    setErro('')
+    setLote({ total: fila.length, feito: 0, subiram: 0, travados: [], rodando: true })
+
+    for (const o of fila) {
+      if (parar.current) break
+      setLote(l => (l ? { ...l, agora: o.ticket } : l))
+      const r = await subirUm(o)
+      setLote(l => {
+        if (!l) return l
+        return {
+          ...l,
+          feito: l.feito + 1,
+          subiram: l.subiram + (r.ok ? 1 : 0),
+          travados: r.ok ? l.travados : [...l.travados, { ticket: o.ticket, parte: o.parte, motivo: r.motivo }],
+        }
+      })
+      // Uma pausa curta entre um e outro. O Trílogo é o sistema DO CLIENTE:
+      // setenta e duas chamadas coladas parecem ataque, mesmo sendo trabalho.
+      await new Promise(r => setTimeout(r, 400))
+    }
+
+    setLote(l => (l ? { ...l, rodando: false, agora: undefined } : l))
+    await carregar()
   }
 
   async function aprovar(o: Orcamento) {
@@ -91,19 +141,42 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   }
 
 
+  // Quantos desta PÁGINA podem subir agora. Da página, e não do banco inteiro:
+  // o botão só mexe no que está à vista, e é isso que ele promete no rótulo.
+  const prontos = (pagina?.linhas ?? []).filter(podeSubir).length
+
   return (
     <div className="orc-tela">
       <BarraDeVolta
         voltar={voltar}
         titulo="Lançar orçamentos"
         direita={
-          <button type="button" className="orc-bt forte" disabled={gerando} onClick={() => void gerar()}>
-            {gerando ? 'Gerando…' : 'Gerar orçamentos das notas lidas'}
-          </button>
+          lote?.rodando ? (
+            <button type="button" className="orc-bt" onClick={() => { parar.current = true }}>
+              Parar depois deste
+            </button>
+          ) : (
+            <button
+              type="button"
+              // Sem nada para subir ele deixa de ser vermelho. Um botão da cor
+              // da ação principal, só apagado, continua puxando o olho para um
+              // clique que não existe.
+              className={prontos === 0 ? 'orc-bt' : 'orc-bt forte'}
+              disabled={prontos === 0}
+              title={
+                prontos === 0
+                  ? 'Nenhum orçamento desta lista pode subir agora — o chamado precisa estar Executado ou Vistoriado.'
+                  : 'Sobe um a um, na ordem da lista. Dá para parar no meio.'
+              }
+              onClick={() => void lancarTodos()}
+            >
+              {prontos === 0 ? 'Nada pode subir agora' : `Lançar todos que podem subir (${prontos})`}
+            </button>
+          )
         }
       />
 
-      {resultados && <ResumoDaGeracao resultados={resultados} fechar={() => setResultados(null)} />}
+      {lote && <Lote dados={lote} fechar={() => setLote(null)} />}
       {aviso && <p className="orc-ok">{aviso}</p>}
       {erro && <p className="erro">{erro}</p>}
       {bloqueio && <Bloqueio dados={bloqueio} fechar={() => setBloqueio(null)} />}
@@ -148,6 +221,16 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                     <td>
                       <span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span>
                       <span className="orc-detalhe">{contaPorExtenso(o.conta)}{o.rateio ? ' · rateio' : ''}</span>
+                      {/* POR QUE ESTE NÃO ENTRA NO LOTE
+                          Sem isto, "Lançar todos (47)" numa lista de 72 vira
+                          mistério — e mistério em botão faz a pessoa clicar
+                          duas vezes para ver se muda. O status do chamado é a
+                          resposta inteira. */}
+                      {o.status === 'gerado' && !podeSubir(o) && (
+                        <span className="orc-detalhe" title={o.lancamento_bloqueio_detalhe ?? undefined}>
+                          {porqueNaoSobe(o)}
+                        </span>
+                      )}
                     </td>
                     <td title={o.chamado_descricao ?? undefined}>
                       <span className="orc-nome">{o.loja ?? '–'}</span>
@@ -222,6 +305,95 @@ function Bloqueio({ dados, fechar }: { dados: BloqueioDoTeto; fechar: () => void
       <p className="orc-saidas">O que dá para fazer:</p>
       <ul>{dados.saidas.map(s => <li key={s}>{s}</li>)}</ul>
       <button type="button" className="orc-bt" onClick={fechar}>Entendi</button>
+    </div>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// o lote
+// ---------------------------------------------------------------------------
+
+interface Travado {
+  ticket: number
+  parte: number
+  motivo: string
+}
+
+interface Lote {
+  total: number
+  feito: number
+  subiram: number
+  travados: Travado[]
+  rodando: boolean
+  agora?: number
+}
+
+type Resultado =
+  | { ok: true; custo: number }
+  | { ok: false; motivo: string; teto?: BloqueioDoTeto }
+
+/** Entra no lote quem a view diz que pode subir AGORA. */
+function podeSubir(o: Orcamento): boolean {
+  return o.status === 'gerado' && o.destino === 'pode_lancar'
+}
+
+/** A frase curta de por que este ficou de fora. Sai do estado de agora, não da
+ *  recusa de ontem — o chamado anda sem avisar. */
+function porqueNaoSobe(o: Orcamento): string {
+  if (o.destino === 'sem_chamado') return 'chamado não encontrado'
+  if (o.reaberto) return `${o.ticket_status ?? 'reaberto'} · reaberto`
+  if (o.ticket_status) return o.ticket_status
+  return 'ainda não pode subir'
+}
+
+function frasedoTeto(b: BloqueioDoTeto): string {
+  return `passou do teto: ${emReais(b.ja_no_ticket)} já no ticket + ${emReais(b.deste)} deste, teto ${emReais(b.teto)}`
+}
+
+/** O andamento e, no fim, o que travou.
+ *
+ *  O PAINEL NÃO SOME SOZINHO
+ *    Setenta e dois lançamentos levam minutos. Quem sai da frente da tela e
+ *    volta precisa encontrar o resultado ainda ali — um aviso que se apaga
+ *    transforma "o que travou?" numa pergunta sem resposta. */
+function Lote({ dados, fechar }: { dados: Lote; fechar: () => void }) {
+  const pct = dados.total === 0 ? 0 : Math.round((dados.feito / dados.total) * 100)
+  return (
+    <div className="orc-lote">
+      <div className="orc-lote-topo">
+        <strong>
+          {dados.rodando
+            ? `Lançando ${dados.feito + 1} de ${dados.total}${dados.agora ? ` · ticket ${dados.agora}` : ''}`
+            : `${dados.subiram} de ${dados.total} subiram`}
+        </strong>
+        {!dados.rodando && (
+          <button type="button" className="orc-bt" onClick={fechar}>Fechar</button>
+        )}
+      </div>
+
+      <div className="orc-lote-barra"><span style={{ width: `${pct}%` }} /></div>
+
+      {!dados.rodando && dados.travados.length > 0 && (
+        <>
+          <p className="orc-lote-titulo">
+            {dados.travados.length === 1 ? 'Um travou:' : `${dados.travados.length} travaram:`}
+          </p>
+          <ul className="orc-lote-travados">
+            {dados.travados.map(t => (
+              <li key={`${t.ticket}-${t.parte}`}>
+                <strong>{t.ticket}{t.parte > 1 ? `-${t.parte}` : ''}</strong> {t.motivo}
+              </li>
+            ))}
+          </ul>
+          <p className="orc-lote-rodape">
+            Cada um destes ficou com o motivo gravado e aparece em Correções ▸ Recusados.
+          </p>
+        </>
+      )}
+      {!dados.rodando && dados.travados.length === 0 && dados.feito > 0 && (
+        <p className="orc-lote-rodape">Nenhum travou.</p>
+      )}
     </div>
   )
 }

@@ -347,6 +347,45 @@
 .orc-bloqueio ul { margin: 4px 0 12px; padding-left: 22px; font-size: 12.5px; }
 
 
+/* ---------------------------------------------------------------------------
+   O lote de lançamento
+
+   FICA NO CLARO, JUNTO DA LISTA
+     Ele é resultado, não comando. A barra de topo é onde se escolhe; aqui é
+     onde se lê o que aconteceu com cada ticket — e isso mora do lado da tabela.
+   --------------------------------------------------------------------------- */
+
+.orc-lote {
+  margin-top: 12px; padding: 14px 18px;
+  border-radius: var(--r-m); border: 1px solid var(--line); background: var(--card);
+}
+.orc-lote-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 13px; color: var(--ink);
+}
+.orc-lote-topo strong { font-variant-numeric: tabular-nums; }
+
+/* A barra não é enfeite: setenta e dois lançamentos levam minutos, e sem ela a
+   tela parece travada exatamente enquanto está trabalhando. */
+.orc-lote-barra {
+  margin-top: 10px; height: 6px; border-radius: 3px;
+  background: var(--line-2); overflow: hidden;
+}
+.orc-lote-barra span {
+  display: block; height: 100%; background: var(--red);
+  transition: width .25s ease;
+}
+
+.orc-lote-titulo { margin: 12px 0 4px; font-size: 12.5px; font-weight: 600; color: var(--warn); }
+.orc-lote-travados {
+  margin: 0; padding-left: 20px; font-size: 12.5px; color: var(--txt);
+  max-height: 190px; overflow-y: auto;
+}
+.orc-lote-travados li { margin: 3px 0; }
+.orc-lote-travados strong { font-variant-numeric: tabular-nums; margin-right: 6px; }
+.orc-lote-rodape { margin: 10px 0 0; font-size: 11.5px; color: var(--gray); }
+
+
 @media (max-width: 1080px) {
   .orc-insercao { margin-top: 24px; }
   .orc-abas { flex-wrap: wrap; }

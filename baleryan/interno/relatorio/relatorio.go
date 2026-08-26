@@ -42,10 +42,19 @@ type Coluna struct {
 
 // Tabela é o relatório antes de virar arquivo.
 type Tabela struct {
-	Titulo    string
-	Subtitulo string   // o filtro aplicado, escrito para ser lido
+	Titulo string
+	// Aba é o nome da guia dentro do .xlsx. Vazio = o título, cortado ao que o
+	// Excel aceita.
+	//
+	// POR QUE ISTO EXISTE
+	//	A guia vinha escrita "Chamados" em toda planilha do sistema, porque a
+	//	primeira a existir era a do Trílogo. Numa planilha de orçamentos enviada
+	//	AO CLIENTE, a guia dizendo "Chamados" é a primeira coisa que ele lê — e
+	//	está errada.
+	Aba       string
+	Subtitulo string // o filtro aplicado, escrito para ser lido
 	Colunas   []Coluna
-	Linhas    [][]any  // string, float64, int, time.Time ou nil
+	Linhas    [][]any // string, float64, int, time.Time ou nil
 	// Aviso aparece no rodapé quando o resultado foi cortado. Corte silencioso é
 	// pior que corte: quem lê acha que está vendo tudo.
 	Aviso string

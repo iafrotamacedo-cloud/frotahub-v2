@@ -18,3 +18,10 @@ web/dist/
 .env.local
 .DS_Store
 Thumbs.db
+
+# planilhas de faturamento geradas na máquina
+#
+# São DADOS DO CLIENTE — valores, lojas e chamados de um mês inteiro. O motor
+# as gera sob demanda; versionar uma cópia é espalhar a informação e, na semana
+# seguinte, discutir qual das duas é a boa.
+faturamento/

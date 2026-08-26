@@ -323,3 +323,57 @@ func TestSerieDoExcelNaoPerdeOSegundo(t *testing.T) {
 		}
 	}
 }
+
+// A GUIA DO EXCEL É A PRIMEIRA COISA QUE O CLIENTE LÊ
+//
+//	Ela vinha escrita "Chamados" em toda planilha do sistema, porque a primeira a
+//	existir foi a do Trílogo. Numa planilha de orçamentos enviada ao cliente,
+//	isso é uma palavra errada em cima de um documento comercial.
+func TestNomeDaAbaSaiDoTituloEObedeceAoExcel(t *testing.T) {
+	casos := []struct{ aba, titulo, quer string }{
+		{"", "Orçamentos montados — 2026-08", "Orçamentos montados"},
+		{"Orçamentos", "Orçamentos montados — 2026-08", "Orçamentos"},
+		{"", "", "Planilha"},
+		// Os proibidos pelo Excel somem em vez de derrubarem o arquivo.
+		{"Julho/Agosto: 1*2?[x]", "", "JulhoAgosto 12x"},
+		// Trinta e um é o teto, e ele corta sem reclamar.
+		{strings.Repeat("a", 40), "", strings.Repeat("a", 31)},
+		// "&" cru num atributo XML não abre. Tem que sair escapado.
+		{"Faturas & notas", "", "Faturas &amp; notas"},
+	}
+	for _, c := range casos {
+		got := nomeDaAba(Tabela{Aba: c.aba, Titulo: c.titulo})
+		if got != c.quer {
+			t.Errorf("aba %q / título %q => %q, esperava %q", c.aba, c.titulo, got, c.quer)
+		}
+	}
+}
+
+// E a guia tem que chegar de verdade dentro do arquivo — não só sair da função.
+func TestAAbaChegaNoArquivo(t *testing.T) {
+	tab := tabelaDeTeste(2)
+	tab.Aba = "Orçamentos"
+	bruto, err := tab.Planilha()
+	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := zip.NewReader(bytes.NewReader(bruto), int64(len(bruto)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range z.File {
+		if f.Name != "xl/workbook.xml" {
+			continue
+		}
+		r, _ := f.Open()
+		corpo, _ := io.ReadAll(r)
+		if !strings.Contains(string(corpo), `name="Orçamentos"`) {
+			t.Fatalf("a guia não chegou no arquivo: %s", corpo)
+		}
+		if strings.Contains(string(corpo), `name="Chamados"`) {
+			t.Fatal("a guia velha continua cravada no arquivo")
+		}
+		return
+	}
+	t.Fatal("não achei o workbook.xml")
+}

@@ -42,6 +42,7 @@ const (
 	RotinaLancar    = "CONTRATO_ORCAMENTOS_LANCAR"
 	RotinaCorrecoes = "CONTRATO_ORCAMENTOS_CORRECOES"
 	RotinaPlanilhas = "CONTRATO_ORCAMENTOS_PLANILHAS"
+	RotinaFaturar   = "CONTRATO_ORCAMENTOS_FATURAR"
 )
 
 // Quanto tempo vale o endereço temporário de um arquivo. Curto de propósito: o
@@ -135,6 +136,14 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /orcamentos/correcoes", m.correcoes)
 	mux.HandleFunc("GET /orcamentos/correcoes/candidatos", m.candidatos)
 	mux.HandleFunc("PATCH /orcamentos/documentos/{id}/tickets", m.corrigirTicket)
+
+	// 2.6 — o faturamento ao cliente: a planilha que sai e o dinheiro que volta
+	mux.HandleFunc("GET /orcamentos/faturamento", m.faturamento)
+	mux.HandleFunc("GET /orcamentos/faturamento.xlsx", m.faturamentoExcel)
+	mux.HandleFunc("GET /orcamentos/faturamento.pdf", m.faturamentoPDF)
+	mux.HandleFunc("POST /orcamentos/faturamento/fechar", m.fecharFaturamento)
+	mux.HandleFunc("GET /orcamentos/faturas", m.listarFaturas)
+	mux.HandleFunc("POST /orcamentos/faturas/{id}", m.anotarFatura)
 
 	// 2.5 — as planilhas de controle
 	mux.HandleFunc("GET /orcamentos/planilhas", m.planilhas)
