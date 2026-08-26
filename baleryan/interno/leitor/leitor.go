@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Camada diz quem leu.
@@ -126,7 +127,12 @@ func (l *Leitura) Completa() bool {
 
 // Os tickets do São Luiz têm 5 ou 6 dígitos. Menos que isso é número de nota,
 // código de produto ou CEP picado; mais, é chave de acesso partida.
-var doTicket = regexp.MustCompile(`\b(\d{5,6})\b`)
+var doTicket = regexp.MustCompile(`(\d{5,6})\b`)
+
+var (
+	daDataISO = regexp.MustCompile(`^(\d{4})[-/](\d{1,2})[-/](\d{1,2})`)
+	daDataBR  = regexp.MustCompile(`^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})`)
+)
 
 // Estas palavras aparecem coladas em números que NÃO são ticket. Um número que
 // vem logo depois de "DAV:" é um DAV, por mais que tenha seis dígitos.
@@ -300,6 +306,68 @@ func (l *Leitura) Arrumar() {
 	l.ChaveAcesso = SoDigitos(l.ChaveAcesso)
 	l.EmitenteCNPJ = SoDigitos(l.EmitenteCNPJ)
 	l.DestinatarioCNPJ = SoDigitos(l.DestinatarioCNPJ)
+	l.Emissao = DataLimpa(l.Emissao)
+}
+
+// DataLimpa devolve a emissão em ISO, ou vazio.
+//
+// POR QUE A DATA PRECISA PASSAR POR AQUI
+//
+//	Em 26/08/2026 o modelo devolveu "28/07/2026" numa nota e "27-07-2026" em
+//	outra. O Postgres recusou as duas — `date/time field value out of range` — e
+//	a gravação INTEIRA caiu junto: itens, valores, emitente, tudo perdido por
+//	causa de um campo. As duas só se salvaram porque a repetição sorteou outro
+//	formato.
+//
+//	Pior que isso foi o "conserto" do próprio modelo na segunda tentativa:
+//	"27-07-2026" voltou como "2027-07-26". Ano de 2027. O Postgres aceitou,
+//	porque é uma data válida — e a `emissao` é o corte do pedido de faturamento,
+//	então aquela DAV nunca entraria em pedido nenhum. Sem erro, sem aviso.
+//
+// UMA DATA QUE NÃO SE ENTENDE VIRA VAZIO, E NÃO UM PALPITE
+//
+//	Vazio a tela mostra como "sem data" e alguém digita. Palpite entra na base
+//	parecendo certo. A nota vale mais sem a data do que com a data errada.
+func DataLimpa(bruto string) string {
+	t := strings.TrimSpace(bruto)
+	if t == "" {
+		return ""
+	}
+	var ano, mes, dia int
+	switch {
+	case daDataISO.MatchString(t):
+		p := daDataISO.FindStringSubmatch(t)
+		ano, mes, dia = atoi(p[1]), atoi(p[2]), atoi(p[3])
+	case daDataBR.MatchString(t):
+		// dd/mm/aaaa e dd-mm-aaaa — o jeito que o papel escreve, e por isso o
+		// jeito que o modelo às vezes copia.
+		p := daDataBR.FindStringSubmatch(t)
+		dia, mes, ano = atoi(p[1]), atoi(p[2]), atoi(p[3])
+	default:
+		return ""
+	}
+	if mes < 1 || mes > 12 || dia < 1 || dia > 31 {
+		return ""
+	}
+	d := time.Date(ano, time.Month(mes), dia, 12, 0, 0, 0, time.UTC)
+	// O CALENDÁRIO CONFERE O QUE O REGEX NÃO VÊ
+	//   31/02 passa nos limites acima e vira 03/03 no `time.Date`. Comparar de
+	//   volta é o que denuncia o dia que não existe.
+	if d.Year() != ano || int(d.Month()) != mes || d.Day() != dia {
+		return ""
+	}
+	// NOTA NÃO É EMITIDA AMANHÃ
+	//   Data no futuro é leitura errada, sempre. Um dia de folga cobre fuso e
+	//   relógio do servidor sem deixar passar um ano inteiro.
+	if d.After(time.Now().UTC().AddDate(0, 0, 1)) {
+		return ""
+	}
+	return d.Format("2006-01-02")
+}
+
+func atoi(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
 }
 
 // MimeDoNome diz ao Gemini o que ele está recebendo.
