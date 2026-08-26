@@ -11,6 +11,9 @@ package orcamentos
 import (
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -195,6 +198,124 @@ func TestADuplicataFalaAntesDoTeto(t *testing.T) {
 	if teto < trava {
 		t.Error("o teto responde antes da trava — uma duplicata apareceria como " +
 			"bloqueio de teto, oferecendo aprovar o que precisa ser apagado")
+	}
+}
+
+// TODA FLAG DE BLOQUEIO TEM QUE CABER NO `check` DO BANCO
+//
+//	A coluna `lancamento_bloqueio` é FECHADA por um `check`. Uma flag nova no Go
+//	sem a migração junto não dá erro visível: `bloquear` engole o próprio erro de
+//	propósito — para não trocar a mensagem do Trílogo por uma mensagem do banco —
+//	e a marca simplesmente não é gravada.
+//
+//	Foi o que aconteceu em 26/08/2026. A trava barrou o ticket 125199 de verdade,
+//	a tela mostrou a frase certa, e o banco recusou a marca em silêncio: o
+//	orçamento barrado não entrou em Correções › Recusados, e amanhã ninguém saberá
+//	que ele já foi apontado. Uma conferência que barra sem registrar precisa ser
+//	refeita toda vez, por alguém que talvez não esteja lá.
+//
+//	Este teste lê as DUAS fontes — as chamadas no `lancar.go` e a lista do `check`
+//	na migração mais recente que a define — e quebra antes de subir se elas se
+//	separarem outra vez.
+func TestTodaFlagDeBloqueioEhPermitidaNoBanco(t *testing.T) {
+	fonte, err := os.ReadFile("lancar.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o lancar.go: %v", err)
+	}
+	// Casa pelo `orc, "..."`, que é a posição da flag na chamada — e não pela
+	// primeira aspa depois do parêntese, que numa chamada com variável no lugar
+	// da flag escorregaria para a primeira aspa do bloco SEGUINTE e acusaria uma
+	// flag que ninguém escreveu.
+	//
+	// Só as flags escritas como texto. A chamada que passa a variável `flag`
+	// (a recusa do Trílogo) usa 'desconhecido' e 'trilogo_fora', os dois já na
+	// lista desde a 015 — um literal ali seria mentira, não segurança.
+	usadas := regexp.MustCompile(`m\.bloquear\([^;]*?orc, "([a-z_]+)"`).FindAllStringSubmatch(string(fonte), -1)
+	if len(usadas) == 0 {
+		t.Fatal("não achei nenhuma chamada de bloquear — o teste deixou de olhar o que devia")
+	}
+
+	permitidas := flagsDoCheck(t)
+	for _, m := range usadas {
+		if !permitidas[m[1]] {
+			t.Errorf("o lancar.go grava o bloqueio %q, e o `check` do banco não aceita esse valor — "+
+				"a marca vai falhar em silêncio e o orçamento barrado não aparecerá em Recusados. "+
+				"Falta a migração que acrescenta %q à lista.", m[1], m[1])
+		}
+	}
+}
+
+// flagsDoCheck lê a lista do `check` na migração MAIS RECENTE que o define — a
+// que está valendo. Ler a 015 para sempre daria o resultado de antes de qualquer
+// correção, que é o oposto do que este teste existe para pegar.
+func flagsDoCheck(t *testing.T) map[string]bool {
+	t.Helper()
+	arquivos, err := filepath.Glob("../../../../db/migrations/*.sql")
+	if err != nil || len(arquivos) == 0 {
+		t.Skipf("não achei as migrações: %v", err)
+	}
+	sort.Strings(arquivos)
+
+	for i := len(arquivos) - 1; i >= 0; i-- {
+		bruto, err := os.ReadFile(arquivos[i])
+		if err != nil {
+			continue
+		}
+		texto := string(bruto)
+		j := strings.Index(texto, "orcamentos_lancamento_bloqueio_check\n  check")
+		if j < 0 {
+			if j = strings.Index(texto, "add constraint orcamentos_lancamento_bloqueio_check"); j < 0 {
+				continue
+			}
+		}
+		lista := texto[j:]
+		if fim := strings.Index(lista, "));"); fim > 0 {
+			lista = lista[:fim]
+		}
+		fora := map[string]bool{}
+		for _, m := range regexp.MustCompile(`'([a-z_]+)'`).FindAllStringSubmatch(lista, -1) {
+			fora[m[1]] = true
+		}
+		if len(fora) > 0 {
+			t.Logf("lista do `check` lida de %s: %d valores", filepath.Base(arquivos[i]), len(fora))
+			return fora
+		}
+	}
+	t.Fatal("nenhuma migração define orcamentos_lancamento_bloqueio_check")
+	return nil
+}
+
+// TODA RECUSA DIZ O PRÓPRIO NOME
+//
+//	A tela escolhia o desenho pelo FORMATO da resposta — "tem `saidas`? é teto".
+//	Três recusas têm `saidas`, e a do status do chamado caía na primeira. Num
+//	lote de 56, em 26/08/2026, dezessete chamados Arquivados apareceram como
+//	"passou do teto: – já no ticket + – deste, teto –": os travessões eram os
+//	números do teto, que aquela resposta não traz. A tela mandou a pessoa caçar
+//	um teto que nunca tinha estourado.
+//
+//	Uma recusa nova sem `bloqueio` volta a ser confundida com uma antiga por
+//	acidente de formato — e o defeito reaparece calado, como este reapareceu.
+func TestTodaRecusaMandaONomeDoBloqueio(t *testing.T) {
+	fonte, err := os.ReadFile("lancar.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o arquivo: %v", err)
+	}
+	texto := string(fonte)
+
+	// Cada `web.Responder(..., http.StatusConflict, ...)` abre um mapa; o teste
+	// olha da abertura até o fecho dele.
+	corpos := regexp.MustCompile(`(?s)web\.Responder\(w, http\.StatusConflict, map\[string\]any\{(.*?)\n\t\t\}\)`).
+		FindAllStringSubmatch(texto, -1)
+	if len(corpos) == 0 {
+		t.Fatal("não achei nenhuma resposta de conflito — o teste deixou de olhar o que devia")
+	}
+	for i, c := range corpos {
+		if !strings.Contains(c[1], `"bloqueio"`) {
+			t.Errorf("a %dª resposta de conflito não manda \"bloqueio\" — a tela vai ter que "+
+				"adivinhar qual recusa é esta pelo formato do corpo, e foi assim que "+
+				"dezessete chamados Arquivados viraram \"passou do teto\":\n%s", i+1, c[1])
+		}
 	}
 }
 

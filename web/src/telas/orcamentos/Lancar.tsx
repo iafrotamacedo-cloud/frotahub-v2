@@ -86,13 +86,27 @@ export function Lancar({ voltar }: { voltar: () => void }) {
         { metodo: 'POST' })
       return { ok: true, custo: r.trilogo_custo_id }
     } catch (e) {
-      const corpo = (e as { corpo?: BloqueioDoTeto & BloqueioDeDuplicata }).corpo
-      // A DUPLICATA VEM ANTES DO TETO NESTA ESCADA
-      //   As duas respostas trazem `saidas`. Se o teto fosse testado primeiro,
-      //   toda duplicata apareceria como bloqueio de teto — com os números do
-      //   teto zerados, que é a tela que não explica nada.
-      if (corpo?.duplicata) return { ok: false, duplicata: corpo, motivo: fraseDaDuplicata(corpo) }
-      if (corpo?.saidas) return { ok: false, teto: corpo, motivo: frasedoTeto(corpo) }
+      const corpo = (e as { corpo?: QualquerBloqueio }).corpo
+      // QUEM RECUSA DIZ O NOME — A TELA NÃO ADIVINHA MAIS
+      //
+      //   Antes, a escolha era pelo FORMATO: "o corpo tem `saidas`? então é
+      //   teto". Três recusas diferentes têm `saidas`, e a do status do chamado
+      //   caía na primeira. Medido em 26/08/2026, num lote de 56: dezessete
+      //   chamados Arquivados apareceram como "passou do teto: – já no ticket
+      //   + – deste, teto –". Os travessões eram `emReais(undefined)` — os
+      //   números do teto não existem naquela resposta. A tela mandou a pessoa
+      //   caçar um teto que nunca tinha estourado.
+      //
+      //   Agora o motor manda `bloqueio` com a mesma palavra que grava na coluna
+      //   `lancamento_bloqueio`, e cada uma tem o seu desenho.
+      switch (corpo?.bloqueio) {
+        case 'possivel_duplicata':
+          return { ok: false, duplicata: corpo, motivo: fraseDaDuplicata(corpo) }
+        case 'teto':
+          return { ok: false, teto: corpo, motivo: frasedoTeto(corpo) }
+        case 'ticket_status':
+          return { ok: false, motivo: fraseDoStatus(corpo) }
+      }
       return { ok: false, motivo: e instanceof Error ? e.message : 'Não consegui lançar.' }
     }
   }
@@ -371,6 +385,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
 }
 
 interface BloqueioDoTeto {
+  bloqueio: 'teto'
   erro: string
   ticket: number
   ja_no_ticket: number
@@ -409,8 +424,8 @@ interface CustoLa {
 }
 
 interface BloqueioDeDuplicata {
+  bloqueio: 'possivel_duplicata'
   erro: string
-  duplicata: true
   ticket: number
   deste: number
   iguais: CustoLa[]
@@ -473,6 +488,26 @@ function Duplicata({ dados, lancando, fechar, lancarMesmoAssim }: {
       </div>
     </div>
   )
+}
+
+/** O chamado não aceita custo AGORA — e o que trava não é dinheiro, é o estado
+ *  do chamado no Trílogo. A frase diz o status e quem destrava, porque "não
+ *  aceita" sem dono é o tipo de recado que ninguém age em cima. */
+interface BloqueioDoTicket {
+  bloqueio: 'ticket_status'
+  erro: string
+  ticket: number
+  ticket_status: string
+  quem_resolve?: string
+}
+
+/** As recusas que o motor sabe nomear. O `bloqueio` é a etiqueta comum: o mesmo
+ *  texto que vai para a coluna `lancamento_bloqueio` no banco. */
+type QualquerBloqueio = BloqueioDoTeto | BloqueioDeDuplicata | BloqueioDoTicket
+
+function fraseDoStatus(b: BloqueioDoTicket): string {
+  const dono = b.quem_resolve ? ` — cobrar de ${b.quem_resolve}` : ''
+  return `chamado ${b.ticket_status}: o Trílogo não aceita custo nesse status${dono}`
 }
 
 function fraseDaDuplicata(b: BloqueioDeDuplicata): string {

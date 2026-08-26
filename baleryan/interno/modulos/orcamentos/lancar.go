@@ -169,10 +169,22 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 				"O ticket %d já tem um custo de %s lançado. Este orçamento é do mesmo valor — "+
 					"lançar agora cobraria o cliente duas vezes.",
 				ticket, valor.Reais()),
-			"duplicata": true,
-			"ticket":    ticket,
-			"deste":     valor.Float(),
-			"iguais":    descreverCustos(iguais),
+			// O NOME DO BLOQUEIO VEM DAQUI, E NÃO DO FORMATO DA RESPOSTA
+			//
+			//	A tela precisa saber QUAL recusa é esta. Ela tentava adivinhar pelo
+			//	que o corpo continha — "tem `saidas`? então é teto" — e três recusas
+			//	diferentes têm `saidas`. Resultado medido em 26/08/2026: dezessete
+			//	chamados Arquivados apareceram na tela como "passou do teto: – já no
+			//	ticket + – deste, teto –", com os números vazios porque a resposta do
+			//	status não os traz. A pessoa foi procurar um teto que não existia.
+			//
+			//	Agora quem recusa DIZ o nome, com a mesma palavra que vai para a
+			//	coluna `lancamento_bloqueio`. Uma recusa nova não pode mais ser
+			//	confundida com uma antiga por acidente de formato.
+			"bloqueio": "possivel_duplicata",
+			"ticket":   ticket,
+			"deste":    valor.Float(),
+			"iguais":   descreverCustos(iguais),
 			"saidas": []string{
 				"conferir no Trílogo se o custo que já está lá é este mesmo orçamento",
 				"apagar este orçamento, se ele for repetido",
@@ -198,6 +210,7 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 				"Entre a geração e agora, o ticket %d mudou: já tem %s lançado. "+
 					"Com este orçamento de %s, passa do teto de %s.",
 				ticket, jaLa.Reais(), valor.Reais(), par.Teto.Reais()),
+			"bloqueio":     "teto",
 			"ticket":       ticket,
 			"ja_no_ticket": jaLa.Float(),
 			"deste":        valor.Float(),
@@ -245,9 +258,11 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		det := fmt.Sprintf("o Trílogo não aceita custo em chamado %s (status %d)", nome, d.Status)
 		m.bloquear(r.Context(), p, id, orc, "ticket_status", det)
 		web.Responder(w, http.StatusConflict, map[string]any{
+			"bloqueio":      "ticket_status",
 			"erro":          det,
 			"ticket":        ticket,
 			"ticket_status": nome,
+			"quem_resolve":  quemResolve(d.Status),
 			"saidas": []string{
 				"esperar o chamado andar e tentar de novo",
 				"cobrar de quem resolve: " + quemResolve(d.Status),
@@ -304,9 +319,10 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		}
 		m.bloquear(r.Context(), p, id, orc, flag, det)
 		web.Responder(w, http.StatusConflict, map[string]any{
-			"erro":    "O Trílogo recusou o lançamento.",
-			"trilogo": det,
-			"ticket":  ticket,
+			"bloqueio": flag,
+			"erro":     "O Trílogo recusou o lançamento.",
+			"trilogo":  det,
+			"ticket":   ticket,
 		})
 		return
 	}
