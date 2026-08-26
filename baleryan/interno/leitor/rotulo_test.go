@@ -165,3 +165,70 @@ func iaQueResponde(t *testing.T, jsonDaLeitura string) *IA {
 	ia.Intervalo = 0
 	return ia
 }
+
+// O RÓTULO DO DAV DO SysPDV
+//
+//	Em 26/08/2026 esta única linha faltando na lista custou o ticket de TODOS os
+//	DAVs lidos pela IA — inclusive um com "TICKET-131372-ANTONIO SALES-AMAURI"
+//	escrito na caixa certa, por extenso. Rótulo legítimo faltando não gera erro:
+//	gera trabalho manual silencioso, que é a forma mais cara de estar errado.
+func TestDadosComplementaresEhCampoDeObservacao(t *testing.T) {
+	for _, r := range []string{"Dados Complementares", "DADOS COMPLEMENTARES", "dados complementares:"} {
+		if !RotuloConfiavel(r) {
+			t.Errorf("%q é a caixa do DAV do SysPDV e foi recusada", r)
+		}
+	}
+
+	// O caso real, ponta a ponta.
+	l := &Leitura{
+		Observacao:        "TICKET-131372-ANTONIO SALES-AMAURI",
+		ObservacaoDoCampo: RotuloConfiavel("Dados Complementares"),
+	}
+	if ticket, ok := TicketConfiavel(l); !ok || ticket != 131372 {
+		t.Errorf("o ticket do DAV saiu %d/%v, esperava 131372/true", ticket, ok)
+	}
+}
+
+// NO DAV, O NÚMERO DO DAV É O NÚMERO DA NOTA
+//
+//	A IA preenche `dav_numero` e às vezes deixa `numero` vazio. Como o DAV não
+//	tem chave de acesso, a identidade dele para duplicidade é NÚMERO e valor —
+//	sem número, a trava fica inerte justamente na família onde as repetições
+//	acontecem.
+func TestDAVSemNumeroHerdaONumeroDoDAV(t *testing.T) {
+	l := &Leitura{Tipo: "dav", DAV: "19387", ValorTotal: 98.10}
+	l.Arrumar()
+	if l.Numero != "19387" {
+		t.Errorf("o DAV 19387 ficou com número %q — sem número, ele não é comparável com ninguém", l.Numero)
+	}
+}
+
+func TestNumeroDaNotaNaoEAtropeladoPeloDAV(t *testing.T) {
+	// NF 19702: número 19702 e um número de pedido 92080 impresso na DANFE.
+	l := &Leitura{Tipo: "nf", Numero: "19702", DAV: "92080"}
+	l.Arrumar()
+	if l.Numero != "19702" {
+		t.Errorf("o número da nota virou %q — o pedido impresso ao lado não é a nota", l.Numero)
+	}
+}
+
+// CEP NÃO É TICKET
+//
+//	A caixa do DAV às vezes recebe o endereço de entrega digitado pelo operador,
+//	e foi o que apareceu em 26/08/2026. "60455-100" tem cinco dígitos e uma
+//	fronteira de palavra no hífen.
+func TestCEPNoEnderecoNaoViraTicket(t *testing.T) {
+	obs := "Endereço: AVENIDA ENGENHEIRO HEITOR DE OLIVEIRA ALBUQUERQUE, 295 - Bairro Papicu - 60455-100"
+	if achados := Tickets(obs); len(achados) > 0 {
+		t.Errorf("o endereço virou os tickets %v", achados)
+	}
+}
+
+// E o ticket de verdade continua sendo achado no meio do mesmo tipo de texto.
+func TestTicketNoMeioDoEnderecoAindaEAchado(t *testing.T) {
+	obs := "131231 -VALECIO-MIGUEL DIAS"
+	achados := Tickets(obs)
+	if len(achados) != 1 || achados[0] != 131231 {
+		t.Errorf("achou %v, esperava só o 131231", achados)
+	}
+}

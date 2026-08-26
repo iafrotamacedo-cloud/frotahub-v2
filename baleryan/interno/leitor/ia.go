@@ -113,10 +113,15 @@ func (ia *IA) esperarAVez(ctx context.Context) error {
 	}
 	ia.mu.Unlock()
 
-	if espera <= 0 {
+	return ia.dormir(ctx, espera)
+}
+
+// dormir espera, mas obedece a quem mandar parar.
+func (ia *IA) dormir(ctx context.Context, quanto time.Duration) error {
+	if quanto <= 0 {
 		return nil
 	}
-	relogio := time.NewTimer(espera)
+	relogio := time.NewTimer(quanto)
 	defer relogio.Stop()
 	select {
 	case <-ctx.Done():
@@ -248,11 +253,51 @@ func (ia *IA) LerArquivo(ctx context.Context, tipo string, bruto []byte) (*Leitu
 	})
 }
 
+// TentativasNaSobrecarga é quantas vezes insistir quando o problema é do outro
+// lado.
+//
+// "This model is currently experiencing high demand. Spikes in demand are
+// usually temporary. Please try again later." — foi o que voltou numa nota de
+// 26/08/2026. Não é a nota, não é a chave, não é a cota: é fila do lado de lá.
+//
+// Sem esta insistência, o robô tratava a sobrecarga como defeito da nota:
+// queimava uma das três tentativas dela e a mandava para o fim da fila, onde
+// ela reencontraria a mesma sobrecarga. Três voltas depois a nota ficava
+// marcada como "falhou" — e não tinha nada de errado com ela.
+const TentativasNaSobrecarga = 3
+
 // pedir é a chamada em si — a única do arquivo que fala com a rede.
 func (ia *IA) pedir(ctx context.Context, partes []parte) (*Leitura, error) {
 	if !ia.Ligada() {
 		return nil, ErrSemIA
 	}
+
+	var ultimo error
+	for volta := 1; volta <= TentativasNaSobrecarga; volta++ {
+		l, err := ia.pedirUmaVez(ctx, partes)
+		if err == nil {
+			return l, nil
+		}
+		ultimo = err
+		if !ehSobrecarga(err) || volta == TentativasNaSobrecarga {
+			return nil, err
+		}
+		// A espera cresce: 1x, depois 2x o intervalo. Insistir no mesmo ritmo
+		// numa fila que está cheia é empurrar a porta que já está sendo
+		// empurrada por todo mundo.
+		if err := ia.dormir(ctx, ia.Intervalo*time.Duration(volta)); err != nil {
+			return nil, err
+		}
+	}
+	return nil, ultimo
+}
+
+// ErrSobrecarga marca o que é problema do outro lado, e passageiro.
+var ErrSobrecarga = errors.New("a IA está sobrecarregada")
+
+func ehSobrecarga(err error) bool { return errors.Is(err, ErrSobrecarga) }
+
+func (ia *IA) pedirUmaVez(ctx context.Context, partes []parte) (*Leitura, error) {
 	if err := ia.esperarAVez(ctx); err != nil {
 		return nil, err
 	}
@@ -296,6 +341,14 @@ func (ia *IA) pedir(ctx context.Context, partes []parte) (*Leitura, error) {
 		return nil, fmt.Errorf("a IA respondeu algo que não entendi (%d)", resp.StatusCode)
 	}
 	if r.Error != nil {
+		// SOBRECARGA NÃO É RECUSA
+		//   429 é limite de chamadas; 5xx é a casa deles com problema. Nos dois
+		//   casos a nota está boa e a resposta é esperar. Já um 400 — modelo
+		//   que não existe, arquivo que não serve — não melhora com insistência,
+		//   e repetir só gastaria cota para receber o mesmo "não".
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			return nil, fmt.Errorf("%w: %s", ErrSobrecarga, r.Error.Message)
+		}
 		return nil, fmt.Errorf("a IA recusou: %s", r.Error.Message)
 	}
 	if len(r.Candidates) == 0 || len(r.Candidates[0].Content.Parts) == 0 {

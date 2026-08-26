@@ -142,3 +142,84 @@ func TestAEsperaObedeceOCancelamento(t *testing.T) {
 		t.Errorf("ficou %v presa na espera depois de o contexto morrer", passou)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// sobrecarga do outro lado
+// ---------------------------------------------------------------------------
+
+// iaQueFalhaAntes recusa as `quantas` primeiras chamadas com `status`, e aceita
+// a seguinte. Conta quantas vezes foi procurada.
+func iaQueFalhaAntes(t *testing.T, quantas int, status int, recado string, voltas *int) *IA {
+	t.Helper()
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*voltas++
+		w.Header().Set("Content-Type", "application/json")
+		if *voltas <= quantas {
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"error":{"message":"` + recado + `"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":
+			"{\"tipo\":\"nf\",\"numero\":\"1\",\"valor_total\":10,\"itens\":[]}"}]}}]}`))
+	}))
+	t.Cleanup(s.Close)
+	ia := NovaIA("chave-de-mentira")
+	ia.Base = s.URL
+	ia.Intervalo = 0
+	return ia
+}
+
+// SOBRECARGA NÃO É DEFEITO DA NOTA
+//
+//	Sem insistir, o robô queimava uma das três tentativas da nota e a mandava
+//	para o fim da fila, onde ela reencontraria a mesma sobrecarga. Três voltas
+//	depois ela ficava marcada como "falhou" — sem ter nada de errado.
+func TestInsisteQuandoAIAEstaSobrecarregada(t *testing.T) {
+	var voltas int
+	ia := iaQueFalhaAntes(t, 2, http.StatusServiceUnavailable,
+		"This model is currently experiencing high demand.", &voltas)
+
+	if _, err := ia.Ler(context.Background(), "texto"); err != nil {
+		t.Fatalf("desistiu de uma sobrecarga passageira: %v", err)
+	}
+	if voltas != 3 {
+		t.Errorf("bateu %d vezes na porta, esperava 3 (duas recusas e o acerto)", voltas)
+	}
+}
+
+func TestInsisteTambemNoLimitePorMinuto(t *testing.T) {
+	var voltas int
+	ia := iaQueFalhaAntes(t, 1, http.StatusTooManyRequests, "Resource exhausted", &voltas)
+	if _, err := ia.Ler(context.Background(), "texto"); err != nil {
+		t.Fatalf("desistiu de um 429, que é exatamente o caso de esperar: %v", err)
+	}
+}
+
+// RECUSA DE VERDADE NÃO MELHORA COM INSISTÊNCIA
+//
+//	Modelo que não existe, arquivo que não serve: repetir só gastaria cota para
+//	ouvir o mesmo "não". Foi o caso do gemini-2.5-flash aposentado.
+func TestNaoInsisteQuandoARecusaEDefinitiva(t *testing.T) {
+	var voltas int
+	ia := iaQueFalhaAntes(t, 2, http.StatusBadRequest,
+		"This model is no longer available to new users.", &voltas)
+
+	if _, err := ia.Ler(context.Background(), "texto"); err == nil {
+		t.Fatal("insistiu até dar certo numa recusa que nunca ia mudar")
+	}
+	if voltas != 1 {
+		t.Errorf("bateu %d vezes numa porta que respondeu 'não existe' — esperava 1", voltas)
+	}
+}
+
+// E se a sobrecarga não passar, ela vira erro — com o recado original.
+func TestDesisteDepoisDasTentativas(t *testing.T) {
+	var voltas int
+	ia := iaQueFalhaAntes(t, 99, http.StatusServiceUnavailable, "high demand", &voltas)
+	if _, err := ia.Ler(context.Background(), "texto"); err == nil {
+		t.Fatal("a sobrecarga não passou e mesmo assim deu certo")
+	}
+	if voltas != TentativasNaSobrecarga {
+		t.Errorf("insistiu %d vezes, e o teto é %d", voltas, TentativasNaSobrecarga)
+	}
+}

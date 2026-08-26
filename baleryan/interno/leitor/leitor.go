@@ -159,6 +159,15 @@ func Tickets(texto string) []int {
 		if fim < len(texto) && ehDigito(texto[fim]) {
 			continue
 		}
+		// CEP NÃO É TICKET, MESMO SEM A PALAVRA "CEP" NA FRENTE
+		//   "60455-100" tem cinco dígitos, uma fronteira de palavra no hífen, e
+		//   passa por tudo acima. A caixa de observação do DAV às vezes recebe o
+		//   endereço de entrega digitado pelo operador, e foi o que apareceu em
+		//   26/08/2026. Cinco dígitos seguidos de hífen e três dígitos é CEP.
+		if fim+3 < len(texto) && texto[fim] == '-' &&
+			ehDigito(texto[fim+1]) && ehDigito(texto[fim+2]) && ehDigito(texto[fim+3]) {
+			continue
+		}
 		n, err := strconv.Atoi(texto[inicio:fim])
 		if err != nil || n < 10000 || visto[n] {
 			continue
@@ -272,6 +281,21 @@ func (l *Leitura) Arrumar() {
 	}
 	l.Numero = NumeroLimpo(l.Numero)
 	l.DAV = NumeroLimpo(l.DAV)
+
+	// NO DAV, O NÚMERO DO DAV É O NÚMERO DA NOTA
+	//
+	//	O leitor por regex preenchia os dois campos; a IA preenche `dav_numero` e
+	//	deixa `numero` vazio quando quer — em 26/08/2026, três DAVs de quatro
+	//	saíram sem número.
+	//
+	//	Isso não é cosmético. O DAV não tem chave de acesso, então a identidade
+	//	dele para efeito de duplicidade é o par NÚMERO e valor. Sem número, a
+	//	trava não tem o que comparar e, por desenho, não acusa ninguém — ela
+	//	ficou inerte exatamente para a família de documento em que as repetições
+	//	acontecem.
+	if l.Numero == "" && l.DAV != "" {
+		l.Numero = l.DAV
+	}
 	l.Serie = NumeroLimpo(l.Serie)
 	l.ChaveAcesso = SoDigitos(l.ChaveAcesso)
 	l.EmitenteCNPJ = SoDigitos(l.EmitenteCNPJ)
@@ -308,6 +332,17 @@ var rotulosDeObservacao = []string{
 	"informacoes complementares",
 	"informacoes adicionais",
 	"dados adicionais",
+	// O QUE FALTAVA, E QUANTO CUSTOU
+	//   O DAV do SysPDV chama a caixa de "Dados Complementares". Não estava
+	//   nesta lista, e no dia 26/08/2026 TODOS os DAVs lidos pela IA perderam o
+	//   ticket por causa disso — inclusive um com "TICKET-131372-ANTONIO
+	//   SALES-AMAURI" escrito na caixa certa, por extenso.
+	//
+	//   Lista fechada protege de ticket inventado, mas só vale se estiver
+	//   completa: rótulo legítimo faltando não gera erro, gera trabalho manual
+	//   silencioso — que é a forma mais cara de estar errado, porque ninguém
+	//   reclama dela.
+	"dados complementares",
 	"informacoes do fisco", // aparece em DANFE de alguns emissores
 	"observacao",
 	"observacoes",
