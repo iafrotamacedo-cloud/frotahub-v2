@@ -14,10 +14,18 @@
 /* Sem fundo, sem moldura, sem canto arredondado: quem é escuro agora é a casca
    inteira (`.lay.escura`, em escuro.css). O módulo só se organiza por dentro.
    O único retângulo claro da tela é a tabela. */
+/* A FOLGA É UMA SÓ, E TEM NOME
+ *
+ *   O dono especificou 0,5 mm entre as caixas e até os limites da tela, em
+ *   proporção de A4. Antes cada distância era um número solto — 8, 12, 14, 76 —
+ *   e mudar o conjunto exigia caçar todos. Agora é uma linha.
+ *
+ *   O `clamp` é o "auto ajuste": acompanha a altura da janela e para de crescer
+ *   antes de virar espaço morto numa tela grande. */
 .orc-painel, .orc-tela {
   display: flex; flex-direction: column; min-height: 0; flex: 1;
 }
-.orc-painel { gap: 14px; }
+.orc-painel { gap: var(--folga); }
 
 /* ---------- barra de topo (escura) ---------- */
 
@@ -30,7 +38,7 @@
 }
 .orc-barra-titulo { font-weight: 650; color: var(--d-txt); font-size: 13px; }
 .orc-barra-dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.orc-topo { margin-bottom: 8px; }
+.orc-topo { margin-bottom: var(--folga); }
 .orc-pulso {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--ok); box-shadow: 0 0 0 3px rgba(63, 164, 106, .16);
@@ -52,8 +60,8 @@
      antes de deixar a lista sem espaço.                                      */
 
 .orc-insercao {
-  margin-top: clamp(18px, 6vh, 76px);   /* 2 cm quando a tela permite */
-  min-height: 104px;
+  margin-top: var(--folga);
+  min-height: 92px;
   flex: 0 1 151px;                      /* 4 cm de vontade, e cede se faltar */
   border-radius: var(--r-l);
   border: 1px dashed var(--d-line2);
@@ -106,7 +114,7 @@
      a lista sumir por baixo da dobra. O espaço da lista se ganha ACIMA dela,
      afrouxando a caixa de inserção — é lá que estavam os 227 px travados. */
 .orc-lista {
-  margin-top: 8px; flex: 1 1 auto; min-height: 0;
+  margin-top: var(--folga); flex: 1 1 auto; min-height: 0;
   display: flex; flex-direction: column;
   border-radius: var(--r-l); background: var(--card); border: 1px solid var(--line);
   overflow: hidden;
@@ -300,15 +308,22 @@
 
 /* ---------- correções ---------- */
 
-.orc-abas { display: flex; gap: 10px; margin-top: 14px; }
+.orc-abas { display: flex; gap: var(--folga); margin-top: var(--folga); flex: 0 0 auto; }
+/* 0,8 CM DE ALTURA — CARTÃO VIROU ABA
+ *
+ *   Os contadores eram cartões de 95 px com o número em corpo 22. Eles servem
+ *   para ESCOLHER a frente; depois de escolhida, cada pixel deles é altura que
+ *   falta para a lista — e para a nota, quando ela abre. Como aba, o número
+ *   continua à vista e a troca de frente continua a um clique. */
 .orc-aba {
-  flex: 1; display: flex; flex-direction: column; gap: 4px;
-  padding: 12px 14px; cursor: pointer; text-align: left;
+  flex: 1; display: flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 10px; cursor: pointer; text-align: left;
   border-radius: var(--r-m); border: 1px solid var(--d-line);
   background: var(--d-card); color: var(--d-txt2); font: inherit;
+  white-space: nowrap; overflow: hidden;
 }
-.orc-aba b { font-size: 22px; line-height: 1; color: var(--d-mut); font-variant-numeric: tabular-nums; }
-.orc-aba span { font-size: 12px; }
+.orc-aba b { font-size: 13px; line-height: 1; color: var(--d-mut); font-variant-numeric: tabular-nums; }
+.orc-aba span { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
 .orc-aba.ligada { border-color: var(--red-lift); background: var(--d-card2); }
 .orc-aba.ligada b { color: var(--red-lift); }
 
@@ -361,7 +376,7 @@
      hidden` por cima, o texto saía cortado ao meio em vez de transbordar.
      `flex: 0 0 auto` diz que ele tem o tamanho do que carrega, e ponto. */
 .orc-resumo {
-  margin-top: 12px; flex: 0 0 auto; border-radius: var(--r-m);
+  margin-top: var(--folga); flex: 0 0 auto; border-radius: var(--r-m);
   border: 1px solid var(--line); background: var(--card); overflow: hidden;
 }
 .orc-resumo .cab {
@@ -589,11 +604,20 @@
 
 /* O papel. `min-height` porque uma nota pequena numa tela grande deixaria a
  * caixa espremida contra a barra, e o zoom do PDF encolhe junto. */
+/* O PAPEL TOMA O QUE SOBRA — E O QUE SOBRA É QUASE TUDO
+ *
+ *   Antes: `min-height: 60vh` no quadro e `height: 78vh` no documento. O PDF
+ *   tinha altura FIXA, maior que o espaço disponível, e a diferença virava uma
+ *   segunda rolagem por fora. Com as quatro faixas de casca em cima, o pé da
+ *   nota simplesmente não era alcançável — foi a queixa de 26/08/2026.
+ *
+ *   Agora o quadro estica até o fim da coluna e o documento ocupa o quadro. Uma
+ *   rolagem só, a do próprio PDF, que é a que a pessoa espera. */
 .visor-papel {
-  flex: 1; min-height: 60vh; overflow: auto;
-  background: var(--line-2); padding: 12px 16px 20px;
+  flex: 1 1 auto; min-height: 0; overflow: auto;
+  background: var(--line-2); padding: var(--folga);
 }
-.visor-papel iframe { width: 100%; height: 78vh; border: 0; background: #fff; border-radius: 8px; }
+.visor-papel iframe { width: 100%; height: 100%; border: 0; background: #fff; border-radius: 8px; }
 .visor-papel img { display: block; max-width: 100%; margin: 0 auto; border-radius: 8px; background: #fff; }
 
 /* ---------- a barra de atualizar / reprocessar ---------- */
@@ -697,7 +721,7 @@
 .orc-ficha-direita { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 
 .orc-visor-doc {
-  margin-top: 12px; flex: 1 1 auto; min-height: 0;
+  margin-top: var(--folga); flex: 1 1 auto; min-height: 0;
   border-radius: var(--r-l); border: 1px solid var(--d-line); background: var(--d-card);
   overflow: hidden; display: flex;
 }

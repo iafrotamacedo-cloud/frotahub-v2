@@ -68,7 +68,11 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding-bottom: 22px;
+  /* ATÉ OS LIMITES DA TELA
+     A casca clara respira 24 px de cada lado. Nas telas escuras a caixa branca
+     da lista é o conteúdo — e sobra branco de menos, não de mais. A mesma folga
+     das caixas entre si vale para a borda. */
+  padding: var(--folga) var(--folga) var(--folga);
 }
 
 .lay.escura .top {

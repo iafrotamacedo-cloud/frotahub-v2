@@ -10,6 +10,7 @@ import { arvoreVisivel, type ItemMenu } from './menu/arvore'
 import { useNavegacao } from './menu/navegacao'
 import { Icone, Seta, Menu } from './componentes/Icone'
 import { Marca } from './componentes/Marca'
+import { ProvedorDeFoco, useFocado } from './componentes/Foco'
 import { Login } from './telas/Login'
 import { Inicio } from './telas/Inicio'
 import { EmBreve } from './telas/EmBreve'
@@ -24,7 +25,18 @@ import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { useExpiracao } from './sessao/inatividade'
 
+// A CASCA MORA DENTRO DO PROVEDOR
+//   `useFocado` só funciona abaixo de `ProvedorDeFoco`. Envolver aqui, e não em
+//   `main.tsx`, mantém o mecanismo perto de quem o usa.
 export default function App() {
+  return (
+    <ProvedorDeFoco>
+      <Casca />
+    </ProvedorDeFoco>
+  )
+}
+
+function Casca() {
   const { carregando, perfil, entrar, sair } = useSessao()
 
   // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
@@ -106,6 +118,11 @@ export default function App() {
     setAbertos(a => (a.includes(titulo) ? a.filter(t => t !== titulo) : [...a, titulo]))
   }
 
+  // A NOTA ABERTA PARA CORREÇÃO PEDE A TELA
+  //   Quando alguém pede foco, a faixa de cima sai inteira — migalha e título.
+  //   Ela volta sozinha ao fechar a nota, porque o pedido morre com o visor.
+  const focado = useFocado()
+
   function alternarNav() {
     const aberta = !navAberta
     setNavAberta(aberta)
@@ -113,7 +130,8 @@ export default function App() {
   }
 
   return (
-    <div className={'lay' + (recolhida ? ' recolhida' : '') + (ehEscura ? ' escura' : '')}>
+    <div className={'lay' + (recolhida ? ' recolhida' : '') + (ehEscura ? ' escura' : '')
+      + (focado ? ' focada' : '')}>
       <div className="sd-back" onClick={alternarNav} />
 
       {/* O puxador vive FORA da barra: recolhida, a barra some, e ele precisa
@@ -200,7 +218,7 @@ export default function App() {
       </aside>
 
       <div className="main">
-        <header className="top">
+        {!focado && <header className="top">
           <button className="burger" onClick={alternarNav} type="button" aria-label="Abrir menu">
             <Menu />
           </button>
@@ -259,7 +277,7 @@ export default function App() {
               <div className="titulo">{atual ? atual.t : 'Início'}</div>
             )}
           </div>
-        </header>
+        </header>}
 
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura
             confortável atrapalha mais do que ajuda. */}

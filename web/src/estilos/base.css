@@ -1,6 +1,20 @@
 /* rev 2 — a casca: barra lateral fixa + área de trabalho */
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* A FOLGA É UMA SÓ, E TEM NOME
+ *
+ *   O dono especificou 0,5 mm entre as caixas e até os limites da tela, em
+ *   proporção de A4. Antes cada distância era um número solto — 8, 12, 14, 76 —
+ *   e mudar o conjunto exigia caçar todos. Agora é uma linha.
+ *
+ *   O `clamp` é o "auto ajuste": acompanha a altura da janela e para de crescer
+ *   antes de virar espaço morto numa tela grande.
+ *
+ *   Mora AQUI, e não no css do módulo, porque `escuro.css` também a usa — e uma
+ *   variável definida num arquivo que talvez não carregue é uma regra que some
+ *   sem avisar. */
+:root{--folga:clamp(3px,0.5vh,6px)}
+
 html,body,#raiz{margin:0;height:100%}
 body{
   font-family:var(--f); background:var(--bg); color:var(--txt);

@@ -22,6 +22,7 @@
 //	Pôr "excluir" ao lado de "adicionar" seria convidar o dedo errado.
 import { useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
+import { usePedirFoco } from '../../componentes/Foco'
 import { Candidatos } from './Candidatos'
 import { emReais } from './tipos'
 import type { Conferencia } from './tipos'
@@ -47,6 +48,12 @@ export function VisorDaNota({
   modo: 'sem-ticket' | 'sem-associacao'
   acoes: Acoes
 }) {
+  // A NOTA PEDE A TELA INTEIRA
+  //   Quem está aqui precisa LER o papel. A migalha, o título e as abas de
+  //   contagem custavam um terço da altura e o pé da nota ficava fora do
+  //   alcance. Elas voltam sozinhas quando este visor sai.
+  usePedirFoco()
+
   const [url, setUrl] = useState('')
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
@@ -208,7 +215,11 @@ export function VisorDaNota({
       <div className="visor-papel">
         {!url ? <p className="orc-vazio">abrindo a nota…</p>
           : ehPDF
-            ? <iframe src={url} title={nome} />
+            // SEM A BARRA DE MINIATURAS DO NAVEGADOR
+            //   `navpanes=0` tira a coluna de páginas à esquerda e `toolbar=0`
+            //   a régua de cima. Numa nota de uma página elas só comem largura
+            //   — e a largura aqui é onde os valores estão.
+            ? <iframe src={url + '#toolbar=0&navpanes=0&view=FitH'} title={nome} />
             : <img src={url} alt={nome} />}
       </div>
     </div>

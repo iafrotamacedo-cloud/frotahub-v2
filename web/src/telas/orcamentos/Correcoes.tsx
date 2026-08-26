@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { useFocado } from '../../componentes/Foco'
 import { BarraDeVolta } from './Arquivos'
 import { VisorDaNota, type Acoes } from './VisorDaNota'
 import { ConfirmarComSenha } from './ConfirmarComSenha'
@@ -33,6 +34,10 @@ const FRENTES = [
 export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => void }) {
   const [dados, setDados] = useState<Dados | null>(null)
   const [qual, setQual] = useState(frente ?? 'sem-ticket')
+  // COM A NOTA ABERTA, A CASCA DESTA TELA SAI TAMBÉM
+  //   Abas de contagem e cabeçalho da lista são para ESCOLHER o que tratar.
+  //   Depois de escolher, eles só ocupam a altura de que o papel precisa.
+  const focado = useFocado()
   const [erro, setErro] = useState('')
 
 
@@ -62,7 +67,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
     <div className="orc-tela">
       <BarraDeVolta voltar={voltar} titulo="Correções" />
 
-      <div className="orc-abas">
+      {!focado && <div className="orc-abas">
         {FRENTES.map(f => (
           <button
             key={f.chave}
@@ -74,15 +79,20 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
             <span>{f.titulo}</span>
           </button>
         ))}
-      </div>
+      </div>}
 
       {erro && <p className="erro">{erro}</p>}
       {!dados ? <Carregando /> : (
-        <div className="orc-lista">
-          <div className="orc-lista-cab">
-            <h2>{FRENTES.find(f => f.chave === qual)?.titulo}</h2>
-            <em>{FRENTES.find(f => f.chave === qual)?.desc}</em>
-          </div>
+        <div className={focado ? 'orc-tela' : 'orc-lista'}>
+          {/* O cabeçalho da lista explica QUAL fila é esta. Com a nota aberta a
+              pergunta já foi respondida — e ele vira mais uma faixa entre a
+              pessoa e o papel. */}
+          {!focado && (
+            <div className="orc-lista-cab">
+              <h2>{FRENTES.find(f => f.chave === qual)?.titulo}</h2>
+              <em>{FRENTES.find(f => f.chave === qual)?.desc}</em>
+            </div>
+          )}
 
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
