@@ -9,7 +9,10 @@
 // mexer em cinco lugares e torcer. Aqui cada uma existe uma vez (CORE-06).
 package regras
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ---------------------------------------------------------------------------
 // os parâmetros que o banco fornece
@@ -247,4 +250,188 @@ func MesmaNota(chaveA, numeroA string, valorA Dinheiro, chaveB, numeroB string, 
 		return true
 	}
 	return numeroA == "" && numeroB == "" && valorA == valorB && valorA > 0
+}
+
+// ---------------------------------------------------------------------------
+// o desconto do fornecedor
+// ---------------------------------------------------------------------------
+
+// O PROBLEMA, COMO ELE APARECEU
+//
+//	`NF 9160`, de 26/08/2026: cinco itens somando R$ 514,60, e a nota dizendo
+//	R$ 463,14. A diferença é exatamente 10% — desconto do fornecedor, não erro
+//	de leitura.
+//
+//	Até aqui o sistema marcava a margem em cima dos ITENS. Ou seja: cobrava 20%
+//	sobre R$ 514,60, um custo que a empresa não teve. E do outro lado, uma nota
+//	cujo bruto passa do teto seria recusada mesmo quando o que se pagou por ela
+//	cabia folgado.
+//
+// A LINHA DOS R$ 500 NÃO É UM NÚMERO ESCOLHIDO
+//
+//	Ela é o teto dividido pela margem: 600 / 1,20 = 500. É o maior custo que
+//	ainda cabe no teto depois de marcado. Por isso ela é CALCULADA e não
+//	escrita — no dia em que o teto ou a margem mudar, ela muda junto, sozinha.
+//	Escrever 500 aqui seria plantar um número que envelhece em silêncio.
+
+// DecisaoDoCusto é o que a regra do desconto responde.
+type DecisaoDoCusto string
+
+const (
+	// A nota cabe inteira: o custo é o valor cheio dela.
+	CustoCheio DecisaoDoCusto = "cheio"
+	// O bruto passa da base máxima, mas o que se pagou cabe. O custo é
+	// aparado para a base máxima e o orçamento fecha no teto exato.
+	// É este o caso que ganha o carimbo "ajustada por conta do teto".
+	CustoNoTeto DecisaoDoCusto = "no_teto"
+	// Nem com o desconto a nota cabe. Não gera orçamento.
+	CustoBloqueado DecisaoDoCusto = "bloqueado"
+)
+
+// Custo é a resposta completa da regra do desconto.
+//
+// Os três valores ficam visíveis de propósito: seis meses depois, alguém
+// precisa conseguir ver que a nota valia R$ 700, que se pagou R$ 450, e que o
+// orçamento saiu por R$ 600 porque era o teto — sem ter que reconstruir a
+// conta de cabeça.
+type Custo struct {
+	Decisao DecisaoDoCusto
+	// Base é o custo que vai virar orçamento, ANTES da margem.
+	Base Dinheiro
+	// Cheio é a soma dos itens, como estão na nota.
+	Cheio Dinheiro
+	// ComDesconto é o que a nota diz que se pagou.
+	ComDesconto Dinheiro
+	// BaseMaxima é a linha que valia na hora da decisão. Gravada junto, pelo
+	// mesmo motivo que o teto é: mudar o parâmetro não pode reescrever o
+	// passado.
+	BaseMaxima Dinheiro
+}
+
+// Ajustada diz se a nota foi aparada — é o que acende o carimbo interno.
+func (c Custo) Ajustada() bool { return c.Decisao == CustoNoTeto }
+
+// Bloqueada diz se a nota não gera orçamento nenhum.
+func (c Custo) Bloqueada() bool { return c.Decisao == CustoBloqueado }
+
+// Desconto é quanto o fornecedor abateu. Zero quando não houve.
+func (c Custo) Desconto() Dinheiro {
+	if c.Cheio <= c.ComDesconto {
+		return 0
+	}
+	return c.Cheio - c.ComDesconto
+}
+
+// BaseMaxima é o maior custo que ainda cabe no teto depois da margem.
+//
+// Com teto de R$ 600 e margem de 20%, dá R$ 500 — o número que o dono nomeou.
+// Ele sai da conta, e não de uma constante, para que teto e margem continuem
+// sendo os únicos parâmetros que alguém precisa mexer.
+func BaseMaxima(p Parametros) Dinheiro {
+	if p.Teto <= 0 {
+		return 0
+	}
+	return Dinheiro(dividirArredondando(int64(p.Teto)*10000, 10000+p.MargemBP))
+}
+
+// AplicarDesconto decide qual valor da nota vira o custo do orçamento.
+//
+// AS TRÊS FAIXAS, COMO O DONO AS DITOU EM 26/08/2026
+//
+//	valor cheio abaixo da base máxima      entra o valor cheio, orçamento normal
+//	cheio acima, mas o pago cabe           apara na base máxima -> orçamento no
+//	                                       teto, com carimbo interno
+//	nem o pago cabe                        bloqueia por limite de teto
+//
+// POR QUE O QUE DECIDE O BLOQUEIO É O VALOR PAGO
+//
+//	Porque é ele que diz o que a empresa realmente gastou. Uma nota de R$ 700
+//	comprada por R$ 450 é uma compra de R$ 450 — recusá-la pelo bruto seria
+//	recusar dinheiro que cabia no teto. Já uma compra de R$ 520 não cabe, tenha
+//	a nota o desconto que tiver: acima da base máxima não existe orçamento
+//	possível dentro do teto.
+func AplicarDesconto(cheio, comDesconto Dinheiro, p Parametros) Custo {
+	maxima := BaseMaxima(p)
+	c := Custo{
+		Decisao:     CustoCheio,
+		Base:        cheio,
+		Cheio:       cheio,
+		ComDesconto: comDesconto,
+		BaseMaxima:  maxima,
+	}
+
+	// NOTA SEM TOTAL LIDO NÃO É NOTA COM DESCONTO
+	//   Total zero quer dizer "não consegui ler", e tratar isso como compra de
+	//   graça faria a nota mais cara do mundo passar pela regra sorrindo. Sem
+	//   o número, vale o bruto — que é o pior caso, e o pior caso é o seguro.
+	if c.ComDesconto <= 0 {
+		c.ComDesconto = cheio
+	}
+
+	// Teto desligado: passa tudo, e quem configurou sabe disso. Mesma decisão
+	// que `AplicarTeto` toma, pelo mesmo motivo.
+	if p.Teto <= 0 {
+		return c
+	}
+	// Nota sem valor não vira orçamento. Não é bloqueio por teto — é ausência
+	// de nota — mas o destino é o mesmo: pessoa olhando.
+	if cheio <= 0 {
+		c.Decisao = CustoBloqueado
+		c.Base = 0
+		return c
+	}
+
+	if c.ComDesconto > maxima {
+		c.Decisao = CustoBloqueado
+		c.Base = 0
+		return c
+	}
+	if cheio > maxima {
+		c.Decisao = CustoNoTeto
+		c.Base = maxima
+	}
+	return c
+}
+
+// ---------------------------------------------------------------------------
+// a nota inteira, quando ela se divide
+// ---------------------------------------------------------------------------
+
+// NotaPodeRodar aplica o tudo-ou-nada do rateio.
+//
+// UMA NOTA RATEADA É UMA DECISÃO SÓ
+//
+//	Ela vira vários orçamentos, um por ticket, e o teto vale para cada um
+//	separadamente — R$ 600 por ticket, não R$ 600 pela nota. Mas se UM dos
+//	pedaços não passa, a nota inteira para.
+//
+//	Não é preciosismo. Gerar quatro dos cinco orçamentos deixaria a nota
+//	metade-lançada: o material do quinto ticket já foi comprado e entregue, e
+//	não há onde cobrá-lo. Quem fosse tratar o caso teria que desfazer os quatro
+//	primeiros para poder refazer a divisão — e desfazer orçamento lançado é
+//	trabalho no Trílogo, na planilha e no faturamento.
+//
+//	Meia nota processada é pior que nenhuma. Esta é a regra que o dono deu em
+//	26/08/2026: "caso algum dos orçamentos da nota esbarrar na regra, a nota não
+//	é processada, ganha flag e vai para tratamento".
+//
+// A FOLGA DOS 5% NÃO É ESBARRAR
+//
+//	Passar do teto dentro da folga é caso previsto: o valor é aparado para o
+//	teto exato e o orçamento roda normalmente, com carimbo. O que para a nota é
+//	o que vai para APROVAÇÃO — aquilo que nem aparando cabe.
+func NotaPodeRodar(c Custo, vereditos []Veredito) (bool, string) {
+	if c.Bloqueada() {
+		return false, fmt.Sprintf(
+			"bloqueada por limite de teto: a nota custou %s, e o máximo que cabe é %s",
+			c.ComDesconto.Reais(), c.BaseMaxima.Reais())
+	}
+	for _, v := range vereditos {
+		if v.Decisao == Aprovacao {
+			return false, fmt.Sprintf(
+				"bloqueada por limite de teto: um dos orçamentos ficaria em %s num ticket que já tem %s, e o teto é %s",
+				v.ValorOriginal.Reais(), v.JaNoTicket.Reais(), v.Teto.Reais())
+		}
+	}
+	return true, ""
 }
