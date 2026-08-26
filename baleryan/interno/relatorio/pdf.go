@@ -261,6 +261,12 @@ func escapar(txt string) string {
 			b.WriteString(`\)`)
 		case '…':
 			b.WriteString(`\205`) // reticências, em WinAnsi
+		case '•':
+			b.WriteString(`\225`) // marcador de lista
+		case '°', 'º':
+			b.WriteString(`\260`)
+		case '“', '”':
+			b.WriteString(`\223`)
 		case '—', '–':
 			b.WriteString(`\226`)
 		default:
