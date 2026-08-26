@@ -680,6 +680,18 @@ func (m *Modulo) itensDo(ctx context.Context, documentoID string) (itensLidos, e
 		})
 	}
 
+	// A ENTREGA VOLTA AO DIREITO ANTES DE SAIR DAQUI
+	//
+	//	O fornecedor escreve a entrega como 12 × R$ 1,00, porque o preço dela
+	//	depende do aplicativo na hora e ele padronizou o unitário. No documento do
+	//	cliente isso vira "12 unidades de serviço de entrega", que não é frase que
+	//	alguém assine sem perguntar. Uma entrega, custando o total.
+	//
+	//	Aqui, e não lá no desenho do PDF: a tela de tratamento lê as MESMAS linhas
+	//	que a geração usa, e as duas precisam ver o mesmo item (CORE-06). Feito só
+	//	no PDF, a tela mostraria 12 e o papel diria 1.
+	lidos.Linhas = regras.NormalizarEntrega(lidos.Linhas)
+
 	if len(recuperados) > 0 {
 		// O AVISO NÃO É DECORAÇÃO
 		//   O orçamento saiu com o valor certo, mas a leitura errou um campo.

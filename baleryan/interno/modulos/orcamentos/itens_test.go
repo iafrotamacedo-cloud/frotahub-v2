@@ -133,3 +133,36 @@ func TestLinhaCoerentePassaSemAviso(t *testing.T) {
 		t.Errorf("somou %s, esperava R$ 335,60", soma.Reais())
 	}
 }
+
+// A ENTREGA CHEGA INVERTIDA NA GERAÇÃO
+//
+//	A regra mora em `regras`, e é lá que ela é testada a fundo. Aqui a pergunta é
+//	outra: ela está LIGADA no caminho que a geração e a tela de tratamento usam?
+//	Uma regra certa que ninguém chama é uma regra que não existe.
+func TestAEntregaChegaInvertidaNaGeracao(t *testing.T) {
+	m := moduloComItens(t, []map[string]any{
+		{"ordem": 1, "descricao": "BUCHA PLÁSTICA 8MM", "unidade": "UN",
+			"quantidade": 10.0, "valor_unitario": 0.30, "valor_total": 3.00},
+		{"ordem": 2, "descricao": "SERVICO DE ENTREGA", "unidade": "UN",
+			"quantidade": 15.0, "valor_unitario": 1.0, "valor_total": 15.00},
+	})
+
+	lidos, err := m.itensDo(context.Background(), "d1")
+	if err != nil {
+		t.Fatalf("erro: %v", err)
+	}
+	entrega := lidos.Linhas[1]
+	if entrega.Quantidade != regras.QuantidadeDe(1) {
+		t.Errorf("a entrega saiu com quantidade %v, esperava 1", entrega.Quantidade.Float())
+	}
+	if entrega.Unitario != regras.PrecoDe(15) {
+		t.Errorf("a entrega saiu a %v, esperava 15,00", entrega.Unitario.Float())
+	}
+	// O material continua como veio: a regra é só da entrega.
+	if lidos.Linhas[0].Quantidade != regras.QuantidadeDe(10) {
+		t.Error("mexeu no material que não é entrega")
+	}
+	if soma := somaDasLinhas(lidos.Linhas); soma != regras.DinheiroDe(18.00) {
+		t.Errorf("a soma virou %s, esperava R$ 18,00", soma.Reais())
+	}
+}

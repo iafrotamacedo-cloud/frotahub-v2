@@ -323,7 +323,11 @@ func discriminacao(f *relatorio.Folha, y float64, itens []itemDoOrcamento) (floa
 	y = cabecalhoDaTabela(f, y, x)
 
 	var soma regras.Dinheiro
-	const altLinha = 18.0
+	const (
+		altLinha  = 18.0 // uma descrição de uma linha
+		altTexto  = 10.5 // o passo entre duas linhas de descrição
+		corpoItem = 7.5
+	)
 	// DUAS RÉGUAS DIFERENTES, E ISSO É DE PROPÓSITO
 	//
 	//	A linha de item quebra a página quando não cabe MAIS UMA LINHA. O rabo do
@@ -336,23 +340,39 @@ func discriminacao(f *relatorio.Folha, y float64, itens []itemDoOrcamento) (floa
 	const pePagina = margemDoc + 24.0
 
 	for i, it := range itens {
-		if y-altLinha < pePagina {
+		// A DESCRIÇÃO QUEBRA; ELA NÃO É CORTADA
+		//   Estes nomes carregam o código do produto no fim — "TP 02 PVC 2P
+		//   JUNTOS ENC 1 /2-3/4 BR TPG-02 (E018010132)". Cortar com reticências
+		//   joga fora justamente a parte que identifica a peça, e quem confere o
+		//   orçamento contra a nota fica sem o que comparar.
+		partes := quebrar(f, it.Descricao, x[2]-x[1]-16, corpoItem)
+		alt := altLinha
+		if len(partes) > 1 {
+			alt = float64(len(partes))*altTexto + 7.5
+		}
+
+		if y-alt < pePagina {
 			f.Pagina()
 			y = relatorio.AlturaRetrato - margemDoc
 			y = cabecalhoDaTabela(f, y, x)
 		}
 		if i%2 == 1 {
-			f.Caixa(margemDoc, y-altLinha, larguraDoc, altLinha, relatorio.CorFundo)
+			f.Caixa(margemDoc, y-alt, larguraDoc, alt, relatorio.CorFundo)
 		}
 		soma += regras.DinheiroDe(it.Total)
 
-		f.Texto(x[0]+8, y-12, 7.5, false, relatorio.CorMuda, fmt.Sprint(it.Ordem))
-		f.TextoCortado(x[1]+8, y-12, 7.5, x[2]-x[1]-16, false, relatorio.CorTexto, it.Descricao)
-		f.Direita(x[3]-8, y-12, 7.5, false, relatorio.CorTexto, emQuantidade(it.Quantidade))
-		f.Direita(x[4]-8, y-12, 7.5, false, relatorio.CorTexto, valorDe(it.Unidade))
-		f.Direita(x[5]-8, y-12, 7.5, false, relatorio.CorTexto, "R$ "+regras.DinheiroDe(it.Cobrado).Reais())
-		f.Direita(x[6]-8, y-12, 7.5, false, relatorio.CorTexto, "R$ "+regras.DinheiroDe(it.Total).Reais())
-		y -= altLinha
+		// Os números ficam na PRIMEIRA linha da descrição, e não no meio do
+		// bloco: numa tabela, o olho lê a coluna de cima para baixo.
+		base := y - 12
+		f.Texto(x[0]+8, base, corpoItem, false, relatorio.CorMuda, fmt.Sprint(it.Ordem))
+		f.Direita(x[3]-8, base, corpoItem, false, relatorio.CorTexto, emQuantidade(it.Quantidade))
+		f.Direita(x[4]-8, base, corpoItem, false, relatorio.CorTexto, valorDe(it.Unidade))
+		f.Direita(x[5]-8, base, corpoItem, false, relatorio.CorTexto, "R$ "+regras.DinheiroDe(it.Cobrado).Reais())
+		f.Direita(x[6]-8, base, corpoItem, false, relatorio.CorTexto, "R$ "+regras.DinheiroDe(it.Total).Reais())
+		for j, parte := range partes {
+			f.Texto(x[1]+8, base-float64(j)*altTexto, corpoItem, false, relatorio.CorTexto, parte)
+		}
+		y -= alt
 	}
 
 	// O RABO DO DOCUMENTO NÃO SE PARTE
@@ -432,6 +452,54 @@ func centrar(f *relatorio.Folha, x1, x2, y float64, txt string) {
 func rodape(f *relatorio.Folha, emi *dadosDoEmitente) {
 	txt := emi.Razao + "  •  CNPJ " + emi.CNPJ
 	f.Texto(margemDoc+(larguraDoc-f.Medir(txt, 6.8))/2, margemDoc-6, 6.8, false, relatorio.CorClara, txt)
+}
+
+// quebrar reparte o texto em linhas que cabem na largura dada.
+//
+// Quebra no espaço; palavra que sozinha não cabe é cortada, porque a
+// alternativa é ela invadir a coluna do vizinho. Um teto de quatro linhas
+// impede que uma descrição doente empurre a tabela inteira para outra folha.
+func quebrar(f *relatorio.Folha, txt string, largura, tam float64) []string {
+	if largura <= 0 || f.Medir(txt, tam) <= largura {
+		return []string{txt}
+	}
+	const maximo = 4
+	var linhas []string
+	atual := ""
+	for _, palavra := range strings.Fields(txt) {
+		tentativa := palavra
+		if atual != "" {
+			tentativa = atual + " " + palavra
+		}
+		if f.Medir(tentativa, tam) <= largura {
+			atual = tentativa
+			continue
+		}
+		if atual != "" {
+			linhas = append(linhas, atual)
+			if len(linhas) == maximo-1 {
+				break
+			}
+		}
+		atual = palavra
+	}
+	linhas = append(linhas, atual)
+	// A última leva as reticências se ainda sobrou texto.
+	if u := len(linhas) - 1; f.Medir(linhas[u], tam) > largura {
+		linhas[u] = cortarNaLargura(f, linhas[u], largura, tam)
+	}
+	return linhas
+}
+
+func cortarNaLargura(f *relatorio.Folha, txt string, largura, tam float64) string {
+	r := []rune(txt)
+	for len(r) > 1 {
+		r = r[:len(r)-1]
+		if f.Medir(string(r)+"…", tam) <= largura {
+			return string(r) + "…"
+		}
+	}
+	return string(r)
 }
 
 // emQuantidade escreve 2,00 e 10,00 — duas casas sempre, como no documento que

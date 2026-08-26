@@ -36,9 +36,18 @@ func TestOlho(t *testing.T) {
 		MarcaB64: &b64,
 	}
 	tom := dadosDoTomador{Nome: "Mercadinhos São Luiz — Cocó", CNPJ: &cnpj, Endereco: &end, Cidade: &cid, UF: &uf}
-	cabeca := map[string]any{"ticket": 131088, "parte": 1, "loja": "Cocó", "criado_em": "2026-08-19T12:00:00Z"}
+	cabeca := map[string]any{"ticket": 130832, "parte": 1, "loja": "Cocó", "criado_em": "2026-08-19T12:00:00Z"}
+	// Os mesmos itens do orçamento 130832 do legado, com a linha de entrega —
+	// para comparar lado a lado, inclusive a inversão.
 	itens := []itemDoOrcamento{
-		{1, "LAMPADA TUBO LED T8 120CM 4000K 18W", &un, 2, 27.48, 54.96},
+		{1, "KLIN TOM 2P+T PB 20A RED S/PL BR (14017939)", &un, 4, 11.88, 47.52},
+		{2, "TP 02 PVC 2P JUNTOS ENC 1 /2-3/4 BR TPG-02 (E018010132)", &un, 4, 5.10, 20.40},
+		{3, "COND PVC 02 6 SAIDAS 1/2 , 3/4 BR LP6G-10 (E017210020)", &un, 4, 9.00, 36.00},
+		{4, "ADAPT PVC 02 3/4 BR APIG -15 (E020710015)", &un, 7, 2.28, 15.96},
+		{5, "PARAF MAD PHILIPS 4,8X50", &un, 10, 0.36, 3.60},
+		{6, "BUCHA PLÁSTICA 8MM", &un, 10, 0.30, 3.00},
+		// já invertida, como chega do `itensDo`: uma entrega, R$ 18,00
+		{7, "SERVICO DE ENTREGA", &un, 1, 18.00, 18.00},
 	}
 
 	pdf, err := desenharOrcamento(cabeca, itens, emi, tom)

@@ -146,3 +146,39 @@ func TestNotaCompridaVirouPagina(t *testing.T) {
 		t.Error("a segunda página não repetiu o cabeçalho da tabela")
 	}
 }
+
+// A DESCRIÇÃO LONGA QUEBRA — NÃO É CORTADA
+//
+//	Estes nomes carregam o código do produto no FIM: "TP 02 PVC 2P JUNTOS ENC 1
+//	/2-3/4 BR TPG-02 (E018010132)". Cortar com reticências joga fora justamente a
+//	parte que identifica a peça, e quem confere o orçamento contra a nota fica sem
+//	o que comparar.
+func TestDescricaoLongaQuebraEmVezDeSerCortada(t *testing.T) {
+	longa := "TP 02 PVC 2P JUNTOS ENC 1 /2-3/4 BR TPG-02 (E018010132)"
+	pdf, err := desenharOrcamento(cabecaDeTeste(),
+		[]itemDoOrcamento{umItem(longa, 4, 5.10, 20.40)},
+		emitenteDeTeste(), dadosDoTomador{Nome: "Loja"})
+	if err != nil {
+		t.Fatalf("erro: %v", err)
+	}
+	// O código do produto tem que estar no documento, em algum pedaço.
+	if !bytes.Contains(pdf, []byte("E018010132")) {
+		t.Error("o código do produto sumiu — a descrição foi cortada")
+	}
+}
+
+// A ENTREGA APARECE COMO UMA UNIDADE
+//
+//	A regra mora em `regras` e é aplicada no `itensDo`; aqui a pergunta é só se o
+//	documento mostra o resultado dela. Quem chega no PDF já vem invertido.
+func TestOrcamentoMostraAEntregaComoUmaUnidade(t *testing.T) {
+	pdf, err := desenharOrcamento(cabecaDeTeste(),
+		[]itemDoOrcamento{umItem("SERVICO DE ENTREGA", 1, 18.00, 18.00)},
+		emitenteDeTeste(), dadosDoTomador{Nome: "Loja"})
+	if err != nil {
+		t.Fatalf("erro: %v", err)
+	}
+	if !bytes.Contains(pdf, []byte("1,00")) || !bytes.Contains(pdf, []byte("18,00")) {
+		t.Error("a entrega não saiu como 1 × R$ 18,00")
+	}
+}
