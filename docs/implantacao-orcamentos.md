@@ -62,6 +62,7 @@ O builder passa sempre, independente da matriz.
 | `TRILOGO_EMPRESA_CIVIL` | `72` | o lançamento da conta Civil é RECUSADO com a frase explicando |
 | `GEMINI_API_KEY` | a chave | a nota entra sem itens, pedindo conferência |
 | `GEMINI_MODELO` | `gemini-3.6-flash` | já é o padrão. Existe para trocar de modelo **sem subir código** no dia em que o Google aposentar o atual — como fez com o `gemini-2.5-flash` em 26/08/2026, sem aviso |
+| `GEMINI_INTERVALO` | `7` (segundos) | espaço mínimo entre duas leituras. O limite do plano é por MINUTO, e estourá-lo não devolve "espere", devolve erro. O número da sua conta está em `aistudio.google.com/rate-limit` |
 
 **As variáveis `DROPBOX_*` podem sair.** O Dropbox saiu do stack; o motor não as
 lê mais, e em produção elas deixaram de ser obrigatórias.

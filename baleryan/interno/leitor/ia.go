@@ -25,6 +25,7 @@ package leitor
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,6 +33,7 @@ import (
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -42,7 +44,13 @@ type IA struct {
 	Chave  string
 	Modelo string
 	Base   string // variável para o teste apontar para um servidor de mentira
-	http   *http.Client
+	// Intervalo mínimo entre duas chamadas. Zero desliga a espera — é o que os
+	// testes usam, e o que quem tem plano pago pode querer.
+	Intervalo time.Duration
+	http      *http.Client
+
+	mu     sync.Mutex
+	ultima time.Time
 }
 
 // ModeloPadrao é o que o dono escolheu: rápido e barato o bastante para rodar em
@@ -60,16 +68,63 @@ type IA struct {
 //	vai se repetir.
 const ModeloPadrao = "gemini-3.6-flash"
 
+// IntervaloPadrao é a distância mínima entre duas chamadas.
+//
+// POR QUE ESPERAR DE PROPÓSITO
+//
+//	O limite do plano gratuito é por MINUTO, e estourá-lo não devolve "espere":
+//	devolve erro. Uma fila de oitenta notas disparada sem pausa gasta a cota em
+//	segundos e as setenta restantes falham em sequência — cada uma com três
+//	tentativas, cada tentativa queimando mais cota. O robô se afogaria sozinho.
+//
+//	Sete segundos cabem em qualquer limite de dez por minuto com folga para o
+//	relógio do Actions não bater com o do Google. Oitenta notas viram dez
+//	minutos de corrida, o que é barato; oitenta notas falhando não têm preço
+//	porque não há leitura nenhuma no fim.
+//
+//	Quando o limite da conta for outro, `GEMINI_INTERVALO` muda isto sem subir
+//	código. O número real de cada conta está em aistudio.google.com/rate-limit.
+const IntervaloPadrao = 7 * time.Second
+
 func NovaIA(chave string) *IA {
 	return &IA{
-		Chave:  chave,
-		Modelo: ModeloPadrao,
-		Base:   "https://generativelanguage.googleapis.com",
-		http:   &http.Client{Timeout: 90 * time.Second},
+		Chave:     chave,
+		Modelo:    ModeloPadrao,
+		Base:      "https://generativelanguage.googleapis.com",
+		Intervalo: IntervaloPadrao,
+		http:      &http.Client{Timeout: 120 * time.Second},
 	}
 }
 
 func (ia *IA) Ligada() bool { return ia != nil && ia.Chave != "" }
+
+// esperarAVez segura a chamada até o intervalo mínimo ter passado.
+//
+// A espera é contada do FIM da chamada anterior, e não do começo: se a leitura
+// demorou nove segundos, a próxima sai na hora — o limite é de chamadas por
+// minuto, e nove segundos de espera já foram gastos esperando resposta.
+func (ia *IA) esperarAVez(ctx context.Context) error {
+	ia.mu.Lock()
+	espera := time.Duration(0)
+	if ia.Intervalo > 0 && !ia.ultima.IsZero() {
+		if passou := time.Since(ia.ultima); passou < ia.Intervalo {
+			espera = ia.Intervalo - passou
+		}
+	}
+	ia.mu.Unlock()
+
+	if espera <= 0 {
+		return nil
+	}
+	relogio := time.NewTimer(espera)
+	defer relogio.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-relogio.C:
+		return nil
+	}
+}
 
 const instrucao = `Você recebe o texto bruto, extraído por OCR, de uma nota fiscal
 brasileira (DANFE) ou de um DAV. O texto está torto: colunas desalinhadas,
@@ -105,7 +160,16 @@ type conteudo struct {
 }
 
 type parte struct {
-	Text string `json:"text"`
+	Text string `json:"text,omitempty"`
+	// O arquivo em si. `omitempty` não é enfeite: mandar `inlineData: null`
+	// junto com texto faz a API recusar o pedido inteiro.
+	Inline *dadosEmLinha `json:"inlineData,omitempty"`
+}
+
+// dadosEmLinha é o arquivo viajando dentro do JSON, em base64.
+type dadosEmLinha struct {
+	Tipo  string `json:"mimeType"`
+	Dados string `json:"data"`
 }
 
 type configIA struct {
@@ -124,18 +188,69 @@ type respostaIA struct {
 	} `json:"error"`
 }
 
-// Ler manda o texto do OCR e devolve a leitura estruturada.
+// TamanhoMaximoEmLinha é o teto do arquivo que viaja dentro do JSON.
+//
+// O base64 engorda os bytes em um terço, e a API recusa pedido acima de ~20 MB.
+// Quinze é o maior número redondo que ainda cabe depois de engordado. Acima
+// disso existe a API de arquivos, que é outro fluxo — e nenhuma nota deste
+// contrato chega perto, então a recusa aqui é aviso, não limitação.
+const TamanhoMaximoEmLinha = 15 << 20
+
+// Ler manda o TEXTO e devolve a leitura estruturada.
+//
+// Continua existindo para o PDF que já traz camada de texto: ali o texto é
+// exato, veio do arquivo, e transformá-lo em imagem para o modelo olhar seria
+// piorar de propósito o que já estava pronto.
 func (ia *IA) Ler(ctx context.Context, texto string) (*Leitura, error) {
+	if strings.TrimSpace(texto) == "" {
+		return nil, errors.New("não tenho texto para ler")
+	}
+	return ia.pedir(ctx, []parte{{Text: texto}})
+}
+
+// LerArquivo manda o DOCUMENTO e devolve a leitura estruturada.
+//
+// POR QUE O ARQUIVO, E NÃO O TEXTO DO OCR
+//
+//	Porque o OCR achata a página. Ele varre linha por linha e cospe uma fita de
+//	texto onde a coluna "quantidade" e a coluna "valor unitário" viraram
+//	vizinhas de fita — e o modelo, que só recebe a fita, tem que adivinhar onde
+//	uma acabou e a outra começou.
+//
+//	A prova disso está em `LEDS NF 19650`, de 26/08/2026: PDF escaneado, o
+//	Tesseract devolveu `LED SPOT SW EM QUAD SLEGI5A JO00R`, e a IA — lendo
+//	aquilo — gravou um item com quantidade zero e preço zero numa nota de
+//	R$ 112,60. Não foi erro do modelo: ele leu certo um texto que já estava
+//	errado.
+//
+//	O modelo enxerga a página. As colunas continuam colunas, e a decisão de qual
+//	número é quantidade e qual é preço deixa de ser adivinhação.
+func (ia *IA) LerArquivo(ctx context.Context, tipo string, bruto []byte) (*Leitura, error) {
+	if len(bruto) == 0 {
+		return nil, errors.New("não tenho arquivo para ler")
+	}
+	if len(bruto) > TamanhoMaximoEmLinha {
+		return nil, fmt.Errorf("o arquivo tem %d MB e o limite para mandar de uma vez é %d MB",
+			len(bruto)>>20, TamanhoMaximoEmLinha>>20)
+	}
+	return ia.pedir(ctx, []parte{
+		{Inline: &dadosEmLinha{Tipo: tipo, Dados: base64.StdEncoding.EncodeToString(bruto)}},
+		{Text: "Leia este documento e devolva o JSON no formato pedido."},
+	})
+}
+
+// pedir é a chamada em si — a única do arquivo que fala com a rede.
+func (ia *IA) pedir(ctx context.Context, partes []parte) (*Leitura, error) {
 	if !ia.Ligada() {
 		return nil, ErrSemIA
 	}
-	if strings.TrimSpace(texto) == "" {
-		return nil, errors.New("não tenho texto para ler")
+	if err := ia.esperarAVez(ctx); err != nil {
+		return nil, err
 	}
 
 	corpo, err := json.Marshal(pedidoIA{
 		System:   &conteudo{Parts: []parte{{Text: instrucao}}},
-		Contents: []conteudo{{Parts: []parte{{Text: texto}}}},
+		Contents: []conteudo{{Parts: partes}},
 		Config:   configIA{Temperature: 0, ResponseMimeType: "application/json"},
 	})
 	if err != nil {
@@ -151,6 +266,16 @@ func (ia *IA) Ler(ctx context.Context, texto string) (*Leitura, error) {
 	req.Header.Set("x-goog-api-key", ia.Chave)
 
 	resp, err := ia.http.Do(req)
+
+	// O RELÓGIO COMEÇA AQUI, DÊ NO QUE DER
+	//   A chamada que falhou também gastou cota — erro de limite gasta mais,
+	//   não menos. Marcar só o sucesso faria o robô responder a uma recusa
+	//   disparando de novo na hora, que é exatamente como se transforma um
+	//   estouro momentâneo num bloqueio do dia.
+	ia.mu.Lock()
+	ia.ultima = time.Now()
+	ia.mu.Unlock()
+
 	if err != nil {
 		return nil, fmt.Errorf("não consegui falar com a IA: %w", err)
 	}
@@ -173,9 +298,7 @@ func (ia *IA) Ler(ctx context.Context, texto string) (*Leitura, error) {
 		return nil, fmt.Errorf("a IA devolveu um JSON que não bate com o esperado: %w", err)
 	}
 	l.Camada = DaIA
-	l.ChaveAcesso = SoDigitos(l.ChaveAcesso)
-	l.EmitenteCNPJ = SoDigitos(l.EmitenteCNPJ)
-	l.DestinatarioCNPJ = SoDigitos(l.DestinatarioCNPJ)
+	l.Arrumar()
 	if l.Tipo == "" {
 		l.Tipo = "nf"
 	}

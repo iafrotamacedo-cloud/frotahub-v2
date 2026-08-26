@@ -26,6 +26,7 @@
 package leitor
 
 import (
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -197,4 +198,87 @@ func Decimal(s string) (float64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+// ---------------------------------------------------------------------------
+// arrumar o que foi lido
+// ---------------------------------------------------------------------------
+
+// NumeroLimpo devolve o número da nota como ELE É, e não como está impresso.
+//
+// A DANFE imprime `000.009.160`. O XML diz `9160`. A chave de acesso carrega
+// `000009160` no meio dela. São três grafias do MESMO número, e em 26/08/2026 a
+// IA devolveu a primeira — a mesma nota que o regex tinha gravado como `9160`
+// na leitura anterior.
+//
+// Isso não é feiura de tela: a trava de duplicidade compara número com número.
+// Duas grafias, duas notas, dois orçamentos, e a loja pagando o mesmo material
+// duas vezes sem nada apitar.
+//
+// SÓ MEXE NO QUE É SEGURO MEXER
+//
+//	Ponto e espaço são enfeite de impressão e saem. Letra, barra e hífen podem
+//	ser parte da identidade (`123/2026`, `NF-A1`), e nesses casos a função
+//	devolve o texto como veio: melhor um número feio que um número inventado.
+func NumeroLimpo(s string) string {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return ""
+	}
+	for i := 0; i < len(t); i++ {
+		if c := t[i]; !ehDigito(c) && c != '.' && c != ' ' {
+			return t
+		}
+	}
+	digitos := SoDigitos(t)
+	if digitos == "" {
+		return t
+	}
+	// Zero à esquerda é largura de campo, não valor. Mas um número que é só
+	// zeros continua sendo "0", e não vira string vazia.
+	if sem := strings.TrimLeft(digitos, "0"); sem != "" {
+		return sem
+	}
+	return "0"
+}
+
+// Arrumar põe a leitura na forma canônica, venha ela de onde vier.
+//
+// É chamada por TODAS as camadas — XML, regex, IA — de propósito. Normalizar em
+// cada uma seria a mesma regra escrita quatro vezes, e a quarta esqueceria de
+// um campo (CORE-06). Aqui a nota entra no banco de um jeito só.
+func (l *Leitura) Arrumar() {
+	if l == nil {
+		return
+	}
+	l.Numero = NumeroLimpo(l.Numero)
+	l.DAV = NumeroLimpo(l.DAV)
+	l.Serie = NumeroLimpo(l.Serie)
+	l.ChaveAcesso = SoDigitos(l.ChaveAcesso)
+	l.EmitenteCNPJ = SoDigitos(l.EmitenteCNPJ)
+	l.DestinatarioCNPJ = SoDigitos(l.DestinatarioCNPJ)
+}
+
+// MimeDoNome diz ao Gemini o que ele está recebendo.
+//
+// O modelo aceita imagem e PDF como entrada nativa, mas precisa do tipo
+// declarado: mandar um JPEG dizendo que é PNG faz a chamada voltar com erro de
+// conteúdo, não com erro de leitura — e o log culparia a nota.
+func MimeDoNome(nome string) string {
+	switch strings.ToLower(filepath.Ext(nome)) {
+	case ".pdf":
+		return "application/pdf"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
+	default:
+		// JPEG é o que a esmagadora maioria das fotos e capturas de tela é, e
+		// o que o WhatsApp entrega.
+		return "image/jpeg"
+	}
 }

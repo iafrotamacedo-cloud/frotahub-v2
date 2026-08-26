@@ -100,6 +100,7 @@ func DoDAV(texto string) *Leitura {
 	}
 
 	l.Itens = itensDoDAV(texto)
+	l.Arrumar()
 	l.Confianca = Conferir(l)
 	return l
 }
@@ -235,18 +236,34 @@ func ContaFecha(l *Leitura) bool {
 	if l == nil || l.ValorTotal <= 0 || len(l.Itens) == 0 {
 		return false
 	}
-	var soma float64
 	for _, it := range l.Itens {
+		// Item com total zero não é item barato: é item que não foi lido.
 		if it.Total <= 0 {
 			return false
 		}
-		soma += it.Total
 	}
-	dif := soma - l.ValorTotal
+	dif := SomaDosItens(l) - l.ValorTotal
 	if dif < 0 {
 		dif = -dif
 	}
 	return dif/l.ValorTotal <= 0.01
+}
+
+// SomaDosItens é quanto os itens dizem que a nota vale.
+//
+// Existe separada de `ContaFecha` porque o log precisa MOSTRAR a divergência,
+// não só saber que ela existe: "3 itens somam 514,60 e a nota diz 463,14" diz a
+// alguém o que conferir; "a conta não fecha" manda a pessoa abrir o PDF para
+// descobrir sozinha.
+func SomaDosItens(l *Leitura) float64 {
+	if l == nil {
+		return 0
+	}
+	var soma float64
+	for _, it := range l.Itens {
+		soma += it.Total
+	}
+	return soma
 }
 
 // TicketDaObservacao devolve o único ticket escrito na observação.

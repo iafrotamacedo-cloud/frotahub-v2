@@ -295,6 +295,8 @@ type Conta struct {
 type IA struct {
 	Chave  string
 	Modelo string
+	// Segundos entre duas chamadas. Zero = usar o padrão do pacote `leitor`.
+	IntervaloSegundos int
 }
 
 func (i IA) Ligada() bool { return i.Chave != "" }
@@ -380,13 +382,16 @@ func Carregar() (*Config, error) {
 	// A leitura da nota, camada 3. Sem chave, o motor continua subindo: as
 	// camadas 1 e 2 funcionam sozinhas, só com menos alcance.
 	ia := IA{
-		Chave:  l.segredo("GEMINI_API_KEY", false, 0, ""),
+		Chave: l.segredo("GEMINI_API_KEY", false, 0, ""),
 		// VAZIO DE PROPÓSITO
 		//   O nome do modelo é do pacote `leitor` (ModeloPadrao). Repetir o padrão
 		//   aqui criava DOIS lugares para trocar — e este vencia sempre, porque
 		//   nunca ficava vazio. Trocar só o outro não mudaria nada, e o erro
 		//   voltaria idêntico na rodada seguinte.
 		Modelo: l.texto("GEMINI_MODELO", "", false, ""),
+		// Segundos entre duas chamadas. Zero mantém o padrão do pacote; o
+		// número real da conta está em aistudio.google.com/rate-limit.
+		IntervaloSegundos: l.inteiro("GEMINI_INTERVALO", 0, 0, 600),
 	}
 
 	// QUEM ESTÁ LIGANDO

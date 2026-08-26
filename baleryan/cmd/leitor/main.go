@@ -11,37 +11,46 @@
 //	resultado. E é o mesmo código de leitura dos dois lados (CORE-06) — muda
 //	quem chama.
 //
-// A CASCATA, NA ORDEM — rev 2, depois de medir 35 documentos reais
+// A CASCATA, NA ORDEM — rev 3, depois da rodada de 26/08/2026
 //
-//  1. XML                    exato, de graça. Acaba a conversa.
-//  2. PDF com camada de texto  `pdftotext`. Também exato e de graça. Um em cada
-//     treze PDFs do contrato é digital; ler o texto dele
-//     por OCR seria estragar de propósito o que já vem
-//     pronto.
-//  3. imagem -> OTIMIZADOR -> OCR
-//  4. texto -> regex         DAV do SysPDV ou DANFE, conforme a família
-//  5. A CONTA FECHA?         se a soma dos itens bate com o total, ACABOU: a
-//     leitura se provou sozinha e a IA não é chamada.
-//  6. só se não fechar -> IA
+//  1. XML                     exato e de graça. Acaba a conversa.
+//  2. PDF com camada de texto  `pdftotext` + regex. Também exato e de graça.
+//     Se a soma dos itens fechar com o total, ACABOU.
+//  3. tudo o mais -> IA        o ARQUIVO vai inteiro para o modelo: imagem e
+//     PDF são entrada nativa dele.
+//  4. a conta fecha?           agora é CONFERÊNCIA, não atalho: valida o que a
+//     IA devolveu em vez de decidir se ela é chamada.
 //
-// POR QUE O OTIMIZADOR MUDA TUDO
+// POR QUE O OCR SAIU
 //
-//	As notas deste contrato não são fotos de papel: são CAPTURAS DE TELA do
-//	sistema do fornecedor. O documento ocupa uns 530x330 de uma tela de
-//	1440x900, então a letra tem 6 a 8 pixels — metade do que o Tesseract precisa.
-//	Medido nos mesmos 35 documentos, só ampliando e binarizando:
+//	Porque ele achatava a página. O Tesseract varre linha por linha e devolve
+//	uma fita de texto onde a coluna "quantidade" virou vizinha da coluna "valor
+//	unitário" — e a IA, recebendo só a fita, tinha que adivinhar onde uma
+//	acabava e a outra começava.
 //
-//	                     antes      depois
-//	  valor total        10/35      31/35
-//	  nº do documento    11/35      31/35
-//	  ticket             12/35      29/35
+//	`LEDS NF 19650`, de 26/08/2026, é a prova: PDF escaneado, o Tesseract
+//	devolveu `LED SPOT SW EM QUAD SLEGI5A JO00R`, e a IA gravou um item com
+//	quantidade zero e preço zero numa nota de R$ 112,60. O modelo leu certo um
+//	texto que já estava errado.
 //
-// POR QUE A TRAVA É ARITMÉTICA, E NÃO A CONFIANÇA DO OCR
+//	Na mesma rodada, as duas notas cujo PDF era digital — texto de verdade, sem
+//	OCR — saíram com 100% de confiança e a soma batendo no centavo. A diferença
+//	nunca foi o modelo: era o que chegava até ele.
 //
-//	Porque o Tesseract não sabe quando errou: ele devolve 19960 no lugar de
-//	18860 com a mesma cara de quem acertou. Já a soma dos itens contra o total
-//	é prova, não placar. Ela também é o que economiza a cota da IA — 500
-//	leituras por dia no plano atual.
+// O QUE ISSO CUSTA, DITO SEM ENFEITE
+//
+//	A trava aritmética deixa de POUPAR cota. Antes, o DAV que fechava a própria
+//	conta nem chamava a IA — três das sete notas de 26/08 foram lidas de graça.
+//	Agora toda nota que não seja XML nem PDF digital passa pelo modelo.
+//
+//	A trava continua existindo, e continua sendo a mesma prova: ela só mudou de
+//	posto. Era porteiro, virou conferente.
+//
+// SEM IA, IMAGEM NÃO É LIDA
+//
+//	Com o OCR fora, uma foto sem a chave configurada não tem leitor nenhum. O
+//	robô diz isso em voz alta e marca a nota, em vez de gravar uma leitura vazia
+//	que parece nota sem item (CORE-23).
 //
 // SE A IA NÃO ESTIVER CONFIGURADA, os passos 1 a 5 continuam valendo.
 package main
@@ -57,7 +66,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -89,6 +97,12 @@ func main() {
 	ia := leitor.NovaIA(cfg.IA.Chave)
 	if cfg.IA.Modelo != "" {
 		ia.Modelo = cfg.IA.Modelo
+	}
+	if cfg.IA.IntervaloSegundos > 0 {
+		ia.Intervalo = time.Duration(cfg.IA.IntervaloSegundos) * time.Second
+	}
+	if ia.Ligada() {
+		log.Printf("IA: modelo %s · uma leitura a cada %s", ia.Modelo, ia.Intervalo)
 	}
 
 	if err := conferirFerramentas(); err != nil {
@@ -141,15 +155,13 @@ func quemSou() string {
 
 // conferirFerramentas falha na largada, com a lista completa (P-09).
 func conferirFerramentas() error {
-	faltam := []string{}
-	for _, f := range []string{"pdftoppm", "pdftotext", "tesseract", "python3"} {
-		if _, err := exec.LookPath(f); err != nil {
-			faltam = append(faltam, f)
-		}
-	}
-	if len(faltam) > 0 {
-		return fmt.Errorf("%s (no Actions: apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por · pip install opencv-python-headless)",
-			strings.Join(faltam, ", "))
+	// SÓ O `pdftotext` CONTINUA SENDO PRECISO
+	//   Saíram o Tesseract, o `pdftoppm` e o otimizador em Python junto com o
+	//   OCR. Exigir ferramenta que o código não chama é fazer a corrida falhar
+	//   por um motivo que não existe — e são dois minutos de `apt-get` por
+	//   rodada, todas as rodadas.
+	if _, err := exec.LookPath("pdftotext"); err != nil {
+		return fmt.Errorf("pdftotext (no Actions: apt-get install -y poppler-utils)")
 	}
 	return nil
 }
@@ -254,57 +266,10 @@ func (l *Leitor) ler(ctx context.Context, t *Trabalho) error {
 		return err
 	}
 
-	var lida *leitor.Leitura
-
-	if strings.EqualFold(filepath.Ext(doc.Nome), ".xml") {
-		lida, err = leitor.DoXML(bruto)
-		if err != nil {
-			l.desistirOuRepetir(ctx, t, doc.ID, err)
-			return err
-		}
-	} else {
-		texto, via, err := extrair(ctx, doc.Nome, bruto)
-		if err != nil {
-			l.desistirOuRepetir(ctx, t, doc.ID, err)
-			return err
-		}
-		if strings.TrimSpace(texto) == "" {
-			err := fmt.Errorf("não consegui tirar texto nenhum deste arquivo (%s)", via)
-			l.desistirOuRepetir(ctx, t, doc.ID, err)
-			return err
-		}
-
-		// A FAMÍLIA DECIDE O LEITOR
-		//   São dois documentos diferentes com nomes parecidos: a DANFE tem
-		//   chave de acesso e "valor total da nota"; o DAV do SysPDV não tem
-		//   chave nenhuma e chama o total de "total a pagar". Um regex só para
-		//   os dois não lê nem um.
-		doRegex := leitor.DoDAV(texto)
-		if doRegex == nil {
-			doRegex = leitor.DoTexto(texto)
-		}
-		lida = doRegex
-		if via == viaTextoDoPDF {
-			// Não passou por OCR: o texto é o do arquivo.
-			lida.Camada = leitor.DoTextoCru
-		}
-
-		// A CONTA FECHOU: A LEITURA SE PROVOU SOZINHA
-		//   Chamar a IA aqui seria gastar uma das 500 leituras diárias para
-		//   confirmar o que a aritmética já confirmou.
-		if leitor.ContaFecha(lida) {
-			log.Printf("documento %s · %s · a conta fecha (%d itens somam %.2f) — sem IA",
-				doc.Nome, via, len(lida.Itens), lida.ValorTotal)
-		} else if l.ia.Ligada() {
-			// A IA pode falhar (cota, rede, JSON torto) sem derrubar a leitura:
-			// o que o regex achou continua valendo. Meia leitura registrada é
-			// melhor que nenhuma.
-			if daIA, err := l.ia.Ler(ctx, texto); err != nil {
-				log.Printf("documento %s: a IA falhou (%v) — fica só o que o regex achou", doc.ID, err)
-			} else {
-				lida = leitor.Melhor(doRegex, daIA)
-			}
-		}
+	lida, err := l.interpretar(ctx, doc, bruto)
+	if err != nil {
+		l.desistirOuRepetir(ctx, t, doc.ID, err)
+		return err
 	}
 
 	if err := l.gravar(ctx, doc, lida); err != nil {
@@ -315,6 +280,68 @@ func (l *Leitor) ler(ctx context.Context, t *Trabalho) error {
 	log.Printf("documento %s · %s · camada %s · confiança %.0f%% · %d itens",
 		doc.Nome, ouTraco(lida.Numero), lida.Camada, lida.Confianca*100, len(lida.Itens))
 	return nil
+}
+
+// interpretar escolhe quem lê o documento, e devolve a leitura.
+func (l *Leitor) interpretar(ctx context.Context, doc *documento, bruto []byte) (*leitor.Leitura, error) {
+	// CAMADA 1 — o XML é o documento fiscal, não uma interpretação dele.
+	if strings.EqualFold(filepath.Ext(doc.Nome), ".xml") {
+		return leitor.DoXML(bruto)
+	}
+
+	// CAMADA 2 — o PDF que já traz texto de verdade.
+	//
+	// Um em cada treze PDFs do contrato é digital. Ali o texto veio do arquivo,
+	// não de um palpite sobre a imagem dele: se a soma dos itens fechar com o
+	// total, a leitura se provou sozinha e não há o que a IA acrescente.
+	var doTexto *leitor.Leitura
+	if strings.EqualFold(filepath.Ext(doc.Nome), ".pdf") {
+		if texto := textoDePDF(ctx, bruto); len(strings.TrimSpace(texto)) >= minimoDeTextoDePDF {
+			if doTexto = leitor.DoDAV(texto); doTexto == nil {
+				doTexto = leitor.DoTexto(texto)
+			}
+			doTexto.Camada = leitor.DoTextoCru
+			if leitor.ContaFecha(doTexto) {
+				log.Printf("documento %s · texto do próprio PDF · a conta fecha (%d itens somam %.2f) — sem IA",
+					doc.Nome, len(doTexto.Itens), doTexto.ValorTotal)
+				return doTexto, nil
+			}
+		}
+	}
+
+	// CAMADA 3 — o arquivo inteiro vai para o modelo.
+	if !l.ia.Ligada() {
+		if doTexto != nil {
+			log.Printf("documento %s · sem GEMINI_API_KEY — fica só o que o regex achou no texto do PDF", doc.Nome)
+			return doTexto, nil
+		}
+		// Nem XML, nem texto no PDF, nem IA. Não existe leitor para este
+		// arquivo, e dizer isso é melhor que gravar uma nota vazia.
+		return nil, fmt.Errorf("este arquivo só pode ser lido pela IA, e não há GEMINI_API_KEY configurada")
+	}
+
+	daIA, err := l.ia.LerArquivo(ctx, leitor.MimeDoNome(doc.Nome), bruto)
+	if err != nil {
+		if doTexto != nil {
+			log.Printf("documento %s: a IA falhou (%v) — fica só o que o regex achou", doc.Nome, err)
+			return doTexto, nil
+		}
+		return nil, err
+	}
+
+	// A TRAVA ARITMÉTICA MUDOU DE POSTO
+	//   Antes ela decidia SE a IA seria chamada. Agora confere o que a IA
+	//   devolveu — a mesma prova, no outro lado da porta. Item inventado
+	//   continua não fechando com o total.
+	melhor := leitor.Melhor(doTexto, daIA)
+	if leitor.ContaFecha(melhor) {
+		log.Printf("documento %s · a conta fecha (%d itens somam %.2f)",
+			doc.Nome, len(melhor.Itens), melhor.ValorTotal)
+	} else {
+		log.Printf("documento %s · A CONTA NÃO FECHA: %d itens somam %.2f e a nota diz %.2f — confira",
+			doc.Nome, len(melhor.Itens), leitor.SomaDosItens(melhor), melhor.ValorTotal)
+	}
+	return melhor, nil
 }
 
 func ouTraco(s string) string {
@@ -561,107 +588,34 @@ func vazioVira(s, padrao string) string {
 //
 //	texto do PDF     exato e instantâneo. Quando existe, não há o que melhorar.
 //	imagem + OCR     tudo o mais. E aqui a imagem passa antes pelo otimizador.
-const (
-	viaTextoDoPDF = "texto-do-pdf"
-	viaOCR        = "ocr"
-)
+//
+// minimoDeTextoDePDF separa o PDF digital do escaneado.
+//
+// Não é zero de propósito: PDF de imagem às vezes traz um punhado de caracteres
+// de metadado ou uma marca d'água em texto, e tratá-lo como digital devolveria
+// três palavras no lugar da nota inteira.
+const minimoDeTextoDePDF = 400
 
-func extrair(ctx context.Context, nome string, bruto []byte) (string, string, error) {
+// textoDePDF devolve a camada de texto do arquivo, ou string vazia.
+//
+// Vazio aqui é resposta, não erro: PDF escaneado não TEM camada de texto, e é
+// exatamente o caso normal. Quem chama decide o que fazer com o silêncio.
+func textoDePDF(ctx context.Context, bruto []byte) string {
 	pasta, err := os.MkdirTemp("", "leitor")
 	if err != nil {
-		return "", "", err
+		return ""
 	}
 	defer os.RemoveAll(pasta)
 
-	ext := strings.ToLower(filepath.Ext(nome))
-	var imagens []string
-
-	if ext == ".pdf" {
-		entrada := filepath.Join(pasta, "nota.pdf")
-		if err := os.WriteFile(entrada, bruto, 0o600); err != nil {
-			return "", "", err
-		}
-		// PDF COM CAMADA DE TEXTO NÃO PRECISA DE OCR
-		//   Medido: 1 em 13 PDFs do contrato é digital. Mandá-lo para o OCR
-		//   seria trocar o texto exato do arquivo por um palpite sobre a
-		//   imagem dele.
-		if texto := textoDoPDF(ctx, entrada); len(strings.TrimSpace(texto)) >= minimoDeTextoDePDF {
-			return texto, viaTextoDoPDF, nil
-		}
-		saida := filepath.Join(pasta, "pagina")
-		cmd := exec.CommandContext(ctx, "pdftoppm", "-r", "300", "-png", entrada, saida)
-		if fora, err := cmd.CombinedOutput(); err != nil {
-			return "", "", fmt.Errorf("pdftoppm falhou: %s", strings.TrimSpace(string(fora)))
-		}
-		achadas, _ := filepath.Glob(saida + "*.png")
-		sort.Strings(achadas)
-		imagens = achadas
-	} else {
-		entrada := filepath.Join(pasta, "nota"+ext)
-		if err := os.WriteFile(entrada, bruto, 0o600); err != nil {
-			return "", "", err
-		}
-		imagens = []string{entrada}
+	caminho := filepath.Join(pasta, "nota.pdf")
+	if err := os.WriteFile(caminho, bruto, 0o600); err != nil {
+		return ""
 	}
-
-	if len(imagens) == 0 {
-		return "", "", fmt.Errorf("não consegui transformar o arquivo em imagem")
-	}
-
-	var tudo strings.Builder
-	for i, img := range imagens {
-		pronta := otimizar(ctx, pasta, i, img)
-		// `-l por` usa o dicionário em português: sem ele o Tesseract lê
-		// "MANUTENÇÃO" como "MANUTENCAG" e a observação vira ruído.
-		cmd := exec.CommandContext(ctx, "tesseract", pronta, "stdout", "-l", "por", "--psm", "6")
-		fora, err := cmd.Output()
-		if err != nil {
-			return "", "", fmt.Errorf("tesseract falhou em %s: %w", filepath.Base(img), err)
-		}
-		tudo.Write(fora)
-		tudo.WriteByte('\n')
-	}
-	return tudo.String(), viaOCR, nil
-}
-
-// minimoDeTextoDePDF separa o PDF digital do escaneado.
-//
-// Não é zero de propósito: PDF de imagem às vezes traz um punhado de
-// caracteres de metadado ou uma marca d'água em texto, e tratá-lo como digital
-// devolveria três palavras no lugar da nota inteira.
-const minimoDeTextoDePDF = 400
-
-func textoDoPDF(ctx context.Context, caminho string) string {
 	fora, err := exec.CommandContext(ctx, "pdftotext", caminho, "-").Output()
 	if err != nil {
 		return ""
 	}
 	return string(fora)
-}
-
-// otimizar chama o preparador de imagem. Se ele falhar, seguimos com a imagem
-// crua: leitura pior é melhor que nenhuma leitura.
-func otimizar(ctx context.Context, pasta string, i int, img string) string {
-	saida := filepath.Join(pasta, fmt.Sprintf("otim-%d.png", i))
-	cmd := exec.CommandContext(ctx, "python3", scriptDoOtimizador(), img, saida)
-	if fora, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("otimizador falhou em %s (%v) — sigo com a imagem crua: %s",
-			filepath.Base(img), err, strings.TrimSpace(string(fora)))
-		return img
-	}
-	if _, err := os.Stat(saida); err != nil {
-		return img
-	}
-	return saida
-}
-
-// scriptDoOtimizador acha o programa ao lado do código, sem depender de onde o
-// robô foi chamado.
-func scriptDoOtimizador() string {
-	if s := os.Getenv("OTIMIZADOR"); s != "" {
-		return s
-	}
-	return filepath.Join("ferramentas", "otimizar_imagem.py")
 }
 
 func encurtar(s string, n int) string {

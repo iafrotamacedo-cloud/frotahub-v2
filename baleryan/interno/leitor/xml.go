@@ -133,5 +133,8 @@ func DoXML(bruto []byte) (*Leitura, error) {
 			Total:      tot,
 		})
 	}
+	// A confiança do XML NÃO é recalculada: ela é 1 porque o documento é o
+	// original, não porque alguém somou os itens.
+	l.Arrumar()
 	return l, nil
 }

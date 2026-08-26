@@ -98,6 +98,7 @@ func DoTexto(texto string) *Leitura {
 	}
 
 	l.Observacao = Enxugar(texto)
+	l.Arrumar()
 	l.Confianca = confiancaDoTexto(l)
 	return l
 }
