@@ -144,8 +144,17 @@ type documentoPronto struct {
 
 // documentosProntos são as notas lidas, ainda não usadas e não ocultas.
 func (m *Modulo) documentosProntos(ctx context.Context, clienteID string, apenas []string, fila string) ([]documentoPronto, error) {
+	// A REPETIDA NÃO ENTRA, NEM QUANDO ALGUÉM A ESCOLHE NA MÃO
+	//
+	//	O filtro vale também para o caminho `apenas` — o "gerar estas aqui" da
+	//	tela. Uma trava que o usuário desliga clicando não é trava: é aviso. E o
+	//	custo de furá-la é a loja pagando o mesmo material duas vezes, que é a
+	//	espécie de erro que ninguém descobre olhando.
+	//
+	//	Quem quiser gerar mesmo assim tem o caminho certo: abrir a nota, ver as
+	//	duas lado a lado, e desfazer a marca com conhecimento de causa.
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(clienteID) +
-		"&oculto_em=is.null&status=eq.lido" +
+		"&oculto_em=is.null&status=eq.lido&duplicada_de=is.null" +
 		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emissao,observacao,valor_total" +
 		"&order=inserido_em"
 

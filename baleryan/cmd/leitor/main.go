@@ -74,6 +74,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitor"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
 )
 
 // Quantas voltas sem achar trabalho antes de encerrar. O Actions cobra por
@@ -276,6 +277,14 @@ func (l *Leitor) ler(ctx context.Context, t *Trabalho) error {
 		l.desistirOuRepetir(ctx, t, doc.ID, err)
 		return err
 	}
+
+	// A duplicidade só pode ser conferida DEPOIS de gravar: antes da leitura a
+	// nota não tem chave nem número, e é por eles que se compara. Falha aqui
+	// não derruba a leitura — a nota está lida e correta; o que falta é um
+	// aviso, e aviso que falta é melhor que leitura perdida.
+	if err := l.conferirRepetida(ctx, doc, lida); err != nil {
+		log.Printf("documento %s: não consegui conferir duplicidade (%v)", doc.Nome, err)
+	}
 	l.concluir(ctx, t.ID, "")
 	log.Printf("documento %s · %s · camada %s · confiança %.0f%% · %d itens",
 		doc.Nome, ouTraco(lida.Numero), lida.Camada, lida.Confianca*100, len(lida.Itens))
@@ -344,6 +353,101 @@ func (l *Leitor) interpretar(ctx context.Context, doc *documento, bruto []byte) 
 	return melhor, nil
 }
 
+// ---------------------------------------------------------------------------
+// a nota que já estava aqui
+// ---------------------------------------------------------------------------
+
+// candidata é uma nota já lida, para comparar com a que acabou de ser lida.
+type candidata struct {
+	ID       string  `json:"id"`
+	Nome     string  `json:"nome_arquivo"`
+	Numero   *string `json:"numero"`
+	Chave    *string `json:"chave_acesso"`
+	Valor    float64 `json:"valor_total"`
+	Inserido string  `json:"inserido_em"`
+}
+
+// conferirRepetida marca a nota repetida — ou marca a outra, se a repetida for
+// ela.
+//
+// POR QUE ESTA TRAVA NÃO É O sha256 DO ARQUIVO
+//
+//	O sha já protege contra subir o MESMO arquivo duas vezes, e isso cobre o
+//	dedo escorregando no Explorer. Não cobre o caso real: a mesma nota chegando
+//	como arquivo diferente — a foto e o PDF dela, dois escaneamentos, o mesmo
+//	PDF renomeado. Bytes diferentes, sha diferente, dois documentos, dois
+//	orçamentos, e a loja pagando o mesmo material duas vezes.
+//
+//	A identidade da NOTA é outra coisa: onde existe chave de acesso são 44
+//	dígitos únicos no Brasil inteiro, e onde não existe (DAV) é o par número e
+//	valor. É o que `regras.MesmaNota` decide — uma função que existia, tinha
+//	teste, e não era chamada de lugar nenhum.
+//
+// QUEM CHEGOU DEPOIS É A CÓPIA, E NÃO "QUEM EU ESTOU LENDO AGORA"
+//
+//	A ordem de leitura não é a ordem de chegada. Se as duas cópias entram na
+//	mesma rodada e a segunda é lida primeiro, ela não acha a primeira — que
+//	ainda não tem chave, porque ainda não foi lida. Depois a primeira é lida,
+//	acha a segunda, e se a regra fosse "marco a que estou lendo" ela marcaria a
+//	ORIGINAL como cópia da cópia.
+//
+//	Por isso a comparação é pela data de chegada, e a marca vai em quem chegou
+//	depois — seja ela a que está sendo lida ou a outra.
+func (l *Leitor) conferirRepetida(ctx context.Context, doc *documento, lida *leitor.Leitura) error {
+	chave := lida.ChaveAcesso
+	numero := lida.Numero
+	if chave == "" && numero == "" {
+		// Sem chave e sem número não há identidade para comparar. Deixar passar
+		// é o certo: inventar duplicidade a partir de valor igual acusaria de
+		// cópia duas notas de R$ 14,90 que não têm nada a ver uma com a outra.
+		return nil
+	}
+
+	filtro := "documentos?cliente_id=eq." + banco.Escapar(doc.Cliente) +
+		"&id=neq." + doc.ID + "&oculto_em=is.null&duplicada_de=is.null" +
+		"&select=id,nome_arquivo,numero,chave_acesso,valor_total,inserido_em"
+	if chave != "" {
+		filtro += "&chave_acesso=eq." + banco.Escapar(chave)
+	} else {
+		filtro += "&numero=eq." + banco.Escapar(numero)
+	}
+
+	var achadas []candidata
+	if err := l.bd.Buscar(ctx, filtro, &achadas); err != nil {
+		return err
+	}
+
+	valor := regras.DinheiroDe(lida.ValorTotal)
+	for _, c := range achadas {
+		if !regras.MesmaNota(chave, numero, valor,
+			texto(c.Chave), texto(c.Numero), regras.DinheiroDe(c.Valor)) {
+			continue
+		}
+		copia, original := doc.ID, c.ID
+		nomeCopia, nomeOriginal := doc.Nome, c.Nome
+		if c.Inserido > doc.Inserido {
+			// A outra chegou depois: a cópia é ela.
+			copia, original = c.ID, doc.ID
+			nomeCopia, nomeOriginal = c.Nome, doc.Nome
+		}
+		if err := l.bd.Atualizar(ctx, "documentos", "id=eq."+copia,
+			map[string]any{"duplicada_de": original}); err != nil {
+			return err
+		}
+		log.Printf("documento %s · é a MESMA nota que %s — marcada como repetida, não vai gerar orçamento",
+			nomeCopia, nomeOriginal)
+		return nil
+	}
+	return nil
+}
+
+func texto(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 func ouTraco(s string) string {
 	if s == "" {
 		return "sem número"
@@ -378,12 +482,16 @@ type documento struct {
 	// Qual das duas entradas: `orcamento` ou `rateio`. Muda quem manda no
 	// ticket — veja `amarraSozinho`.
 	Fila string `json:"fila"`
+	// Quando a nota chegou. É o desempate da duplicidade: quem chegou depois é
+	// a cópia.
+	Inserido string `json:"inserido_em"`
+	Cliente  string `json:"cliente_id"`
 }
 
 func (l *Leitor) documento(ctx context.Context, id string) (*documento, error) {
 	var d []documento
 	if err := l.bd.Buscar(ctx, "documentos?id=eq."+id+
-		"&select=id,nome_arquivo,arquivo_sha256,fila&limit=1", &d); err != nil {
+		"&select=id,nome_arquivo,arquivo_sha256,fila,inserido_em,cliente_id&limit=1", &d); err != nil {
 		return nil, err
 	}
 	if len(d) == 0 {

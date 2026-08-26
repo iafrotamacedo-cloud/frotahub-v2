@@ -91,6 +91,25 @@ type Leitura struct {
 	//	e uma pessoa digita o número.
 	ObservacaoDoCampo bool `json:"observacao_do_campo,omitempty"`
 
+	// ObservacaoRotulo é o TÍTULO impresso do campo de onde a observação saiu.
+	//
+	// O MODELO É TESTEMUNHA, NÃO JUIZ
+	//
+	//	A saída óbvia seria perguntar à IA "isto veio do campo de observação?" e
+	//	acreditar. É a pior pergunta possível: um modelo que responde "sim" por
+	//	educação transforma a trava do ticket numa formalidade, e ela passa a
+	//	carimbar como confiável exatamente o que ela existe para barrar. E o
+	//	estrago não apareceria — apareceria seis meses depois, como orçamento
+	//	cobrado da loja errada.
+	//
+	//	Então não perguntamos o julgamento; pedimos o FATO. Qual era o título
+	//	escrito na caixa? "INFORMAÇÕES COMPLEMENTARES" é uma resposta que dá
+	//	para conferir contra o documento. "sim" não é.
+	//
+	//	Quem decide se aquele título vale é `RotuloConfiavel`, aqui, em código
+	//	que não muda de opinião.
+	ObservacaoRotulo string `json:"observacao_rotulo,omitempty"`
+
 	Camada    Camada  `json:"camada"`
 	Confianca float64 `json:"confianca"`
 }
@@ -281,4 +300,68 @@ func MimeDoNome(nome string) string {
 		// o que o WhatsApp entrega.
 		return "image/jpeg"
 	}
+}
+
+// rotulosDeObservacao são os títulos de campo onde o fornecedor digita o
+// ticket. Vieram dos documentos reais do contrato, não de um padrão.
+var rotulosDeObservacao = []string{
+	"informacoes complementares",
+	"informacoes adicionais",
+	"dados adicionais",
+	"informacoes do fisco", // aparece em DANFE de alguns emissores
+	"observacao",
+	"observacoes",
+	"obs",
+}
+
+// RotuloConfiavel diz se aquele título é de um campo onde ticket pode morar.
+//
+// O CANHOTO NÃO É OBSERVAÇÃO
+//
+//	`NF 9160`, de 26/08/2026: a IA devolveu como observação o texto "RECEBEMOS
+//	DE RODRIGUES MATERIAL DE CONSTRUCOES LTDA-ME OS PRODUTOS/SERVIÇOS…". Isso é
+//	o canhoto do topo da DANFE — o pedaço que o entregador destaca e o cliente
+//	assina. Não é campo de observação, e um número achado ali não é ticket
+//	digitado por ninguém: é ruído com aparência de dado.
+//
+//	Lista fechada, e não "qualquer coisa que pareça": título desconhecido vira
+//	`false`, e a nota vai para a fila de quem digita o número à mão. Isso é
+//	trabalho. Ticket errado é dinheiro cobrado da loja errada, e ninguém
+//	descobre.
+func RotuloConfiavel(rotulo string) bool {
+	limpo := semAcento(strings.ToLower(strings.TrimSpace(rotulo)))
+	limpo = strings.Trim(limpo, " :.-")
+	if limpo == "" {
+		return false
+	}
+	for _, bom := range rotulosDeObservacao {
+		if limpo == bom || strings.HasPrefix(limpo, bom) {
+			return true
+		}
+	}
+	return false
+}
+
+// semAcento derruba os acentos para a comparação.
+//
+// "INFORMAÇÕES COMPLEMENTARES" e "INFORMACOES COMPLEMENTARES" são o mesmo
+// título, e qual dos dois chega depende do emissor da nota.
+func semAcento(s string) string {
+	trocas := map[rune]rune{
+		'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
+		'é': 'e', 'ê': 'e', 'è': 'e', 'ë': 'e',
+		'í': 'i', 'î': 'i', 'ì': 'i', 'ï': 'i',
+		'ó': 'o', 'ô': 'o', 'õ': 'o', 'ò': 'o', 'ö': 'o',
+		'ú': 'u', 'û': 'u', 'ù': 'u', 'ü': 'u',
+		'ç': 'c', 'ñ': 'n',
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if t, tem := trocas[r]; tem {
+			b.WriteRune(t)
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

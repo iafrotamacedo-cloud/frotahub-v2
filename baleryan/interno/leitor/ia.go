@@ -134,7 +134,8 @@ Devolva SOMENTE um JSON com esta forma exata:
 
 {"tipo":"nf|dav","numero":"","serie":"","chave_acesso":"","dav_numero":"",
  "emitente_cnpj":"","emitente_nome":"","destinatario_cnpj":"",
- "emissao":"AAAA-MM-DD","valor_total":0,"valor_frete":0,"observacao":"",
+ "emissao":"AAAA-MM-DD","valor_total":0,"valor_frete":0,
+ "observacao":"","observacao_rotulo":"",
  "itens":[{"codigo":"","descricao":"","unidade":"","quantidade":0,
            "valor_unitario":0,"valor_total":0}]}
 
@@ -142,8 +143,16 @@ Regras:
 - Campo que você não encontrar no texto: string vazia ou 0. NUNCA invente.
 - chave_acesso são exatamente 44 dígitos, sem espaços. Se não tiver certeza dos
   44, devolva string vazia.
-- observacao: copie as informações complementares/observações da nota como estão,
-  inteiras. É de lá que sai o número do ticket, então não resuma e não corte.
+- observacao: copie o conteúdo do campo de informações complementares / dados
+  adicionais / observação, INTEIRO e como está. É de lá que sai o número do
+  ticket, então não resuma, não corrija e não corte.
+- observacao_rotulo: copie o TÍTULO impresso da caixa de onde você tirou a
+  observação, exatamente como aparece no documento — por exemplo "INFORMAÇÕES
+  COMPLEMENTARES", "DADOS ADICIONAIS", "Observação:". Se o texto que você pôs
+  em observacao não veio de uma caixa com título, ou se você juntou pedaços
+  soltos da página, deixe observacao_rotulo VAZIO. Nunca invente um título e
+  nunca copie o título de outra caixa: um título errado aqui faz o sistema
+  confiar num número que ninguém digitou.
 - valor_total é o valor total DA NOTA.
 - Um item por linha de produto. quantidade x valor_unitario deve dar valor_total
   do item.
@@ -299,6 +308,9 @@ func (ia *IA) pedir(ctx context.Context, partes []parte) (*Leitura, error) {
 	}
 	l.Camada = DaIA
 	l.Arrumar()
+	// O modelo disse de qual caixa tirou o texto; quem decide se aquela caixa
+	// vale é o nosso código, não ele.
+	l.ObservacaoDoCampo = RotuloConfiavel(l.ObservacaoRotulo)
 	if l.Tipo == "" {
 		l.Tipo = "nf"
 	}
@@ -451,8 +463,18 @@ func Melhor(a, b *Leitura) *Leitura {
 	}
 	// A observação mais longa ganha: é de lá que sai o ticket, e cortar
 	// observação é perder ticket.
+	//
+	// A MARCA VIAJA COM O TEXTO
+	//
+	//	Trocar a observação e deixar `ObservacaoDoCampo` da outra leitura para
+	//	trás é o pior dos dois mundos: ou a procedência de um texto passa a
+	//	valer para outro — e um número solto da página vira ticket confiável —
+	//	ou uma observação legítima perde a marca e vira trabalho manual à toa.
+	//	As duas coisas andam juntas ou não andam.
 	if len(extra.Observacao) > len(saida.Observacao) {
 		saida.Observacao = extra.Observacao
+		saida.ObservacaoDoCampo = extra.ObservacaoDoCampo
+		saida.ObservacaoRotulo = extra.ObservacaoRotulo
 	}
 	saida.Confianca = Conferir(&saida)
 	return &saida
