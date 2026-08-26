@@ -10,9 +10,15 @@
 package orcamentos
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 )
 
 func filtroDaVista(vista string) string {
@@ -69,5 +75,31 @@ func TestABuscaValeEmQualquerVista(t *testing.T) {
 		if !strings.Contains(f, "19329") {
 			t.Errorf("vista %q perdeu a busca: %q", vista, f)
 		}
+	}
+}
+
+// O CONTADOR E A PRÉVIA CONTAM A MESMA COISA QUE A LISTA
+//
+//	A tela mostrava 31 e o botão dizia 77 — as 46 resolvidas entravam no número e
+//	não na lista. Contador em que não se confia é pior que contador nenhum: quem
+//	o vê passa a conferir tudo na mão.
+func TestAPreviaDoPainelNaoMostraOQueJaFoi(t *testing.T) {
+	var perguntou []string
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		perguntou = append(perguntou, r.URL.RawQuery)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(s.Close)
+	m := &Modulo{bd: banco.Novo(&config.Config{
+		Supabase: config.Supabase{URL: s.URL, ChaveServico: "chave-de-mentira"},
+	})}
+
+	m.previa(context.Background(), "documentos_lista?cliente_id=eq.x"+
+		"&fila=eq.orcamento&oculto_em=is.null&status=neq.usado"+
+		"&order=inserido_em.desc&limit=9&select=nome_arquivo")
+
+	if len(perguntou) != 1 || !strings.Contains(perguntou[0], "status=neq.usado") {
+		t.Errorf("a prévia não filtra o que já virou orçamento: %v", perguntou)
 	}
 }

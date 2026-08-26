@@ -589,6 +589,27 @@ function Leitura({ d }: { d: Documento }) {
     return <span className="orc-selo ruim" title={d.bloqueio_motivo}>bloqueada</span>
   }
 
+  // E O TICKET É IMPEDIMENTO TAMBÉM
+  //
+  //	"Leitura boa" numa nota que está parada há uma semana esperando ticket
+  //	responde a pergunta errada — a leitura foi ótima mesmo, e a nota continua
+  //	sem poder virar orçamento. Quem olha esta coluna numa FILA quer saber por
+  //	que aquela linha ainda está ali.
+  if (d.ticket_soltos?.length) {
+    return (
+      <span className="orc-selo aviso"
+        title={`o ticket ${d.ticket_soltos.join(', ')} não existe na nossa base de chamados`}>
+        ticket não achado
+      </span>
+    )
+  }
+  if (!d.tickets) {
+    return <span className="orc-selo aviso" title="nenhum ticket foi encontrado na nota">sem ticket</span>
+  }
+  if (d.aprovacao_pedida) {
+    return <span className="orc-selo espera" title="esperando o cliente aceitar o valor">aprovação pedida</span>
+  }
+
   const c = confiancaEmPalavras(d.leitura_camada, d.leitura_confianca)
   return <span className={'orc-selo ' + c.classe}>{c.texto}</span>
 }

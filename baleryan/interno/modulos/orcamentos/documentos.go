@@ -72,8 +72,12 @@ func (m *Modulo) painel(w http.ResponseWriter, r *http.Request) {
 	//	desenha as cinco barras de uma vez — três viagens a mais para pintar a
 	//	mesma tela é o motor do plano gratuito acordando três vezes.
 	linha["previa"] = map[string]any{
+		// A PRÉVIA MOSTRA O QUE ESPERA, NÃO O QUE JÁ FOI
+		//   Mesma razão do contador (migração 028): "últimos inseridos" cheio de
+		//   notas resolvidas esconde as que precisam de gente.
 		"notas": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
-			"&fila=eq.orcamento&oculto_em=is.null&order=inserido_em.desc&limit=9"+
+			"&fila=eq.orcamento&oculto_em=is.null&status=neq.usado"+
+			"&order=inserido_em.desc&limit=9"+
 			"&select=nome_arquivo,inserido_em,valor_total"),
 		"rateio": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
 			"&fila=eq.rateio&oculto_em=is.null&tickets=eq.0&order=inserido_em.desc&limit=9"+
