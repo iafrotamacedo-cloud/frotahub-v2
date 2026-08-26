@@ -113,6 +113,40 @@ func Total(q Quantidade, p Preco) Dinheiro {
 	return Dinheiro(dividirArredondando(produto, 1_000_000))
 }
 
+// PrecoQueFecha devolve o preço unitário que reproduz EXATAMENTE o total já
+// gravado da linha.
+//
+// POR QUE ISTO PRECISA EXISTIR
+//
+//	A leitura de uma nota devolve TRÊS números por item: quantidade, preço
+//	unitário e total da linha. Só dois deles se provam. O total da linha entra
+//	na soma que `leitor.ContaFecha` confere contra o total impresso da nota —
+//	errar um item ali derruba a leitura inteira. O preço unitário não entra em
+//	conferência nenhuma: ninguém nunca o confrontou com nada.
+//
+//	Em 26/08/2026 isso custou dinheiro de verdade. A DAV 19329 tinha um item de
+//	R$ 225,90 cujo unitário o OCR leu como zero. A conferência passou, porque a
+//	soma dos TOTAIS batia com a nota. Mas quem monta o orçamento recalculava a
+//	linha por quantidade × unitário, obteve 1 × R$ 0,00 = zero, e o item sumiu
+//	da conta sem uma palavra: a nota de R$ 490,80 virou orçamento de R$ 317,88.
+//
+//	A lição não é "conferir o unitário também". É que o total da linha é o
+//	número que se provou, e é dele que o unitário se recupera.
+//
+// Devolve `false` quando não há recuperação honesta: sem quantidade não se
+// divide, e um unitário que não reproduz o total de volta não serve para nada.
+func PrecoQueFecha(q Quantidade, total Dinheiro) (Preco, bool) {
+	if q <= 0 || total <= 0 {
+		return 0, false
+	}
+	// Total() divide o produto por 10^6; para desfazer, multiplica-se antes.
+	p := Preco(dividirArredondando(int64(total)*1_000_000, int64(q)))
+	if Total(q, p) != total {
+		return 0, false
+	}
+	return p, true
+}
+
 // dividirArredondando faz a divisão inteira arredondando meio PARA LONGE DO
 // ZERO, que é a mesma regra de `arredondar` — as duas precisam concordar, senão
 // o sistema teria dois arredondamentos de novo, que é exatamente o defeito que

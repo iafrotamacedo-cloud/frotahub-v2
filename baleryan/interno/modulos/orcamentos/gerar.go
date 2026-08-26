@@ -234,11 +234,20 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		return []saidaDaGeracao{base}
 	}
 
-	linhas, err := m.itensDo(ctx, d.ID)
-	if err != nil || len(linhas) == 0 {
+	lidos, err := m.itensDo(ctx, d.ID)
+	if err != nil || len(lidos.Linhas) == 0 {
 		base.Erro = "esta nota não tem itens lidos"
 		return []saidaDaGeracao{base}
 	}
+	if lidos.Bloqueio != "" {
+		if err := m.bd.Atualizar(ctx, "documentos", "id=eq."+d.ID,
+			map[string]any{"bloqueio_motivo": lidos.Bloqueio}); err != nil {
+			log.Printf("orcamentos: não consegui marcar o bloqueio de %s: %v", d.Nome, err)
+		}
+		base.Erro = lidos.Bloqueio
+		return []saidaDaGeracao{base}
+	}
+	linhas := lidos.Linhas
 
 	// DECIDIR A NOTA INTEIRA ANTES DE GRAVAR QUALQUER PEDAÇO
 	//
@@ -280,7 +289,7 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 			res.Erro = err.Error()
 		default:
 			res.Orcamento = id
-			res.Aviso = aviso
+			res.Aviso = juntarAvisos(lidos.Aviso, aviso)
 		}
 		saida = append(saida, res)
 	}
@@ -520,31 +529,107 @@ func (m *Modulo) ticketsDo(ctx context.Context, documentoID string) ([]ticketDoD
 	return t, err
 }
 
-func (m *Modulo) itensDo(ctx context.Context, documentoID string) ([]regras.LinhaDaNota, error) {
+// itensLidos é o que a nota gravou, já conferido linha a linha.
+//
+// A CONFERÊNCIA ACONTECE AQUI, NA FRONTEIRA
+//
+//	Daqui para dentro tudo é `regras.LinhaDaNota`, e lá a linha vale
+//	quantidade × unitário — uma conta só, num lugar só. Para isso valer, o que
+//	entra tem que ser coerente. Este é o último ponto em que ainda existem os
+//	três números do banco para comparar entre si.
+type itensLidos struct {
+	Linhas []regras.LinhaDaNota
+	// Bloqueio impede a geração: os números da linha não se reconciliam.
+	Bloqueio string
+	// Aviso gerou, mas alguém precisa saber: o unitário foi recuperado.
+	Aviso string
+}
+
+func (m *Modulo) itensDo(ctx context.Context, documentoID string) (itensLidos, error) {
 	var linhas []struct {
+		Ordem      int     `json:"ordem"`
 		Descricao  string  `json:"descricao"`
 		Unidade    *string `json:"unidade"`
 		Quantidade float64 `json:"quantidade"`
 		Unitario   float64 `json:"valor_unitario"`
+		Total      float64 `json:"valor_total"`
 	}
+	// O `valor_total` VAI NA BUSCA
+	//   Ele é o número que a leitura provou contra o total da nota. Buscar só
+	//   quantidade e unitário — como se fazia até 26/08/2026 — é jogar fora a
+	//   única linha conferida e recalculá-la a partir de um campo que ninguém
+	//   nunca conferiu.
 	if err := m.bd.Buscar(ctx, "documento_itens?documento_id=eq."+documentoID+
-		"&order=ordem&select=descricao,unidade,quantidade,valor_unitario", &linhas); err != nil {
-		return nil, err
+		"&order=ordem&select=ordem,descricao,unidade,quantidade,valor_unitario,valor_total",
+		&linhas); err != nil {
+		return itensLidos{}, err
 	}
-	saida := make([]regras.LinhaDaNota, 0, len(linhas))
+
+	lidos := itensLidos{Linhas: make([]regras.LinhaDaNota, 0, len(linhas))}
+	var recuperados []string
 	for _, l := range linhas {
 		un := ""
 		if l.Unidade != nil {
 			un = *l.Unidade
 		}
-		saida = append(saida, regras.LinhaDaNota{
+		q := regras.QuantidadeDe(l.Quantidade)
+		unitario := regras.PrecoDe(l.Unitario)
+		total := regras.DinheiroDe(l.Total)
+
+		if regras.Total(q, unitario) != total {
+			certo, deu := regras.PrecoQueFecha(q, total)
+			if !deu {
+				// SEM PALPITE
+				//   Três números que não se reconciliam e nenhum jeito de
+				//   recuperar o unitário. Escolher um deles aqui seria inventar
+				//   preço. A nota para e alguém olha o papel.
+				lidos.Bloqueio = fmt.Sprintf(
+					"o item %d (%s) foi lido com números que não fecham: %g × R$ %.2f não dá "+
+						"os R$ %.2f da linha. Confira o item na nota antes de gerar.",
+					l.Ordem, l.Descricao, l.Quantidade, l.Unitario, l.Total)
+				return lidos, nil
+			}
+			unitario = certo
+			recuperados = append(recuperados, strconv.Itoa(l.Ordem))
+		}
+
+		lidos.Linhas = append(lidos.Linhas, regras.LinhaDaNota{
 			Descricao:  l.Descricao,
 			Unidade:    un,
-			Quantidade: regras.QuantidadeDe(l.Quantidade),
-			Unitario:   regras.PrecoDe(l.Unitario),
+			Quantidade: q,
+			Unitario:   unitario,
 		})
 	}
-	return saida, nil
+
+	if len(recuperados) > 0 {
+		// O AVISO NÃO É DECORAÇÃO
+		//   O orçamento saiu com o valor certo, mas a leitura errou um campo.
+		//   Quem confere a nota precisa saber qual linha veio torta do papel.
+		lidos.Aviso = fmt.Sprintf(
+			"o preço unitário d%s ite%s %s foi recuperado do total da linha — a leitura não o trouxe",
+			plural(len(recuperados), "o", "os"), plural(len(recuperados), "m", "ns"),
+			strings.Join(recuperados, ", "))
+	}
+	return lidos, nil
+}
+
+// juntarAvisos não deixa um aviso apagar o outro: os dois falam de coisas
+// diferentes e quem lê precisa dos dois.
+func juntarAvisos(a, b string) string {
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	}
+	return a + " · " + b
+}
+
+func plural(n int, um, varios string) string {
+	if n == 1 {
+		return um
+	}
+	return varios
 }
 
 // criarOrcamento grava o orçamento, já com o teto decidido.

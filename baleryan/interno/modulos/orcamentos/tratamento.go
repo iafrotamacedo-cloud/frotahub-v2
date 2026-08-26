@@ -172,14 +172,23 @@ func (m *Modulo) conferirUm(ctx context.Context, p *seguranca.Principal, id stri
 		c.Motivos = []string{"esta nota não tem ticket"}
 		return c, nil
 	}
-	linhas, err := m.itensDo(ctx, d.ID)
+	lidos, err := m.itensDo(ctx, d.ID)
 	if err != nil {
 		return nil, err
 	}
-	if len(linhas) == 0 {
+	if len(lidos.Linhas) == 0 {
 		c.Motivos = []string{"esta nota não tem itens lidos"}
 		return c, nil
 	}
+	// A TELA DE TRATAMENTO MOSTRA O MOTIVO, NÃO UM ERRO DE SERVIDOR
+	//   Item que não fecha é coisa para a pessoa consertar, como as outras
+	//   recusas desta lista. Devolver 500 aqui esconderia justamente o que ela
+	//   veio ver.
+	if lidos.Bloqueio != "" {
+		c.Motivos = []string{lidos.Bloqueio}
+		return c, nil
+	}
+	linhas := lidos.Linhas
 
 	par := m.parametros(ctx, p.ClienteID)
 	partes, motivos, err := m.avaliarPartes(ctx, d, tickets, linhas, par)

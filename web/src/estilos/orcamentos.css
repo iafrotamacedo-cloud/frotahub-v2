@@ -42,12 +42,19 @@
 }
 .orc-voltar:hover { color: var(--d-txt); border-color: var(--red-lift); }
 
-/* ---------- barra de inserção: 2 cm abaixo do topo, 4 cm de altura ---------- */
+/* ---------- barra de inserção: 2 cm abaixo do topo, 4 cm de altura ----------
+
+   AS MEDIDAS SÃO O DESEJO, NÃO A LEI
+     2 cm e 4 cm é como esta caixa deve aparecer numa tela com folga. Travadas
+     em pixel, elas cobravam 227 px de altura de QUALQUER tela — e num notebook
+     sobravam duas linhas para a lista de arquivos, que é o que a pessoa veio
+     ver. Agora a margem acompanha a altura da janela e a caixa cede até 104 px
+     antes de deixar a lista sem espaço.                                      */
 
 .orc-insercao {
-  margin-top: 76px;            /* 2 cm */
-  height: 151px;               /* 4 cm */
-  flex: 0 0 151px;
+  margin-top: clamp(18px, 6vh, 76px);   /* 2 cm quando a tela permite */
+  min-height: 104px;
+  flex: 0 1 151px;                      /* 4 cm de vontade, e cede se faltar */
   border-radius: var(--r-l);
   border: 1px dashed var(--d-line2);
   background: linear-gradient(180deg, var(--d-card2), var(--d-card));
@@ -93,6 +100,11 @@
    que faz caber mais linha sem mexer em fonte nenhuma. O `margin-top` caiu de
    18 para 8 pelo mesmo motivo: cada pixel entre as barras é uma linha a menos
    de tabela. */
+/* A LISTA FICA COM O QUE SOBRAR — E TEM QUE SOBRAR
+     `min-height: 0` continua certo: a casca escura é uma coluna de altura fixa
+     com `overflow: hidden`, então um piso aqui não faria a página rolar, faria
+     a lista sumir por baixo da dobra. O espaço da lista se ganha ACIMA dela,
+     afrouxando a caixa de inserção — é lá que estavam os 227 px travados. */
 .orc-lista {
   margin-top: 8px; flex: 1 1 auto; min-height: 0;
   display: flex; flex-direction: column;
@@ -338,8 +350,14 @@
   margin: 12px 0 0; padding: 10px 14px; border-radius: var(--r-m);
   background: var(--ok-bg); color: var(--ok); font-size: 12.5px; font-weight: 500;
 }
+/* O RESUMO NÃO ENCOLHE
+     `.orc-tela` é uma coluna flex. A barra do topo e a caixa de inserção têm
+     altura travada, então o resumo era o único item que podia ceder — e o
+     flexbox espremia justamente ele quando faltava espaço. Com `overflow:
+     hidden` por cima, o texto saía cortado ao meio em vez de transbordar.
+     `flex: 0 0 auto` diz que ele tem o tamanho do que carrega, e ponto. */
 .orc-resumo {
-  margin-top: 12px; border-radius: var(--r-m);
+  margin-top: 12px; flex: 0 0 auto; border-radius: var(--r-m);
   border: 1px solid var(--line); background: var(--card); overflow: hidden;
 }
 .orc-resumo .cab {
