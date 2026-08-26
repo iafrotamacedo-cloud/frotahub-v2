@@ -18,6 +18,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -112,22 +113,7 @@ func (m *Modulo) listarDocumentos(w http.ResponseWriter, r *http.Request) {
 	pagina := umNumero(q.Get("pagina"), 1)
 	por := umDosPermitidos(q.Get("por"))
 
-	filtro := "documentos_lista?cliente_id=eq." + banco.Escapar(p.ClienteID) +
-		"&fila=eq." + banco.Escapar(fila)
-
-	// A área Hide é uma LISTA, não um limbo. Quem apagou por engano precisa
-	// conseguir ver o que apagou — senão "desfazer" só funciona nos dez segundos
-	// do aviso, e depois disso o arquivo virou fantasma.
-	if q.Get("ocultos") == "1" {
-		filtro += "&oculto_em=not.is.null&order=oculto_em.desc"
-	} else {
-		filtro += "&oculto_em=is.null&order=inserido_em.desc"
-	}
-	if busca := strings.TrimSpace(q.Get("busca")); busca != "" {
-		filtro += "&or=(nome_arquivo.ilike.*" + banco.Escapar(busca) +
-			"*,numero.ilike.*" + banco.Escapar(busca) +
-			"*,emitente_nome.ilike.*" + banco.Escapar(busca) + "*)"
-	}
+	filtro := filtroDosDocumentos(p.ClienteID, fila, q)
 
 	var linhas []map[string]any
 	total, err := m.bd.BuscarContando(r.Context(), filtro+"&select=*"+intervalo(pagina, por), &linhas)
@@ -136,6 +122,47 @@ func (m *Modulo) listarDocumentos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Responder(w, http.StatusOK, montarPagina(linhas, total, pagina, por))
+}
+
+// filtroDosDocumentos é o ÚNICO lugar onde a vista vira consulta.
+//
+//	Mesma disciplina de `filtroDaPlanilha`: se a montagem estivesse solta dentro
+//	do handler, ela só poderia ser conferida levantando um servidor inteiro — e
+//	condição que ninguém confere é condição que some numa edição distraída. O
+//	sintoma aqui seria mudo: a fila voltaria a mostrar tudo, e ninguém notaria
+//	até ela estar com mil linhas.
+func filtroDosDocumentos(clienteID, fila string, q url.Values) string {
+	filtro := "documentos_lista?cliente_id=eq." + banco.Escapar(clienteID) +
+		"&fila=eq." + banco.Escapar(fila)
+
+	// ESTA TELA É UMA FILA, NÃO UM ARQUIVO MORTO
+	//
+	//	A nota que já virou orçamento não tem mais nada a fazer aqui: ela está
+	//	resolvida, e o caminho para chegar nela passou a ser o orçamento, que
+	//	guarda o número dela. Deixá-la na lista faz a fila crescer para sempre —
+	//	em dois anos seriam milhares de linhas verdes escondendo as dez que
+	//	precisam de gente.
+	//
+	//	Ela não some do sistema: muda de vista. `?vista=processadas` mostra as
+	//	resolvidas, `?vista=fora` as tiradas da fila, e o padrão mostra o que
+	//	ainda dá trabalho.
+	switch q.Get("vista") {
+	case "fora":
+		// A área Hide é uma LISTA, não um limbo. Quem tirou por engano precisa
+		// conseguir ver o que tirou — senão "desfazer" só funciona nos dez
+		// segundos do aviso, e depois disso o arquivo virou fantasma.
+		filtro += "&oculto_em=not.is.null&order=oculto_em.desc"
+	case "processadas":
+		filtro += "&oculto_em=is.null&status=eq.usado&order=inserido_em.desc"
+	default:
+		filtro += "&oculto_em=is.null&status=neq.usado&order=inserido_em.desc"
+	}
+	if busca := strings.TrimSpace(q.Get("busca")); busca != "" {
+		filtro += "&or=(nome_arquivo.ilike.*" + banco.Escapar(busca) +
+			"*,numero.ilike.*" + banco.Escapar(busca) +
+			"*,emitente_nome.ilike.*" + banco.Escapar(busca) + "*)"
+	}
+	return filtro
 }
 
 func filaPedida(r *http.Request) string {

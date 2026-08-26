@@ -136,6 +136,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /orcamentos/ficha/{id}/aprovar", m.aprovar)
 	mux.HandleFunc("DELETE /orcamentos/ficha/{id}", m.apagarOrcamento)
 	mux.HandleFunc("POST /orcamentos/ficha/{id}/restaurar", m.restaurarOrcamento)
+	mux.HandleFunc("GET /orcamentos/ficha/{id}", m.fichaDoOrcamento)
 	mux.HandleFunc("GET /orcamentos/ficha/{id}/pdf", m.pdfDoOrcamento)
 
 	// 2.4 — as quatro frentes

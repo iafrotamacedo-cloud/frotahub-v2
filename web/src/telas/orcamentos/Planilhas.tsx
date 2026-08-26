@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
+import { FichaDoOrcamento } from './FichaDoOrcamento'
 import { emReais, emDataHora, contaPorExtenso, type Orcamento, type Pagina } from './tipos'
 
 export function Planilhas({ voltar }: { voltar: () => void }) {
@@ -29,6 +30,13 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
   const [ticket, setTicket] = useState('')
   const [erro, setErro] = useState('')
   const [abrindoExtracao, setAbrindoExtracao] = useState(false)
+
+  // A LINHA ABRE O ORÇAMENTO
+  //	A planilha responde "quanto" e "quando"; a ficha responde "o quê" — e leva
+  //	de volta ao papel que originou a linha. Guardar o id aqui, e não navegar
+  //	para outra rota, preserva o filtro: quem voltar cai na mesma página, com a
+  //	mesma busca (P-33).
+  const [aberto, setAberto] = useState<string | null>(null)
 
   const filtro = useCallback(() => {
     const q = new URLSearchParams({ tipo, pagina: String(numero), por: String(por) })
@@ -65,6 +73,10 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 
   const soLancados = tipo === 'lancados'
 
+
+  if (aberto) {
+    return <FichaDoOrcamento id={aberto} voltar={() => setAberto(null)} />
+  }
 
   return (
     <div className="orc-tela">
@@ -142,7 +154,8 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
                   <tr><td colSpan={soLancados ? 8 : 9} className="orc-vazio">Nada por aqui com este filtro.</td></tr>
                 )}
                 {pagina.linhas.map(o => (
-                  <tr key={o.id}>
+                  <tr key={o.id} className="orc-clicavel" onClick={() => setAberto(o.id)}
+                    title="abrir o orçamento">
                     <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span>
                       {o.loja && <span className="orc-detalhe">{o.loja}</span>}</td>
                     <td>{o.notas ?? '–'}</td>

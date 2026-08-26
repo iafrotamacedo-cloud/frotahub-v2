@@ -3,7 +3,7 @@
 // É UMA TELA SÓ, COM UMA CHAVE
 //
 //	As duas fazem exatamente a mesma coisa com o arquivo: inserir, listar, abrir,
-//	excluir e desfazer. A diferença é o que vem depois — na fila de rateio o
+//	tirar da fila e desfazer. A diferença é o que vem depois — na de rateio o
 //	usuário dita os tickets. Duas telas duplicariam a barra de inserção, a
 //	tabela, o aviso de exclusão e o desfazer, que são justamente as quatro
 //	partes onde um detalhe divergindo passa despercebido.
@@ -28,12 +28,36 @@ interface Props {
   voltar: () => void
 }
 
+type Vista = 'fila' | 'processadas' | 'fora'
+
+const tituloDaVista: Record<Vista, string> = {
+  fila:        'Arquivos na fila',
+  processadas: 'Já viraram orçamento',
+  fora:        'Fora da fila',
+}
+
+const vaziaDaVista: Record<Vista, string> = {
+  fila:        'Nada na fila. Tudo o que entrou já foi resolvido.',
+  processadas: 'Nenhuma nota virou orçamento ainda.',
+  fora:        'Nada foi tirado da fila por aqui.',
+}
+
 export function Arquivos({ fila, voltar }: Props) {
   const [pagina, setPagina] = useState<Pagina<Documento> | null>(null)
   const [numero, setNumero] = useState(1)
   const [por, setPor] = useState(100)
   const [busca, setBusca] = useState('')
-  const [ocultos, setOcultos] = useState(false)
+  // TRÊS VISTAS, NÃO UM INTERRUPTOR
+  //
+  //	Esta tela é uma FILA: o que aparece por padrão é o que ainda dá trabalho.
+  //	A nota que já virou orçamento está resolvida e sai daqui — o caminho para
+  //	ela passou a ser o orçamento, que guarda o número dela. Sem isso a lista
+  //	cresceria para sempre, e em dois anos seriam milhares de linhas verdes
+  //	escondendo as dez que precisam de gente.
+  //
+  //	Sair da vista não é sumir: as resolvidas e as tiradas da fila continuam a
+  //	um clique.
+  const [vista, setVista] = useState<Vista>('fila')
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
 
@@ -61,7 +85,7 @@ export function Arquivos({ fila, voltar }: Props) {
       const q = new URLSearchParams({
         fila, pagina: String(numero), por: String(por),
         ...(busca ? { busca } : {}),
-        ...(ocultos ? { ocultos: '1' } : {}),
+        ...(vista !== 'fila' ? { vista } : {}),
       })
       setPagina(await motor<Pagina<Documento>>('/orcamentos/documentos?' + q))
       setErro('')
@@ -70,17 +94,17 @@ export function Arquivos({ fila, voltar }: Props) {
     } finally {
       setOcupado(false)
     }
-  }, [fila, numero, por, busca, ocultos])
+  }, [fila, numero, por, busca, vista])
 
   useEffect(() => { void carregar() }, [carregar])
 
-  async function excluir(d: Documento) {
+  async function tirarDaFila(d: Documento) {
     try {
       await motor(`/orcamentos/documentos/${d.id}`, { metodo: 'DELETE' })
       setDesfazer({ id: d.id, nome: d.nome_arquivo })
       await carregar()
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não consegui excluir.')
+      setErro(e instanceof Error ? e.message : 'Não consegui tirar da fila.')
     }
   }
 
@@ -154,7 +178,7 @@ export function Arquivos({ fila, voltar }: Props) {
 
       <div className="orc-lista">
         <div className="orc-lista-cab">
-          <h2>{ocultos ? 'Arquivos excluídos' : 'Arquivos inseridos'}</h2>
+          <h2>{tituloDaVista[vista]}</h2>
           <em>{pagina ? `${pagina.total.toLocaleString('pt-BR')} no total` : '—'}</em>
 
           <input
@@ -163,13 +187,15 @@ export function Arquivos({ fila, voltar }: Props) {
             value={busca}
             onChange={e => { setNumero(1); setBusca(e.target.value) }}
           />
-          <button
-            type="button"
-            className={'orc-bt-fino' + (ocultos ? ' ligado' : '')}
-            onClick={() => { setNumero(1); setOcultos(!ocultos) }}
+          <select
+            className={'orc-bt-fino' + (vista !== 'fila' ? ' ligado' : '')}
+            value={vista}
+            onChange={e => { setNumero(1); setVista(e.target.value as Vista) }}
           >
-            {ocultos ? 'ver os ativos' : 'ver os excluídos'}
-          </button>
+            <option value="fila">na fila</option>
+            <option value="processadas">já viraram orçamento</option>
+            <option value="fora">fora da fila</option>
+          </select>
         </div>
 
         {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
@@ -196,7 +222,7 @@ export function Arquivos({ fila, voltar }: Props) {
               <tbody>
                 {pagina?.linhas.length === 0 && (
                   <tr><td colSpan={fila === 'rateio' ? 5 : 4} className="orc-vazio">
-                    {ocultos ? 'Nada foi excluído por aqui.' : 'Nenhum arquivo inserido ainda.'}
+                    {vaziaDaVista[vista]}
                   </td></tr>
                 )}
                 {pagina?.linhas.map(d => (
@@ -233,12 +259,16 @@ export function Arquivos({ fila, voltar }: Props) {
                     <td><Leitura d={d} /></td>
                     <td className="orc-acoes">
                       <button type="button" onClick={() => void abrirArquivo(d)}>ver</button>
-                      {fila === 'rateio' && !ocultos && (
+                      {fila === 'rateio' && vista === 'fila' && (
                         <button type="button" className="orc-mais" onClick={() => setAbrindo(d)} title="amarrar tickets">+</button>
                       )}
-                      {ocultos
-                        ? <button type="button" className="mut" onClick={() => void restaurar(d.id)}>restaurar</button>
-                        : <button type="button" className="mut" onClick={() => void excluir(d)}>excluir</button>}
+                      {/* Tirar da fila NÃO apaga: preenche `oculto_em`, e o arquivo
+                          continua inteiro no armazém. O nome antigo, "excluir",
+                          prometia uma destruição que nunca aconteceu — e assustava
+                          quem só queria limpar a lista. */}
+                      {vista === 'fora'
+                        ? <button type="button" className="mut" onClick={() => void restaurar(d.id)}>devolver à fila</button>
+                        : <button type="button" className="mut" onClick={() => void tirarDaFila(d)}>tirar da fila</button>}
                     </td>
                   </tr>
                 ))}
@@ -258,8 +288,8 @@ export function Arquivos({ fila, voltar }: Props) {
       {desfazer && (
         <div className="orc-desfaz" role="status">
           <div className="tx">
-            <b>Você excluiu o arquivo {desfazer.nome}</b>
-            <small>Nada é apagado do armazém. Dá para restaurar quando quiser.</small>
+            <b>{desfazer.nome} saiu da fila</b>
+            <small>Nada é apagado do armazém. Dá para devolver à fila quando quiser.</small>
           </div>
           <div className="bts">
             <button type="button" className="orc-bt" onClick={() => void restaurar(desfazer.id)}>Desfazer</button>

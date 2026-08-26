@@ -684,3 +684,26 @@
   padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line);
   border-radius: 7px; background: var(--bg);
 }
+
+/* ---------------------------------------------------------------------------
+   A ficha de um orçamento
+
+   A TELA É O DOCUMENTO
+     O corpo é o PDF que sai para o cliente, ocupando o que sobra da altura. A
+     barra fica presa em cima, com o caminho de volta ao papel — o botão que
+     motivou a tela.
+   --------------------------------------------------------------------------- */
+
+.orc-ficha-direita { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.orc-visor-doc {
+  margin-top: 12px; flex: 1 1 auto; min-height: 0;
+  border-radius: var(--r-l); border: 1px solid var(--d-line); background: var(--d-card);
+  overflow: hidden; display: flex;
+}
+.orc-visor-doc iframe { flex: 1; border: 0; width: 100%; height: 100%; }
+.orc-visor-doc .orc-vazio { margin: auto; }
+
+/* A linha que abre alguma coisa diz isso antes do clique. Cursor de mão e o
+   mesmo realce de passagem que a tabela já usa — sem inventar cor nova. */
+.orc-tabela tr.orc-clicavel { cursor: pointer; }

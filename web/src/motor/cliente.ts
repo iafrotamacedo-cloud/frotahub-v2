@@ -97,7 +97,14 @@ export function avisoDe(resposta: unknown): string | null {
  *   entregue ao navegador como um endereço temporário que vive na memória e
  *   morre em seguida.
  */
-export async function baixarDoMotor(caminho: string): Promise<void> {
+/**
+ * Pede um arquivo ao motor, com o cabeçalho de sessão.
+ *
+ * Existe separada porque BAIXAR e MOSTRAR compartilham tudo até aqui — a
+ * autenticação, o tratamento de erro, a frase que o motor devolve. Duas cópias
+ * disso um dia discordariam sobre o que é um erro.
+ */
+async function pedirArquivo(caminho: string): Promise<Response> {
   if (!BASE) {
     throw new ErroMotor(0, 'O endereço do motor não foi configurado nesta publicação (VITE_MOTOR_URL).')
   }
@@ -119,6 +126,11 @@ export async function baixarDoMotor(caminho: string): Promise<void> {
     try { msg = (JSON.parse(await resposta.text()) as { erro?: string }).erro || msg } catch { /* corpo não era JSON */ }
     throw new ErroMotor(resposta.status, msg)
   }
+  return resposta
+}
+
+export async function baixarDoMotor(caminho: string): Promise<void> {
+  const resposta = await pedirArquivo(caminho)
 
   const nome = nomeDoCabecalho(resposta.headers.get('Content-Disposition')) ?? 'extracao'
   const blob = await resposta.blob()
@@ -188,4 +200,26 @@ export async function enviarArquivos<T>(caminho: string, arquivos: File[]): Prom
     throw new ErroMotor(resposta.status, msg || 'Não consegui enviar os arquivos.', corpo)
   }
   return corpo as T
+}
+
+/**
+ * Traz um arquivo do motor como endereço de objeto, para MOSTRAR na tela.
+ *
+ * POR QUE NÃO DÁ PARA APONTAR UM `iframe` DIRETO PARA O MOTOR
+ *   A rota exige o cabeçalho `Authorization`, e um `iframe` não manda cabeçalho
+ *   nenhum — ele só pede a URL. Pôr o token na query resolveria e criaria um
+ *   problema pior: o token ficaria no histórico do navegador e em qualquer log
+ *   de acesso pelo caminho.
+ *
+ *   Então o arquivo vem por `fetch`, com o cabeçalho, e vira um endereço local
+ *   que só existe dentro desta aba.
+ *
+ * QUEM CHAMA PRECISA DEVOLVER
+ *   O endereço prende o arquivo na memória da aba até alguém o revogar. Em tela
+ *   que troca de registro isso vaza um PDF por visita — por isso a devolução é
+ *   do chamador, no `useEffect`, e não daqui.
+ */
+export async function arquivoDoMotor(caminho: string): Promise<string> {
+  const resposta = await pedirArquivo(caminho)
+  return URL.createObjectURL(await resposta.blob())
 }
