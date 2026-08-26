@@ -15,7 +15,7 @@ import { Arquivos } from './Arquivos'
 import { Lancar } from './Lancar'
 import { Correcoes } from './Correcoes'
 import { Planilhas } from './Planilhas'
-import { Faturamento } from './Faturamento'
+import { Direto } from './Direto'
 import { emReais, emDataHora, type Painel as DadosDoPainel } from './tipos'
 
 interface Props {
@@ -43,11 +43,11 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
   if (onde === 'notas') return <Arquivos fila="orcamento" voltar={voltar} />
   if (onde === 'rateio') return <Arquivos fila="rateio" voltar={voltar} />
   if (onde === 'lancar') return <Lancar voltar={voltar} />
+  if (onde === 'direto') return <Direto voltar={voltar} />
   if (onde && onde.startsWith('correcoes')) {
     return <Correcoes frente={onde.split(':')[1]} voltar={voltar} />
   }
   if (onde === 'planilhas') return <Planilhas voltar={voltar} />
-  if (onde === 'faturar') return <Faturamento voltar={voltar} />
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
@@ -96,6 +96,22 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       previaTitulo: 'esperando ticket',
       previa: arquivo(d.previa?.rateio),
       previaVazia: 'todas as notas amarradas',
+    },
+    {
+      // A TERCEIRA FILA DE ENTRADA FICA JUNTO DAS OUTRAS DUAS
+      //
+      //	Notas, rateio e direto são a mesma pergunta — "que nota entrou?" —
+      //	respondida de três jeitos. Pôr esta lá no fim, perto do faturamento,
+      //	sugeriria que ela tem a ver com cobrança. Tem o contrário: é a fila
+      //	das notas que NUNCA são cobradas por nós.
+      chave: 'direto',
+      titulo: 'Faturamento direto',
+      descricao: 'Notas que o fornecedor cobra do cliente. Entram só para lançar o custo no Trílogo.',
+      icone: <IconeDireto />,
+      numero: d.notas_direto ?? 0,
+      rotulo: 'na fila',
+      previaVazia: 'nenhuma nota de faturamento direto',
+      rodape: 'clique para inserir',
     },
     {
       chave: 'lancar',
@@ -161,26 +177,6 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       ],
     },
     {
-      chave: 'faturar',
-      titulo: 'Faturar ao cliente',
-      descricao: 'A planilha que sai e o dinheiro que volta.',
-      icone: <IconeFatura />,
-      // O NÚMERO É A FILA, NÃO O MÊS
-      //   O que entra na próxima planilha é o que ainda não foi cobrado. Em
-      //   julho a fatura fechou no dia 29 e a leva do dia 31 rolou para agosto:
-      //   contar "orçamentos do mês" teria perdido aqueles 39.
-      numero: d.a_faturar,
-      rotulo: 'a faturar',
-      faixa: '#2E7D5B',
-      rodape: emReais(d.valor_a_faturar) + ' a cobrar',
-      previaTitulo: 'ainda não cobrados',
-      previa: [
-        { texto: 'Orçamentos', fim: String(d.a_faturar) },
-        { texto: 'Valor', fim: emReais(d.valor_a_faturar) },
-      ],
-      previaVazia: 'tudo já está numa fatura',
-    },
-    {
       chave: 'planilhas',
       titulo: 'Planilhas de controle',
       descricao: 'O livro-razão: gerados, lançados, faturados, pagos.',
@@ -235,6 +231,18 @@ function IconeRateio() {
   )
 }
 
+// A NOTA QUE PASSA DIRETO
+//   A seta atravessa a folha sem parar nela: é o desenho do que entra só para
+//   ser registrado e segue para o cliente sem passar pela nossa cobrança.
+function IconeDireto() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h7l4 4v6" /><path d="M7 3v18h5" />
+      <path d="M14 3v4h4" /><path d="M14 18h7m0 0-2.5-2.5M21 18l-2.5 2.5" />
+    </svg>
+  )
+}
+
 function IconeRobo() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -257,15 +265,6 @@ function IconeTabela() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11M15 9v11" />
-    </svg>
-  )
-}
-
-function IconeFatura() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z" />
-      <path d="M9 8h6M9 12h6" />
     </svg>
   )
 }

@@ -184,19 +184,26 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// PASSO 2 e 3 — o documento, e a nossa cópia dele.
-	pdf, err := m.montarPDF(r.Context(), p.ClienteID, id)
+	//
+	// NO FATURAMENTO DIRETO, O DOCUMENTO É A PRÓPRIA NOTA
+	//
+	//	Não existe orçamento para montar: a nota é faturada pelo fornecedor
+	//	direto ao cliente, e o que o Trílogo precisa é do comprovante do custo.
+	//	Montar um PDF nosso aqui seria fabricar um documento que não representa
+	//	transação nenhuma — e ele acabaria anexado a um chamado como se fosse
+	//	uma cobrança nossa.
+	pdf, nome, err := m.arquivoParaLancar(r.Context(), p.ClienteID, id, orc, ticket)
 	if err != nil {
-		m.erro(w, "não consegui montar o PDF do orçamento", err)
+		m.erro(w, "não consegui preparar o documento do lançamento", err)
 		return
 	}
 	sha, err := m.guardarPDF(r.Context(), p.ClienteID, pdf)
 	if err != nil {
-		m.erro(w, "não consegui guardar o PDF", err)
+		m.erro(w, "não consegui guardar o arquivo", err)
 		return
 	}
 
 	// PASSO 4 — o arquivo sobe primeiro, sozinho.
-	nome := fmt.Sprintf("ORCAMENTO-%d-%v.pdf", ticket, orc["parte"])
 	subido, err := sessao.SubirArquivo(r.Context(), nome, pdf)
 	if err != nil {
 		m.erro(w, "o Trílogo não aceitou o arquivo", err)
@@ -379,4 +386,67 @@ func numeroDe(v any) float64 {
 		return f
 	}
 	return 0
+}
+
+// arquivoParaLancar devolve o que sobe para o Trílogo, e com que nome.
+//
+// SÃO DOIS DOCUMENTOS DIFERENTES, E ISSO NÃO É DETALHE
+//
+//	No fluxo normal sobe o ORÇAMENTO: um documento nosso, com a nossa margem
+//	embutida, que representa o que vamos cobrar. No faturamento direto sobe a
+//	NOTA original: o comprovante do que o fornecedor cobrou do cliente.
+//
+//	Trocar um pelo outro por engano seria anexar ao chamado um documento que
+//	afirma uma cobrança que não existe — e ninguém olhando o Trílogo teria como
+//	saber, porque os dois têm a cara de um PDF de custo.
+func (m *Modulo) arquivoParaLancar(ctx context.Context, clienteID, orcamentoID string,
+	orc map[string]any, ticket int) ([]byte, string, error) {
+
+	direto, _ := orc["faturamento_direto"].(bool)
+	if !direto {
+		pdf, err := m.montarPDF(ctx, clienteID, orcamentoID)
+		return pdf, fmt.Sprintf("ORCAMENTO-%d-%v.pdf", ticket, orc["parte"]), err
+	}
+
+	if !m.arm.Ligado() {
+		return nil, "", fmt.Errorf("o armazenamento não está configurado, e a nota original vive nele")
+	}
+
+	// O caminho é: orçamento → nota → arquivo no armazém.
+	var vinculos []struct {
+		DocumentoID string `json:"documento_id"`
+	}
+	if err := m.bd.Buscar(ctx, "orcamento_documentos?orcamento_id=eq."+orcamentoID+
+		"&select=documento_id&limit=1", &vinculos); err != nil {
+		return nil, "", err
+	}
+	if len(vinculos) == 0 {
+		return nil, "", fmt.Errorf("este lançamento não está ligado a nenhuma nota")
+	}
+	doc, err := m.contarUm(ctx, "documentos?id=eq."+vinculos[0].DocumentoID+
+		"&cliente_id=eq."+banco.Escapar(clienteID)+"&select=nome_arquivo,arquivo_sha256&limit=1")
+	if err != nil {
+		return nil, "", err
+	}
+	sha, _ := doc["arquivo_sha256"].(string)
+	if sha == "" {
+		return nil, "", fmt.Errorf("a nota desta linha não tem arquivo guardado")
+	}
+	arq, err := m.contarUm(ctx, "arquivos?sha256=eq."+sha+"&select=chave_r2&limit=1")
+	if err != nil {
+		return nil, "", err
+	}
+	chave, _ := arq["chave_r2"].(string)
+	if chave == "" {
+		return nil, "", fmt.Errorf("não achei o arquivo da nota no armazém")
+	}
+	bruto, err := m.arm.Baixar(ctx, chave)
+	if err != nil {
+		return nil, "", err
+	}
+	nome, _ := doc["nome_arquivo"].(string)
+	if nome == "" {
+		nome = fmt.Sprintf("NOTA-%d.pdf", ticket)
+	}
+	return bruto, nome, nil
 }

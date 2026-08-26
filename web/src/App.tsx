@@ -17,6 +17,8 @@ import { Usuarios } from './telas/usuarios/Usuarios'
 import { Categorias } from './telas/categorias/Categorias'
 import { MinhaConta } from './telas/MinhaConta'
 import { Orcamentos } from './telas/orcamentos/Orcamentos'
+import { Faturamento } from './telas/orcamentos/Faturamento'
+import { APagar } from './telas/financeiro/APagar'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
@@ -136,7 +138,7 @@ export default function App() {
             style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
             aria-label="Ir para o início"
           >
-            <Marca assinatura />
+            <Marca />
           </button>
         </div>
 
@@ -287,6 +289,10 @@ export default function App() {
             <Categorias />
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
+          ) : atual?.tela === 'a-pagar' ? (
+            <APagar voltar={() => navegar(caminho.slice(0, -1))} />
+          ) : atual?.tela === 'faturar' ? (
+            <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />
           ) : atual?.tela === 'orcamentos' ? (
             // A sub-tela também vem do endereço, pelo mesmo motivo do ticket
             // abaixo: voltar tem que fechar a sub-tela, não sair do sistema.

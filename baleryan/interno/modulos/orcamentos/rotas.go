@@ -96,6 +96,20 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	// os tickets de uma nota (o "+" da tela de rateio, e a correção manual)
 	mux.HandleFunc("POST /orcamentos/documentos/{id}/tickets", m.amarrarTickets)
 	mux.HandleFunc("DELETE /orcamentos/documentos/{id}/tickets/{ticket}", m.soltarTicket)
+	// O TRATAMENTO DAS DUAS FILAS (26/08/2026)
+	//   `conferir` é a MESMA avaliação que a geração faz. Ter duas foi o defeito
+	//   do sistema antigo: a tela dizia "pronta" e a geração recusava.
+	mux.HandleFunc("GET /orcamentos/documentos/{id}/conferir", m.conferirDocumento)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/fila", m.trocarFila)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/tickets/{ticket}/trocar", m.trocarTicket)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/tickets/{ticket}/apagar", m.apagarTicket)
+	// AS NOTAS QUE NÃO CABEM NO TETO (26/08/2026)
+	//   O desconto é CALCULADO no servidor e nunca recebido do navegador —
+	//   aceitar o número de fora seria aceitar 40% de quem soubesse escrever a
+	//   chamada à mão.
+	mux.HandleFunc("GET /orcamentos/documentos/{id}/desconto", m.verDesconto)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/desconto", m.autorizarDesconto)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/aprovacao", m.pedirAprovacao)
 
 	// 2.3 — gerar e lançar
 	//
@@ -135,6 +149,24 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /orcamentos/correcoes", m.correcoes)
 	mux.HandleFunc("GET /orcamentos/correcoes/candidatos", m.candidatos)
+	mux.HandleFunc("POST /orcamentos/correcoes/conferir", m.conferirVarios)
+	mux.HandleFunc("GET /orcamentos/correcoes/extrapoladas", m.extrapoladas)
+
+	// FATURAMENTO DIRETO (26/08/2026)
+	//   A nota que o fornecedor cobra do cliente. Passa por aqui só para o
+	//   custo ser lançado no Trílogo — e nunca entra em faturamento.
+	mux.HandleFunc("GET /orcamentos/direto", m.listarDireto)
+	mux.HandleFunc("POST /orcamentos/direto/{id}/lancar", m.mandarParaLancar)
+
+	// A PAGAR — PEDIDO DE FATURAMENTO AO FORNECEDOR (26/08/2026)
+	//   A Rodrigues emite DAV e acumula; de tempos em tempos mandamos a relação
+	//   das que estão em aberto e ela emite UMA nota cobrindo todas.
+	mux.HandleFunc("GET /orcamentos/pedido", m.pedidoEmAberto)
+	mux.HandleFunc("GET /orcamentos/pedido.xlsx", m.pedidoExcel)
+	mux.HandleFunc("GET /orcamentos/pedido.pdf", m.pedidoPDF)
+	mux.HandleFunc("POST /orcamentos/pedido/fechar", m.fecharPedido)
+	mux.HandleFunc("POST /orcamentos/pedido/{id}/enviado", m.marcarPedidoEnviado)
+	mux.HandleFunc("POST /orcamentos/pedido/{id}/reabrir", m.reabrirPedido)
 	mux.HandleFunc("PATCH /orcamentos/documentos/{id}/tickets", m.corrigirTicket)
 
 	// 2.6 — o faturamento ao cliente: a planilha que sai e o dinheiro que volta

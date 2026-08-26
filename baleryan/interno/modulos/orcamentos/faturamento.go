@@ -136,7 +136,12 @@ func somarAFaturar(linhas []linhaAFaturar) (valor float64, gerados int, semDesti
 // aFaturar lê a fila. `ate` vazio = tudo que ainda não foi cobrado.
 func (m *Modulo) aFaturar(ctx context.Context, clienteID, ate string) ([]linhaAFaturar, error) {
 	caminho := "orcamentos_lista?cliente_id=eq." + banco.Escapar(clienteID) +
-		"&fatura_id=is.null&status=neq.removido" +
+		// ⚠ `faturamento_direto=is.false` NÃO É OPCIONAL
+		//   Essas notas o cliente já pagou ao fornecedor. Elas têm `fatura_id`
+		//   nulo para sempre — sem este filtro entrariam em TODO espelho, todo
+		//   mês, e seriam cobradas de novo. É o tipo de erro que o cliente
+		//   descobre antes da gente.
+		"&fatura_id=is.null&status=neq.removido&faturamento_direto=is.false" +
 		"&order=criado_em,ticket,parte&limit=" + fmt.Sprint(TetoDaExtracao) + "&select=*"
 	if ate != "" {
 		caminho += "&criado_em=lt." + banco.Escapar(ate)
@@ -379,7 +384,12 @@ func (m *Modulo) fecharFaturamento(w http.ResponseWriter, r *http.Request) {
 		filtro := "cliente_id=eq." + banco.Escapar(p.ClienteID) +
 			"&unidade_id=eq." + banco.Escapar(f.UnidadeID) +
 			"&conta=eq." + banco.Escapar(f.Conta) +
-			"&fatura_id=is.null&status=neq.removido" +
+			// ⚠ `faturamento_direto=is.false` NÃO É OPCIONAL
+			//   Essas notas o cliente já pagou ao fornecedor. Elas têm `fatura_id`
+			//   nulo para sempre — sem este filtro entrariam em TODO espelho, todo
+			//   mês, e seriam cobradas de novo. É o tipo de erro que o cliente
+			//   descobre antes da gente.
+			"&fatura_id=is.null&status=neq.removido&faturamento_direto=is.false" +
 			"&criado_em=lt." + banco.Escapar(ciclo.Ate)
 		if err := m.bd.Atualizar(ctx, "orcamentos", filtro, map[string]any{"fatura_id": f.ID}); err != nil {
 			// Parar aqui deixaria o resto para a próxima chamada, que é

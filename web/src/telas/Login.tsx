@@ -32,7 +32,7 @@ export function Login({ entrar, expirou }: Props) {
   return (
     <div className="auth">
       <aside className="auth-marca">
-        <Marca assinatura />
+        <Marca />
         <h2>Gestão integrada da <em>Frota Macedo Engenharia</em></h2>
         <div className="ft">Administrativo · Manutenção · Engenharia · SESMT — num só lugar.</div>
       </aside>

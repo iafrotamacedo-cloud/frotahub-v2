@@ -435,3 +435,141 @@ func NotaPodeRodar(c Custo, vereditos []Veredito) (bool, string) {
 	}
 	return true, ""
 }
+
+// ---------------------------------------------------------------------------
+// o desconto que alguém assina embaixo
+// ---------------------------------------------------------------------------
+
+// DescontoMaximoBP é o quanto se pode abrir mão de um orçamento. 2000 = 20%.
+//
+// POR QUE EXATAMENTE A MARGEM
+//
+//	Porque abrir mão de 20% é abrir mão da margem inteira: o orçamento passa a
+//	ser o custo, e a empresa trabalha de graça. Abaixo disso ela trabalharia
+//	pagando para trabalhar, e nenhuma autorização deveria poder fazer isso com
+//	dois cliques.
+//
+//	O número é separado de `MargemBP` de propósito, apesar de hoje valerem o
+//	mesmo. São perguntas diferentes: uma é quanto se cobra, a outra é quanto se
+//	pode abrir mão. Amarrar as duas faria a segunda mudar sozinha no dia em que
+//	alguém mexesse na primeira.
+const DescontoMaximoBP = 2000
+
+// Desconto é a resposta de "dá para fechar esta nota no teto?".
+type Desconto struct {
+	// Pode dizer se o desconto é possível dentro do limite.
+	Pode bool
+	// BP é o desconto em pontos-base do orçamento original. 385 = 3,85%.
+	BP int64
+	// Original é o orçamento que sairia sem desconto nenhum.
+	Original Dinheiro
+	// Final é o que sai depois — o teto do ticket, descontado o que já há nele.
+	Final Dinheiro
+	// Motivo explica a recusa, para a tela poder dizer por que o botão não abre.
+	Motivo string
+}
+
+// CalcularDesconto acha o desconto que leva o orçamento ao teto do ticket.
+//
+// O USUÁRIO NÃO ESCOLHE O NÚMERO
+//
+//	Decisão do dono: "ele não precisa informar o desconto, é automático, pra
+//	chegar a um orçamento de 600,00". E é o desenho certo — deixar alguém
+//	digitar o desconto é deixar alguém digitar 40% às três da tarde de uma
+//	sexta-feira. O sistema calcula o único desconto que resolve, e a pessoa
+//	confirma ou não.
+//
+// O TETO É DO TICKET, NÃO DA NOTA
+//
+//	Se o ticket já tem R$ 400 lançados, o que cabe nesta nota é R$ 200 — e um
+//	desconto que levasse o orçamento a R$ 600 estouraria o ticket do mesmo
+//	jeito. Por isso a conta desconta `jaNoTicket` antes de qualquer coisa, e
+//	por isso existe o caso em que NENHUM desconto resolve: o problema não está
+//	nesta nota.
+func CalcularDesconto(pago, jaNoTicket Dinheiro, p Parametros) Desconto {
+	d := Desconto{}
+	if p.Teto <= 0 {
+		d.Motivo = "o teto está desligado — não há o que descontar"
+		return d
+	}
+	if pago <= 0 {
+		d.Motivo = "esta nota não tem valor lido"
+		return d
+	}
+
+	d.Original = Dinheiro(dividirArredondando(int64(pago)*(10000+p.MargemBP), 10000))
+	d.Final = p.Teto - jaNoTicket
+
+	// O TICKET JÁ ESTOUROU SOZINHO
+	//   Nenhum desconto nesta nota resolve, porque o que passou do teto não foi
+	//   ela. Dizer isso é melhor que oferecer um botão que não conserta nada.
+	if d.Final <= 0 {
+		d.Motivo = "o ticket já está no teto com outros custos — descontar esta nota não resolve"
+		return d
+	}
+	if d.Original <= d.Final {
+		d.Motivo = "esta nota já cabe no teto — não precisa de desconto"
+		return d
+	}
+
+	abatimento := d.Original - d.Final
+	d.BP = dividirArredondando(int64(abatimento)*10000, int64(d.Original))
+	if d.BP > DescontoMaximoBP {
+		d.Motivo = "o desconto passaria de " + Porcentagem(DescontoMaximoBP) +
+			", que é a margem inteira — acima disso a empresa trabalharia pagando para trabalhar"
+		return d
+	}
+	d.Pode = true
+	return d
+}
+
+// Porcentagem escreve pontos-base como gente lê: 385 vira "3,85%".
+//
+// Vírgula, e não ponto: a tela é em português, e "3.85%" num sistema que
+// escreve R$ 1.425,30 é a mistura que faz alguém ler trezentos e oitenta e
+// cinco.
+func Porcentagem(bp int64) string {
+	if bp%100 == 0 {
+		return fmt.Sprintf("%d%%", bp/100)
+	}
+	if bp%10 == 0 {
+		return fmt.Sprintf("%d,%d%%", bp/100, (bp%100)/10)
+	}
+	return fmt.Sprintf("%d,%02d%%", bp/100, bp%100)
+}
+
+// ComDescontoAutorizado transforma um custo bloqueado num custo que fecha no teto.
+//
+// É o que o "sim, dar o desconto" faz com a nota — e nada mais. A autorização
+// não muda a regra: ela só diz que, para ESTA nota, alguém assinou embaixo de
+// abrir mão da diferença. O teto do ticket continua sendo conferido depois,
+// como para qualquer outra.
+func ComDescontoAutorizado(c Custo, p Parametros) Custo {
+	if !c.Bloqueada() || p.Teto <= 0 {
+		return c
+	}
+	c.Decisao = CustoNoTeto
+	c.Base = BaseMaxima(p)
+	return c
+}
+
+// ComAprovacaoDoCliente devolve o custo CHEIO de uma nota que vai ao cliente.
+//
+// POR QUE ELA EXISTE SEPARADA DO DESCONTO
+//
+//	As duas destravam uma nota bloqueada, e é só o que têm em comum. O desconto
+//	faz a empresa abrir mão da diferença para caber no teto; a aprovação NÃO
+//	abre mão de nada — ela leva o valor cheio ao cliente e pergunta se ele
+//	aceita pagar acima do limite que ele mesmo contratou.
+//
+//	Uma custa dinheiro nosso, a outra custa uma conversa. Escrevê-las como o
+//	mesmo caminho faria a primeira acontecer no lugar da segunda no dia em que
+//	alguém mexesse numa linha.
+func ComAprovacaoDoCliente(c Custo) Custo {
+	if !c.Bloqueada() {
+		return c
+	}
+	c.Decisao = CustoCheio
+	c.Base = c.ComDesconto
+	return c
+}

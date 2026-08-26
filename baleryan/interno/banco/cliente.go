@@ -221,6 +221,26 @@ func (c *Cliente) Atualizar(ctx context.Context, tabela, filtro string, campos a
 //	linha inteira por violação de not-null. Quem só olha o erro e tenta a
 //	próxima linha nunca pega trabalho nenhum, e o robô encerra dizendo
 //	"0 lidas · 0 falhas", que parece fila vazia.
+//
+// Apagar remove linhas de verdade.
+//
+// QUASE NADA NESTE SISTEMA É APAGADO
+//
+//	Nota, orçamento e chamado são marcados (`oculto_em`, `removido_em`) porque
+//	a pergunta "por que isso sumiu?" aparece meses depois e precisa de resposta.
+//	Este método existe para o punhado de linhas que são LIGAÇÃO e não fato: o
+//	ticket que alguém amarrou na nota errada, por exemplo. Uma ligação desfeita
+//	não tem história para contar — ela nunca deveria ter existido.
+//
+//	O filtro é obrigatório. Sem ele o PostgREST apaga a tabela inteira e
+//	responde 200, alegremente.
+func (c *Cliente) Apagar(ctx context.Context, tabela, filtro string) error {
+	if strings.TrimSpace(filtro) == "" {
+		return errors.New("apagar sem filtro apagaria a tabela inteira")
+	}
+	return c.executar(ctx, http.MethodDelete, tabela+"?"+filtro, nil, nil, nil)
+}
+
 func (c *Cliente) AtualizarDevolvendo(ctx context.Context, tabela, filtro string, campos, destino any) error {
 	return c.executar(ctx, http.MethodPatch, tabela+"?"+filtro, campos,
 		map[string]string{"Prefer": "return=representation"}, destino)

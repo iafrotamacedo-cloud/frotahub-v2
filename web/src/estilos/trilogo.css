@@ -180,7 +180,32 @@ button.tri-num:hover{color:var(--red);text-decoration:underline}
 .fi-passo button:disabled{color:#C7CCD3;cursor:default}
 
 /* ---------- a folha ---------- */
-.fi-mesa{display:flex;justify-content:center;padding:0 0 24px}
+/* A MESA É QUEM ROLA, E ISSO NÃO ERA VERDADE ATÉ 26/08/2026
+ *
+ *   A casca escura é travada em `height:100vh; overflow:hidden` de propósito:
+ *   as telas dela rolam por dentro, cada uma na sua caixa. A ficha do chamado
+ *   não rolava em lugar nenhum — ela é uma FOLHA de 1123px de altura fixa, e
+ *   numa tela de notebook isso é mais alto que a janela inteira.
+ *
+ *   O resultado era o pé da folha inalcançável: sem barra de rolagem, sem
+ *   arrastar, sem nada. As fotos e o rodapé simplesmente não existiam para
+ *   quem tem a tela baixa.
+ *
+ *   A correção é aqui e não na casca: afrouxar o `overflow` do `.content`
+ *   escuro consertaria esta tela e quebraria as outras, que contam com o
+ *   travamento para rolar por dentro. */
+.fi-mesa{
+  display:flex;justify-content:center;padding:0 0 24px;
+  flex:1;min-height:0;overflow-y:auto;
+}
+.fi-mesa::-webkit-scrollbar{width:10px}
+.fi-mesa::-webkit-scrollbar-thumb{background:#4a3e40;border-radius:5px}
+.fi-mesa::-webkit-scrollbar-track{background:transparent}
+
+/* A folha não pode ser espremida pela mesa: `flex-shrink:0` mantém os 1123px
+   e deixa a rolagem fazer o trabalho. Sem isto, o flex encolheria a folha para
+   caber na janela e o conteúdo ficaria amassado em vez de rolável. */
+.fi-folha{flex-shrink:0}
 .fi-folha{
   width:794px;max-width:100%;height:1123px;background:var(--card);
   border:1px solid var(--line);border-radius:3px;box-shadow:var(--sh-2);
@@ -202,7 +227,17 @@ button.tri-num:hover{color:var(--red);text-decoration:underline}
 
 /* ---------- corpo em duas colunas ---------- */
 .fi-corpo{display:flex;gap:22px;flex:1;min-height:0;padding-top:14px}
-.fi-esquerda{flex:0 0 416px;min-width:0;display:flex;flex-direction:column}
+/* A COLUNA DA ESQUERDA TAMBÉM ROLA POR DENTRO
+ *   Mesma razão da linha do tempo, que já fazia isto: um chamado com oito
+ *   fotos empurra o rodapé da folha para fora dela. Com as duas colunas
+ *   rolando, a folha continua sendo UMA folha — que é o desenho. */
+.fi-esquerda{
+  flex:0 0 416px;min-width:0;display:flex;flex-direction:column;
+  min-height:0;overflow-y:auto;padding-right:6px;
+}
+.fi-esquerda::-webkit-scrollbar{width:8px}
+.fi-esquerda::-webkit-scrollbar-thumb{background:#AEB6C0;border-radius:4px}
+.fi-esquerda::-webkit-scrollbar-track{background:var(--bg);border-radius:4px}
 .fi-trilho{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 .fi-bloco{margin-bottom:13px}
 .fi-bloco>.fi-rotulo{display:block;margin-bottom:5px}

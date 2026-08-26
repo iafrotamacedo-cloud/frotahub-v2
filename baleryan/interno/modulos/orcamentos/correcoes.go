@@ -57,6 +57,16 @@ func (m *Modulo) correcoes(w http.ResponseWriter, r *http.Request) {
 		"&documentos.cliente_id=eq."+cli+"&documentos.oculto_em=is.null"+
 		"&order=ticket&limit=500", &semAssociacao)
 
+	// as que a geração recusou por limite de teto (022).
+	//
+	// Elas vêm na MESMA resposta das outras porque a tela desenha as contagens
+	// de todas as frentes antes de o usuário escolher uma — e um número que
+	// chega depois faz a aba piscar de 0 para 7 na frente de quem já clicou.
+	var extrapoladas []map[string]any
+	_ = m.bd.Buscar(ctx, "documentos_lista?cliente_id=eq."+cli+
+		"&oculto_em=is.null&bloqueio_motivo=not.is.null"+
+		"&order=inserido_em.desc&limit=500&select=*", &extrapoladas)
+
 	// 2.4.3 — os que FORAM TENTADOS e o Trílogo recusou.
 	//
 	// ANTES ISTO TRAZIA TODO ORÇAMENTO `gerado`, E ERA O DEFEITO DA TELA
@@ -91,6 +101,7 @@ func (m *Modulo) correcoes(w http.ResponseWriter, r *http.Request) {
 	web.Responder(w, http.StatusOK, map[string]any{
 		"sem_ticket":     ouVazio(semTicket),
 		"sem_associacao": ouVazio(semAssociacao),
+		"extrapoladas":   ouVazio(extrapoladas),
 		"recusados":      ouVazio(recusados),
 		"apagados":       ouVazio(apagados),
 		"aguardando":     ouVazio(aguardando),

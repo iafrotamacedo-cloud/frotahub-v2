@@ -14,15 +14,19 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta } from './Arquivos'
+import { VisorDaNota, type Acoes } from './VisorDaNota'
+import { ConfirmarComSenha } from './ConfirmarComSenha'
 import {
-  emReais, emDataHora, contaPorExtenso,
-  type Correcoes as Dados, type Candidato, type Bloqueio,
+  emReais, emDataHora,
+  type Correcoes as Dados, type Bloqueio,
+  type Documento, type Conferencia, type Desconto,
 } from './tipos'
 
 const FRENTES = [
   { chave: 'sem-ticket', titulo: 'Sem ticket', desc: 'Notas lidas em que nenhum ticket foi encontrado' },
   { chave: 'sem-associacao', titulo: 'Sem associação', desc: 'Tickets escritos que não batem com a nossa base' },
   { chave: 'recusados', titulo: 'Recusados', desc: 'O Trílogo não aceitou o lançamento — e por quê' },
+  { chave: 'extrapoladas', titulo: 'Passam do teto', desc: 'Notas que não cabem no limite do ticket — e o que dá para fazer' },
   { chave: 'apagados', titulo: 'Apagados', desc: 'O que foi excluído — e pode voltar' },
 ]
 
@@ -48,6 +52,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
     switch (c) {
       case 'sem-ticket': return dados.sem_ticket.length
       case 'sem-associacao': return dados.sem_associacao.length
+      case 'extrapoladas': return dados.extrapoladas?.length ?? 0
       case 'recusados': return dados.recusados.length
       default: return dados.apagados.length
     }
@@ -81,6 +86,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
+          {qual === 'extrapoladas' && <Extrapoladas dados={dados} recarregar={carregar} />}
           {qual === 'recusados' && <Recusados dados={dados} />}
           {qual === 'apagados' && <Apagados dados={dados} recarregar={carregar} />}
         </div>
@@ -94,20 +100,36 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 // ---------------------------------------------------------------------------
 
 function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const [abrindo, setAbrindo] = useState<Documento | null>(null)
   const [erro, setErro] = useState('')
 
-  async function amarrar(id: string) {
-    const t = window.prompt('Qual o número do ticket desta nota?')
-    if (!t) return
-    const n = Number(t.replace(/\D/g, ''))
-    if (!(n >= 10000 && n <= 999999)) { setErro('O ticket tem 5 ou 6 dígitos.'); return }
-    try {
-      await motor(`/orcamentos/documentos/${id}/tickets`, { metodo: 'POST', corpo: { tickets: [n] } })
-      await recarregar()
-      setErro('')
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não consegui amarrar.')
-    }
+  const acoes = (d: Documento): Acoes => ({
+    // "Tira a nota de todas as filas" — e dá para restaurar. Decisão do dono:
+    // conclusão sobre nota não pode ser irreversível por um clique.
+    excluir: async () => {
+      await motor(`/orcamentos/documentos/${d.id}`, { metodo: 'DELETE' })
+      setAbrindo(null); await recarregar()
+    },
+    rateada: async () => {
+      await motor(`/orcamentos/documentos/${d.id}/fila`,
+        { metodo: 'POST', corpo: { fila: 'rateio' } })
+      setAbrindo(null); await recarregar()
+    },
+    concluir: async () => { setAbrindo(null); await recarregar() },
+    fechar: () => setAbrindo(null),
+  })
+
+  if (abrindo) {
+    return (
+      <VisorDaNota
+        documento={abrindo.id}
+        nome={abrindo.nome_arquivo}
+        valor={abrindo.valor_total}
+        tickets={abrindo.ticket_numeros ?? []}
+        modo="sem-ticket"
+        acoes={acoes(abrindo)}
+      />
+    )
   }
 
   if (!dados.sem_ticket.length) {
@@ -132,7 +154,9 @@ function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Prom
                 <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
                 <td>{emDataHora(d.inserido_em)}</td>
                 <td className="orc-acoes">
-                  <button type="button" className="forte" onClick={() => void amarrar(d.id)}>informar o ticket</button>
+                  <button type="button" className="forte" onClick={() => { setErro(''); setAbrindo(d) }}>
+                    inserir ticket
+                  </button>
                 </td>
               </tr>
             ))}
@@ -147,123 +171,322 @@ function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Prom
 // 2.4.2 — sem associação
 // ---------------------------------------------------------------------------
 
+// O REPROCESSAR SÓ EXISTE DEPOIS DE UM ATUALIZAR, E MORRE DEPOIS DE CADA USO
+//
+//	Pedido do dono, e a razão é boa: sem essa trava, alguém corrige uma nota,
+//	clica reprocessar, e o sistema tenta gerar as outras trinta e nove que
+//	continuam travadas — gastando tempo e enchendo a tela de erro que já se
+//	sabia de antemão.
+//
+//	"Verde" é uma foto de um instante. Reprocessar duas vezes seguidas com a
+//	mesma foto é agir sobre um estado que já mudou. Por isso o botão trava de
+//	novo assim que roda: a única forma de saber o estado é olhar de novo.
 function SemAssociacao({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
-  const [abrindo, setAbrindo] = useState<{ documento: string; ticket: number } | null>(null)
+  const [abrindo, setAbrindo] = useState<{ documento: string; nome: string; valor: number | null; tickets: number[] } | null>(null)
+  const [conf, setConf] = useState<Record<string, Conferencia>>({})
+  const [atualizando, setAtualizando] = useState(false)
+  const [processando, setProcessando] = useState(false)
+  const [podeReprocessar, setPodeReprocessar] = useState(false)
+  const [recado, setRecado] = useState('')
+  const [erro, setErro] = useState('')
 
-  if (!dados.sem_associacao.length) {
+  // Uma linha por NOTA, e não por ticket: a correção é da nota, e uma nota com
+  // três tickets soltos apareceria três vezes pedindo o mesmo trabalho.
+  const notas = agruparPorNota(dados.sem_associacao)
+
+  async function atualizar() {
+    setAtualizando(true); setErro(''); setRecado('')
+    // TENTA O TRÍLOGO; SE ESTIVER OCUPADO, CONFERE COM O QUE JÁ TEMOS
+    //   Escolha do dono. Uma leitura em andamento não pode impedir a pessoa de
+    //   ver o estado — e dizer de quando são os dados é mais honesto que fingir
+    //   que acabaram de chegar.
+    try {
+      await motor('/robos/trilogo/atualizacao', { metodo: 'POST' })
+      setRecado('Trílogo relido agora.')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      setRecado(/andamento|conflito|409/i.test(msg)
+        ? 'Já havia uma leitura do Trílogo em andamento — conferi com os chamados que já estavam aqui.'
+        : 'Não consegui reler o Trílogo agora — conferi com os chamados que já estavam aqui.')
+    }
+    try {
+      const r = await motor<{ notas: Conferencia[] }>('/orcamentos/correcoes/conferir',
+        { metodo: 'POST', corpo: { documentos: notas.map(n => n.documento) } })
+      const mapa: Record<string, Conferencia> = {}
+      for (const c of r.notas) mapa[c.documento] = c
+      setConf(mapa)
+      setPodeReprocessar(r.notas.some(c => c.pronta))
+      await recarregar()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui conferir as notas.')
+      setPodeReprocessar(false)
+    } finally { setAtualizando(false) }
+  }
+
+  async function reprocessar() {
+    const verdes = Object.values(conf).filter(c => c.pronta).map(c => c.documento)
+    if (!verdes.length) return
+    setProcessando(true); setErro('')
+    try {
+      await motor('/orcamentos/gerar', { metodo: 'POST', corpo: { documentos: verdes } })
+      setRecado(`${verdes.length} nota${verdes.length > 1 ? 's' : ''} processada${verdes.length > 1 ? 's' : ''}.`)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui reprocessar.')
+    } finally {
+      // Trava de novo, sempre — inclusive quando deu errado. O estado mudou de
+      // qualquer jeito, e a foto anterior deixou de valer.
+      setPodeReprocessar(false)
+      setConf({})
+      setProcessando(false)
+      await recarregar()
+    }
+  }
+
+  const acoes = (documento: string): Acoes => ({
+    excluir: async () => {
+      await motor(`/orcamentos/documentos/${documento}`, { metodo: 'DELETE' })
+      setAbrindo(null); setPodeReprocessar(false); await recarregar()
+    },
+    rateada: async () => {
+      await motor(`/orcamentos/documentos/${documento}/fila`,
+        { metodo: 'POST', corpo: { fila: 'rateio' } })
+      setAbrindo(null); setPodeReprocessar(false); await recarregar()
+    },
+    // Mexer numa nota invalida a foto: quem corrigiu precisa atualizar de novo
+    // para o reprocessar voltar a valer.
+    concluir: async () => { setAbrindo(null); setPodeReprocessar(false); await recarregar() },
+    fechar: () => setAbrindo(null),
+  })
+
+  if (abrindo) {
+    return (
+      <VisorDaNota
+        documento={abrindo.documento} nome={abrindo.nome} valor={abrindo.valor}
+        tickets={abrindo.tickets} modo="sem-associacao" acoes={acoes(abrindo.documento)}
+      />
+    )
+  }
+
+  if (!notas.length) {
     return <p className="orc-vazio grande">Todos os tickets escritos casaram com a nossa base.</p>
   }
   return (
     <>
+      <div className="orc-barra-acoes">
+        <button type="button" className="forte" disabled={atualizando || processando}
+          onClick={() => void atualizar()}>
+          {atualizando ? 'atualizando…' : 'atualizar'}
+        </button>
+        <button type="button" className="forte" disabled={!podeReprocessar || processando || atualizando}
+          onClick={() => void reprocessar()}
+          title={podeReprocessar
+            ? 'gera os orçamentos das notas verdes'
+            : 'atualize primeiro — reprocessar sem olhar o estado atual tentaria gerar o que continua travado'}>
+          {processando ? 'processando…' : 'reprocessar'}
+        </button>
+        {recado && <span className="orc-recado">{recado}</span>}
+      </div>
+
+      {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
+
       <div className="orc-rolagem">
         <table className="orc-tabela">
           <thead>
-            <tr><th>Ticket escrito</th><th>Arquivo</th><th>Nota</th><th style={{ textAlign: 'right' }}>Valor</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+            <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
           </thead>
           <tbody>
-            {dados.sem_associacao.map(l => (
-              <tr key={l.id}>
-                <td><span className="orc-nome">{l.ticket}</span><span className="orc-detalhe">não existe na nossa base</span></td>
-                <td>{l.documentos.nome_arquivo}</td>
-                <td>{l.documentos.numero ?? '–'}</td>
-                <td style={{ textAlign: 'right' }}>{emReais(l.documentos.valor_total)}</td>
+            {notas.map(n => {
+              const c = conf[n.documento]
+              const cor = c ? (c.pronta ? ' linha-verde' : ' linha-vermelha') : ''
+              return (
+                <tr key={n.documento} className={cor.trim()}>
+                  <td>
+                    <span className="orc-nome">{n.nome}</span>
+                    {n.numero && <span className="orc-detalhe">nº {n.numero}</span>}
+                  </td>
+                  <td>
+                    {n.tickets.map(t => (
+                      <span key={t} className="orc-tk">{t}</span>
+                    ))}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{emReais(n.valor)}</td>
+                  <td>
+                    {!c ? <span className="mut">atualize para ver</span>
+                      : c.pronta ? <span className="orc-selo ok">pronta para processar</span>
+                        : <span className="orc-detalhe ruim">{c.motivos?.[0] ?? 'ticket continua não associado'}</span>}
+                  </td>
+                  <td className="orc-acoes">
+                    <button type="button" className="forte"
+                      onClick={() => setAbrindo({ documento: n.documento, nome: n.nome, valor: n.valor, tickets: n.tickets })}>
+                      corrigir
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+/** Uma linha por NOTA. O motor devolve um registro por TICKET solto, e uma nota
+ *  com três soltos apareceria três vezes pedindo o mesmo trabalho. */
+function agruparPorNota(linhas: Dados['sem_associacao']) {
+  const mapa = new Map<string, { documento: string; nome: string; numero: string | null; valor: number | null; tickets: number[] }>()
+  for (const l of linhas) {
+    const atual = mapa.get(l.documento_id)
+    if (atual) { atual.tickets.push(l.ticket); continue }
+    mapa.set(l.documento_id, {
+      documento: l.documento_id,
+      nome: l.documentos.nome_arquivo,
+      numero: l.documentos.numero,
+      valor: l.documentos.valor_total,
+      tickets: [l.ticket],
+    })
+  }
+  return [...mapa.values()]
+}
+
+// ---------------------------------------------------------------------------
+// as notas que passam do teto
+// ---------------------------------------------------------------------------
+
+// QUATRO SAÍDAS, E CADA UMA CUSTA UMA COISA DIFERENTE
+//
+//	desconto     custa DINHEIRO NOSSO — abre mão de parte da margem para a nota
+//	             caber no teto. Por isso é o único que pede senha.
+//	aprovação    custa uma CONVERSA — o orçamento vai ao cliente com o valor
+//	             cheio e ele decide.
+//	rateio       não custa nada: a nota estava na gaveta errada.
+//	excluir      tira da fila, e dá para restaurar.
+//
+//	Elas parecem intercambiáveis na tela e não são. Por isso o desconto mostra o
+//	número antes de perguntar, e as outras não precisam.
+function Extrapoladas({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const [abrindo, setAbrindo] = useState<Documento | null>(null)
+  const [desconto, setDesconto] = useState<Desconto | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const notas = dados.extrapoladas ?? []
+
+  async function abrir(d: Documento) {
+    setErro('')
+    setAbrindo(d)
+    setDesconto(null)
+    try {
+      setDesconto(await motor<Desconto>(`/orcamentos/documentos/${d.id}/desconto`))
+    } catch {
+      // Sem a conta do desconto o botão fica apagado, que é o mesmo destino de
+      // quando ele não cabe. Melhor apagado do que oferecendo o que não dá.
+    }
+  }
+
+  async function autorizar(d: Documento) {
+    await motor(`/orcamentos/documentos/${d.id}/desconto`, { metodo: 'POST' })
+    setAbrindo(null)
+    await recarregar()
+  }
+
+  const acoes = (d: Documento): Acoes => ({
+    excluir: async () => {
+      await motor(`/orcamentos/documentos/${d.id}`, { metodo: 'DELETE' })
+      setAbrindo(null); await recarregar()
+    },
+    rateada: async () => {
+      await motor(`/orcamentos/documentos/${d.id}/fila`,
+        { metodo: 'POST', corpo: { fila: 'rateio' } })
+      setAbrindo(null); await recarregar()
+    },
+    concluir: async () => { setAbrindo(null); await recarregar() },
+    fechar: () => setAbrindo(null),
+  })
+
+  if (abrindo) {
+    return (
+      <>
+        <div className="orc-barra-acoes">
+          <button type="button" className="forte"
+            disabled={!desconto?.pode}
+            title={desconto?.pode
+              ? `desconta ${desconto.porcentagem} para o orçamento fechar no teto`
+              : (desconto?.motivo ?? 'conferindo se cabe algum desconto…')}
+            onClick={() => setConfirmando(true)}>
+            {desconto?.pode ? `dar desconto de ${desconto.porcentagem}` : 'dar desconto'}
+          </button>
+          <button type="button" className="forte"
+            onClick={() => void (async () => {
+              try {
+                await motor(`/orcamentos/documentos/${abrindo.id}/aprovacao`, { metodo: 'POST' })
+                setAbrindo(null); await recarregar()
+              } catch (e) {
+                setErro(e instanceof Error ? e.message : 'Não consegui mandar para aprovação.')
+              }
+            })()}
+            title="o orçamento nasce com o valor cheio e parado — é ele que vai ao cliente">
+            mandar para aprovação
+          </button>
+          {desconto && !desconto.pode && (
+            <span className="orc-recado">{desconto.motivo}</span>
+          )}
+        </div>
+
+        {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
+
+        <VisorDaNota
+          documento={abrindo.id} nome={abrindo.nome_arquivo} valor={abrindo.valor_total}
+          tickets={abrindo.ticket_numeros ?? []} modo="sem-associacao" acoes={acoes(abrindo)}
+        />
+
+        {confirmando && desconto?.pode && (
+          <ConfirmarComSenha
+            pergunta={`Dar desconto de ${desconto.porcentagem}? O orçamento cai de `
+              + `${emReais(desconto.orcamento_original)} para ${emReais(desconto.orcamento_final)}.`}
+            fechar={() => setConfirmando(false)}
+            aoConfirmar={() => autorizar(abrindo)}
+          />
+        )}
+      </>
+    )
+  }
+
+  if (!notas.length) {
+    return <p className="orc-vazio grande">Nenhuma nota passando do teto.</p>
+  }
+  return (
+    <>
+      {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
+      <div className="orc-rolagem">
+        <table className="orc-tabela">
+          <thead>
+            <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Por quê</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+          </thead>
+          <tbody>
+            {notas.map(d => (
+              <tr key={d.id}>
+                <td>
+                  <span className="orc-nome">{d.nome_arquivo}</span>
+                  {d.numero && <span className="orc-detalhe">nº {d.numero}</span>}
+                </td>
+                <td>{(d.ticket_numeros ?? []).map(t => <span key={t} className="orc-tk">{t}</span>)}</td>
+                <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
+                <td>
+                  <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
+                  {d.desconto_bp > 0 && (
+                    <span className="orc-selo aviso">desconto de {(d.desconto_bp / 100).toLocaleString('pt-BR')}% autorizado</span>
+                  )}
+                </td>
                 <td className="orc-acoes">
-                  <button type="button" className="forte"
-                    onClick={() => setAbrindo({ documento: l.documento_id, ticket: l.ticket })}>
-                    procurar o certo
-                  </button>
+                  <button type="button" className="forte" onClick={() => void abrir(d)}>tratar</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {abrindo && (
-        <Candidatos
-          documento={abrindo.documento}
-          ticket={abrindo.ticket}
-          fechar={() => setAbrindo(null)}
-          concluir={async () => { setAbrindo(null); await recarregar() }}
-        />
-      )}
     </>
-  )
-}
-
-/** A janela de sugestões — o coração da correção por semelhança. */
-function Candidatos({ documento, ticket, fechar, concluir }: {
-  documento: string
-  ticket: number
-  fechar: () => void
-  concluir: () => Promise<void>
-}) {
-  const [lista, setLista] = useState<Candidato[] | null>(null)
-  const [dica, setDica] = useState('')
-  const [erro, setErro] = useState('')
-  const [manual, setManual] = useState('')
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await motor<{ candidatos: Candidato[]; dica: string }>(
-          '/orcamentos/correcoes/candidatos?ticket=' + ticket)
-        setLista(r.candidatos)
-        setDica(r.dica)
-      } catch (e) {
-        setErro(e instanceof Error ? e.message : 'Não consegui buscar sugestões.')
-      }
-    })()
-  }, [ticket])
-
-  async function corrigir(para: number) {
-    try {
-      await motor(`/orcamentos/documentos/${documento}/tickets`, {
-        metodo: 'PATCH', corpo: { de: ticket, para },
-      })
-      await concluir()
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não consegui corrigir.')
-    }
-  }
-
-  return (
-    <div className="orc-janela" role="dialog" aria-modal>
-      <div className="orc-janela-caixa">
-        <h3>O fornecedor escreveu <b>{ticket}</b></h3>
-        <p className="orc-dica">{dica}</p>
-
-        {erro && <p className="erro">{erro}</p>}
-        {!lista ? <Carregando /> : (
-          <div className="orc-candidatos">
-            {lista.map(c => (
-              <button key={c.numero} type="button" className="orc-candidato" onClick={() => void corrigir(c.numero)}>
-                <b>{c.numero}</b>
-                <span className="loja">{c.loja} · {contaPorExtenso(c.conta)}</span>
-                <span className="desc">{c.descricao}</span>
-                <span className="porque">{c.porque} · aberto em {emDataHora(c.criado_em)}</span>
-              </button>
-            ))}
-            {lista.length === 0 && <p className="orc-vazio">Nenhum chamado parecido.</p>}
-          </div>
-        )}
-
-        <div className="orc-manual">
-          <span>Nenhum destes?</span>
-          <input
-            inputMode="numeric"
-            placeholder="digitar o número certo"
-            value={manual}
-            maxLength={6}
-            onChange={e => setManual(e.target.value.replace(/\D/g, ''))}
-          />
-          <button type="button" className="orc-bt"
-            disabled={!(Number(manual) >= 10000)}
-            onClick={() => void corrigir(Number(manual))}>corrigir</button>
-          <button type="button" className="orc-bt" onClick={fechar}>fechar</button>
-        </div>
-      </div>
-    </div>
   )
 }
 

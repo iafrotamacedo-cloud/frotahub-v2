@@ -35,7 +35,7 @@ export type Icone =
   | 'dinheiro' | 'saida' | 'entrada' | 'balanca'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos'
+export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
@@ -83,18 +83,39 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             desc: 'O que sai para o fornecedor, o que entra do cliente, e a diferença',
             sub: [
               {
+                // A SEGUNDA A GANHAR TELA (26/08/2026)
+                //
+                //	Por enquanto ela tem UM botão: o pedido de faturamento. O
+                //	resto do "a pagar" — conferir o CSV do Obra Prima, marcar o
+                //	que foi pago — vem depois, e a tela já nasce sabendo que vai
+                //	crescer.
                 t: 'A pagar',
                 rota: 'a-pagar',
                 icone: 'saida',
                 desc: 'DAVs e notas do fornecedor: o que foi faturado, o que foi pago e o que está em aberto',
-                breve: true,
+                tela: 'a-pagar',
+                rotina: 'CONTRATO_FINANCEIRO_PAGAR',
               },
               {
+                // A PRIMEIRA DAS TRÊS A GANHAR TELA (26/08/2026)
+                //
+                //	"Faturar ao cliente" nasceu como barra dentro de Orçamentos,
+                //	e estava no lugar errado: ali dentro tudo é sobre a nota que
+                //	a gente COMPRA — ler, amarrar ticket, gerar, lançar. Faturar
+                //	é o outro lado do balcão, e o dono mandou movê-la para cá.
+                //
+                //	Deixá-la onde estava faria alguém procurar cobrança no menu
+                //	de compra pelos próximos anos.
+                //
+                //	E é por isso que a `rotina` aparece agora, e só agora: o
+                //	comentário acima dizia que ela nasce junto com a tela que
+                //	protege. A tela chegou.
                 t: 'A receber',
                 rota: 'a-receber',
                 icone: 'entrada',
                 desc: 'Espelhos de faturamento ao cliente e o que já voltou dele',
-                breve: true,
+                tela: 'faturar',
+                rotina: 'CONTRATO_ORCAMENTOS_FATURAR',
               },
               {
                 t: 'Balanço',

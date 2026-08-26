@@ -30,6 +30,8 @@ export interface Painel {
   // pelo mês, aqueles 39 orçamentos teriam sumido da cobrança para sempre.
   a_faturar: number
   valor_a_faturar: number
+  /** ---- a 023 ---- a fila do faturamento direto. */
+  notas_direto?: number
   no_total: number
   valor_total: number
   ultima_insercao?: string | null
@@ -72,6 +74,45 @@ export interface Documento {
   ticket_soltos: number[] | null
   pronto_para_gerar: boolean
   itens: number
+
+  // ---- a 019 ----
+  /** Quando preenchida, esta nota é a MESMA que a apontada — mesma chave de
+   *  acesso, ou mesmo número e valor. Ela não gera orçamento. O nome da outra
+   *  vem junto porque "repetida" sem dizer de quem obriga o usuário a caçar. */
+  duplicada_de: string | null
+  duplicada_de_nome: string | null
+  duplicada_de_em: string | null
+
+  // ---- a 020 ----
+  /** A nota não pode virar orçamento, e a frase diz por quê. Some sozinha
+   *  quando a condição muda e a nota passa numa tentativa seguinte. */
+  bloqueio_motivo: string | null
+
+  // ---- a 022 ----
+  /** Desconto autorizado, em pontos-base do orçamento. 385 = 3,85%. Zero é o
+   *  normal, e uma nota nunca ganha desconto duas vezes. */
+  desconto_bp: number
+  desconto_em: string | null
+  /** A nota foi mandada para aprovação: o orçamento nasce com o valor CHEIO e
+   *  parado, porque é ELE que vai ao cliente — não a nota. */
+  aprovacao_pedida: boolean
+  aprovacao_pedida_em: string | null
+}
+
+/** O que o motor responde sobre dar desconto numa nota que passa do teto.
+ *
+ *  O NÚMERO VEM DAQUI, NUNCA DO NAVEGADOR
+ *    A tela mostra e confirma; quem calcula é o motor, e ele recalcula na hora
+ *    de gravar. Aceitar um valor da tela seria aceitar 40% de quem soubesse
+ *    escrever a chamada à mão. */
+export interface Desconto {
+  pode: boolean
+  bp: number
+  porcentagem: string
+  orcamento_original: number
+  orcamento_final: number
+  motivo?: string
+  ja_tem_desconto: boolean
 }
 
 export interface Orcamento {
@@ -81,9 +122,24 @@ export interface Orcamento {
   conta: string | null
   status: 'gerado' | 'aguardando_aprovacao' | 'lancado' | 'removido'
   valor: number | null
+  /** O que se PAGOU pela nota. */
   valor_nota: number | null
   reduzido_pelo_teto: boolean
   valor_antes_do_teto: number | null
+
+  // ---- a 020 ----
+  /** A soma dos itens como estão na nota, ANTES do desconto do fornecedor.
+   *  Igual a `valor_nota` quando não houve desconto. */
+  valor_nota_cheio: number | null
+  /** O bruto passava do maior custo que cabe no teto, e o orçamento foi fechado
+   *  no teto exato.
+   *
+   *  CARIMBO INTERNO
+   *    Ele existe para NÓS entendermos um corte que não tem outra explicação —
+   *    seis meses depois, alguém abre um orçamento de R$ 600 para uma nota de
+   *    R$ 700 e precisa saber se foi regra, erro de digitação ou coisa pior.
+   *    Não entra no PDF que vai para o cliente, e nunca deve entrar. */
+  ajustado_pelo_teto: boolean
   rateio: boolean
   criado_em: string
   lancado_em: string | null
@@ -195,6 +251,8 @@ export interface TicketDoDocumento {
 
 export interface Correcoes {
   sem_ticket: Documento[]
+  /** As que a geração recusou por limite de teto. */
+  extrapoladas?: Documento[]
   sem_associacao: Array<{
     id: string
     ticket: number
@@ -275,4 +333,40 @@ export function contaPorExtenso(c: string | null): string {
   if (c === 'instalacoes') return 'Instalações'
   if (c === 'civil') return 'Civil'
   return c ?? '–'
+}
+
+// ---------------------------------------------------------------------------
+// tratamento das filas (26/08/2026)
+//
+// A CONFERÊNCIA DA TELA É A MESMA DA GERAÇÃO
+//   No sistema antigo eram duas, e discordavam: a tela dizia "pronta" e a
+//   geração recusava, sem ninguém entender por quê. Estes campos vêm de
+//   `avaliarPartes`, a mesma função que decide se o orçamento nasce.
+// ---------------------------------------------------------------------------
+
+export interface ParteConferida {
+  ticket: number
+  na_base: boolean
+  loja?: string
+  /** Quanto desta nota cabe a este ticket, já com o desconto do fornecedor. */
+  custo: number
+  /** Quanto o ticket já tem de custo lançado, de qualquer tipo. */
+  ja_no_ticket: number
+  /** O orçamento que sairia daqui. Zero quando este pedaço está travado. */
+  orcamento: number
+  decisao: 'livre' | 'reduzido' | 'aprovacao' | ''
+  /** Aparada pela regra do desconto — o carimbo interno. */
+  ajustada: boolean
+  motivo?: string
+}
+
+export interface Conferencia {
+  documento: string
+  nome: string
+  fila: 'orcamento' | 'rateio' | ''
+  valor_total: number
+  /** Verde ou vermelho. É esta a palavra que o botão reprocessar obedece. */
+  pronta: boolean
+  motivos?: string[]
+  partes: ParteConferida[]
 }

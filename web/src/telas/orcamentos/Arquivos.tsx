@@ -211,6 +211,20 @@ export function Arquivos({ fila, voltar }: Props) {
                           {d.valor_total ? ` · ${emReais(d.valor_total)}` : ''}
                         </span>
                       )}
+                      {/* MOTIVO ESCONDIDO NO `title` É MOTIVO QUE NINGUÉM LÊ
+                          Quem chega nesta tela para tratar precisa da frase à
+                          vista — ela diz qual ticket travou e o que fazer.
+                          Bloqueio sem saída visível é o que faz o usuário
+                          desistir do sistema e abrir uma planilha. */}
+                      {d.bloqueio_motivo && (
+                        <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
+                      )}
+                      {d.duplicada_de && (
+                        <span className="orc-detalhe ruim">
+                          já entrou como “{d.duplicada_de_nome ?? 'outra nota'}”
+                          {d.duplicada_de_em ? ` em ${emDataHora(d.duplicada_de_em)}` : ''}
+                        </span>
+                      )}
                     </td>
                     <td>{emDataHora(d.inserido_em)}</td>
                     {fila === 'rateio' && (
@@ -269,7 +283,7 @@ export function Arquivos({ fila, voltar }: Props) {
  *   tela que já sabe quando mudou é um botão que só existe para o usuário
  *   desconfiar do que está vendo.
  */
-function Insercao({ fila, aoTerminar, aoFalhar }: {
+export function Insercao({ fila, aoTerminar, aoFalhar }: {
   fila: string
   aoTerminar: () => Promise<void>
   aoFalhar: (s: string) => void
@@ -527,6 +541,24 @@ function Leitura({ d }: { d: Documento }) {
   if (d.status === 'inserido') return <span className="orc-selo espera">na fila</span>
   if (d.status === 'falhou') return <span className="orc-selo ruim">falhou</span>
   if (d.status === 'usado') return <span className="orc-selo ok">virou orçamento</span>
+
+  // O IMPEDIMENTO VEM ANTES DA QUALIDADE DA LEITURA
+  //
+  //	Uma nota repetida pode estar lida com 100% de confiança — e mostrar
+  //	"leitura boa" numa nota que não vai gerar orçamento nenhum é responder a
+  //	pergunta errada. Quem olha esta coluna quer saber se pode seguir, não se
+  //	o OCR foi feliz.
+  if (d.duplicada_de) {
+    return (
+      <span className="orc-selo ruim" title={d.duplicada_de_nome
+        ? `é a mesma nota que "${d.duplicada_de_nome}"`
+        : 'já existe uma nota igual a esta'}>repetida</span>
+    )
+  }
+  if (d.bloqueio_motivo) {
+    return <span className="orc-selo ruim" title={d.bloqueio_motivo}>bloqueada</span>
+  }
+
   const c = confiancaEmPalavras(d.leitura_camada, d.leitura_confianca)
   return <span className={'orc-selo ' + c.classe}>{c.texto}</span>
 }

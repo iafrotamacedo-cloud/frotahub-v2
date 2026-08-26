@@ -140,6 +140,13 @@ type documentoPronto struct {
 	Emissao    *string `json:"emissao"`
 	Observacao *string `json:"observacao"`
 	Valor      float64 `json:"valor_total"`
+
+	// ---- a 022 ----
+	// Desconto autorizado, em pontos-base do orçamento. Zero é o normal.
+	DescontoBP int64 `json:"desconto_bp"`
+	// A nota foi mandada para aprovação do cliente: o orçamento nasce com o
+	// valor CHEIO e parado, porque é ele que vai ao cliente.
+	AprovacaoPedida bool `json:"aprovacao_pedida"`
 }
 
 // documentosProntos são as notas lidas, ainda não usadas e não ocultas.
@@ -155,7 +162,7 @@ func (m *Modulo) documentosProntos(ctx context.Context, clienteID string, apenas
 	//	duas lado a lado, e desfazer a marca com conhecimento de causa.
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(clienteID) +
 		"&oculto_em=is.null&status=eq.lido&duplicada_de=is.null" +
-		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emissao,observacao,valor_total" +
+		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emissao,observacao,valor_total,desconto_bp,aprovacao_pedida" +
 		"&order=inserido_em"
 
 	if fila == "orcamento" || fila == "rateio" {
@@ -227,36 +234,47 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		return []saidaDaGeracao{base}
 	}
 
-	itens, err := m.itensDo(ctx, d.ID)
-	if err != nil || len(itens) == 0 {
+	linhas, err := m.itensDo(ctx, d.ID)
+	if err != nil || len(linhas) == 0 {
 		base.Erro = "esta nota não tem itens lidos"
 		return []saidaDaGeracao{base}
 	}
 
-	// A margem entra no unitário, uma vez só, em regras.MontarItens.
-	comMargem, totalComMargem := regras.MontarItens(itens, par.MargemBP)
-
-	saida := make([]saidaDaGeracao, 0, len(tickets))
-	for i, t := range tickets {
-		res := base
-		res.Ticket = t.Ticket
-
-		// A parcela deste ticket. A última fica com a sobra dos centavos, para a
-		// soma das partes fechar exatamente com o total.
-		parcela := totalComMargem
-		itensDaParte := comMargem
-		if len(tickets) > 1 {
-			parcela = fatiar(totalComMargem, len(tickets), i)
-			var errCorte error
-			itensDaParte, errCorte = regras.Encaixar(comMargem, parcela)
-			if errCorte != nil {
-				res.Erro = errCorte.Error()
-				saida = append(saida, res)
-				continue
-			}
+	// DECIDIR A NOTA INTEIRA ANTES DE GRAVAR QUALQUER PEDAÇO
+	//
+	//	O plano calcula, para cada ticket, quanto sairia e se cabe — sem tocar
+	//	no banco. Só depois de a nota inteira passar é que o primeiro orçamento
+	//	nasce. É o que torna o tudo-ou-nada possível: uma vez gravado, desfazer
+	//	orçamento é trabalho no Trílogo, na planilha e no faturamento.
+	partes, bloqueio, err := m.planejarNota(ctx, d, tickets, linhas, par)
+	if err != nil {
+		base.Erro = err.Error()
+		return []saidaDaGeracao{base}
+	}
+	if bloqueio != "" {
+		// A frase fica NA NOTA, e não só nesta resposta: a tela de quem vai
+		// tratar é outra, e um erro que só existe no retorno de uma chamada
+		// morre quando a página recarrega.
+		if err := m.bd.Atualizar(ctx, "documentos", "id=eq."+d.ID,
+			map[string]any{"bloqueio_motivo": bloqueio}); err != nil {
+			log.Printf("orcamentos: não consegui marcar o bloqueio de %s: %v", d.Nome, err)
 		}
+		base.Erro = bloqueio
+		return []saidaDaGeracao{base}
+	}
 
-		id, aviso, err := m.criarOrcamento(ctx, p, d, t, itensDaParte, parcela, par)
+	// A nota passou: se ela estava marcada de antes, a marca sai. Condição
+	// muda — o ticket é lançado, o valor é corrigido — e bloqueio que não
+	// desaparece sozinho vira entulho que ninguém confia.
+	_ = m.bd.Atualizar(ctx, "documentos", "id=eq."+d.ID+"&bloqueio_motivo=not.is.null",
+		map[string]any{"bloqueio_motivo": nil})
+
+	saida := make([]saidaDaGeracao, 0, len(partes))
+	for _, parte := range partes {
+		res := base
+		res.Ticket = parte.ticket.Ticket
+
+		id, aviso, err := m.criarOrcamento(ctx, p, d, parte, par)
 		switch {
 		case err != nil:
 			res.Erro = err.Error()
@@ -267,6 +285,180 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		saida = append(saida, res)
 	}
 	return saida
+}
+
+// ---------------------------------------------------------------------------
+// o plano da nota
+// ---------------------------------------------------------------------------
+
+// parteDaNota é o que UM ticket vai receber, já decidido.
+type parteDaNota struct {
+	ticket   ticketDoDocumento
+	custo    regras.Custo
+	itens    []regras.Item
+	veredito regras.Veredito
+}
+
+// planejarNota calcula o destino de cada pedaço da nota sem gravar nada.
+//
+// A REGRA DO DESCONTO VALE POR ORÇAMENTO, NÃO POR NOTA
+//
+//	O teto é do TICKET — R$ 600 em cada um, não R$ 600 na nota. Então a linha
+//	dos R$ 500 também é por ticket: uma nota de R$ 900 dividida entre três
+//	tickets são três compras de R$ 300, e as três cabem. Decisão do dono em
+//	26/08/2026: "a regra vale para cada orçamento gerado".
+//
+// E SE UM PEDAÇO NÃO PASSA, A NOTA INTEIRA PARA
+//
+//	Gerar quatro dos cinco deixaria a nota metade-lançada: o material do quinto
+//	ticket já foi comprado e entregue, e não há onde cobrá-lo. Quem fosse tratar
+//	teria que desfazer os quatro primeiros para poder refazer a divisão.
+func (m *Modulo) planejarNota(ctx context.Context, d documentoPronto,
+	tickets []ticketDoDocumento, linhas []regras.LinhaDaNota,
+	par regras.Parametros) ([]parteDaNota, string, error) {
+
+	partes, motivos, err := m.avaliarPartes(ctx, d, tickets, linhas, par)
+	if err != nil {
+		return nil, "", err
+	}
+	// A PRIMEIRA RECUSA PARA A NOTA INTEIRA
+	//   Aqui basta saber que não dá. A tela de tratamento usa a MESMA avaliação
+	//   e mostra as recusas todas, porque lá a pergunta é outra: não é "posso
+	//   gerar?", é "o que eu preciso consertar?".
+	for _, motivo := range motivos {
+		if motivo != "" {
+			return nil, motivo, nil
+		}
+	}
+	return partes, "", nil
+}
+
+// avaliarPartes calcula o destino de CADA pedaço da nota, sem parar no primeiro
+// problema e sem gravar nada.
+//
+// POR QUE ELA NÃO PARA NA PRIMEIRA RECUSA
+//
+//	Porque tem dois donos. A geração quer saber se a nota roda — e para no
+//	primeiro "não". A tela de tratamento quer a lista do que consertar, e uma
+//	tela que revela um problema de cada vez faz o usuário voltar cinco vezes
+//	para descobrir que a nota tinha cinco.
+//
+//	As duas leem a mesma avaliação, escrita uma vez (CORE-06). No sistema antigo
+//	a conferência da tela e a da geração eram códigos diferentes, e discordavam:
+//	a tela dizia "pronta" e a geração recusava, sem ninguém entender por quê.
+//
+// `motivos` tem o mesmo tamanho de `partes`: vazio quer dizer que aquele pedaço
+// passa.
+func (m *Modulo) avaliarPartes(ctx context.Context, d documentoPronto,
+	tickets []ticketDoDocumento, linhas []regras.LinhaDaNota,
+	par regras.Parametros) ([]parteDaNota, []string, error) {
+
+	// O BRUTO SAI DOS ITENS; O PAGO SAI DA NOTA
+	//   São dois números diferentes quando há desconto, e é justamente a
+	//   diferença entre eles que esta regra existe para tratar.
+	comMargem, totalComMargem := regras.MontarItens(linhas, par.MargemBP)
+	cheio := somaDasLinhas(linhas)
+	pago := regras.DinheiroDe(d.Valor)
+
+	n := len(tickets)
+	partes := make([]parteDaNota, 0, n)
+	motivos := make([]string, 0, n)
+
+	for i, t := range tickets {
+		custo := regras.AplicarDesconto(fatiar(cheio, n, i), fatiar(pago, n, i), par)
+
+		// ALGUÉM ASSINOU EMBAIXO
+		//   A autorização não muda a regra: ela diz que, para ESTA nota, se
+		//   abre mão da diferença para fechar no teto. O teto do ticket
+		//   continua sendo conferido logo abaixo, como para qualquer outra.
+		if d.DescontoBP > 0 {
+			custo = regras.ComDescontoAutorizado(custo, par)
+		}
+		// A APROVAÇÃO NÃO ABRE MÃO DE NADA
+		//   Ela leva o valor CHEIO ao cliente e pergunta se ele aceita pagar
+		//   acima do limite que ele mesmo contratou. O desconto, ao contrário,
+		//   é dinheiro nosso. São caminhos diferentes de propósito.
+		if d.AprovacaoPedida {
+			custo = regras.ComAprovacaoDoCliente(custo)
+		}
+
+		// O ALVO DESTE PEDAÇO
+		//   Quando o custo foi aparado, o orçamento fecha no TETO exato — é o
+		//   que o dono pediu com "ajusta orçamento para o teto, ou seja, 600".
+		//   Quando não foi, é a fatia normal do total com margem.
+		alvo := fatiar(totalComMargem, n, i)
+		if custo.Ajustada() {
+			alvo = par.Teto
+		}
+
+		itensDaParte := comMargem
+		if n > 1 || custo.Ajustada() {
+			var errCorte error
+			if itensDaParte, errCorte = regras.Encaixar(comMargem, alvo); errCorte != nil {
+				return nil, nil, errCorte
+			}
+		}
+
+		// TICKET SEM CHAMADO NÃO TEM CUSTO PARA SOMAR
+		//   E não é caso de erro: é o estado normal de uma nota que está em
+		//   "não associadas". Ela precisa ser AVALIADA assim mesmo, para a tela
+		//   poder dizer que o problema é a associação e não o teto.
+		var jaNoTicket regras.Dinheiro
+		if t.ChamadoID != nil {
+			var err error
+			if jaNoTicket, err = m.custosDoTicket(ctx, *t.ChamadoID); err != nil {
+				return nil, nil, fmt.Errorf("não consegui somar os custos do ticket %d: %w", t.Ticket, err)
+			}
+		}
+		veredito := regras.AplicarTeto(alvo, jaNoTicket, par)
+
+		motivo := ""
+		switch {
+		case t.ChamadoID == nil:
+			motivo = fmt.Sprintf("ticket %d — não existe na nossa base de chamados", t.Ticket)
+
+		// A NOTA QUE VAI AO CLIENTE PASSA DE PROPÓSITO
+		//
+		//	Ela foi mandada para aprovação: o orçamento TEM que nascer, com o
+		//	valor cheio, porque é ele o documento que o cliente recebe. Quem o
+		//	segura é o status `aguardando_aprovacao`, logo adiante — não este
+		//	bloqueio, que o impediria de existir.
+		//
+		//	O bloqueio por DESCONTO continua valendo: se nem com aprovação a
+		//	conta fecha, o problema é outro e a nota volta para tratamento.
+		case d.AprovacaoPedida:
+			motivo = ""
+
+		default:
+			if pode, porque := regras.NotaPodeRodar(custo, []regras.Veredito{veredito}); !pode {
+				motivo = fmt.Sprintf("ticket %d — %s", t.Ticket, porque)
+			}
+		}
+
+		// A folga dos 5% apara aqui, e o orçamento roda com carimbo.
+		if motivo == "" && veredito.Reduziu() {
+			var errCorte error
+			if itensDaParte, errCorte = regras.Encaixar(itensDaParte, veredito.Valor); errCorte != nil {
+				return nil, nil, errCorte
+			}
+		}
+
+		partes = append(partes, parteDaNota{
+			ticket: t, custo: custo, itens: itensDaParte, veredito: veredito,
+		})
+		motivos = append(motivos, motivo)
+	}
+	return partes, motivos, nil
+}
+
+// somaDasLinhas é o bruto da nota: o que os itens dizem que ela vale, antes de
+// qualquer desconto.
+func somaDasLinhas(linhas []regras.LinhaDaNota) regras.Dinheiro {
+	var soma regras.Dinheiro
+	for _, l := range linhas {
+		soma += regras.Total(l.Quantidade, l.Unitario)
+	}
+	return soma
 }
 
 // fatiar divide um valor em n partes iguais, jogando a sobra na última.
@@ -369,27 +561,31 @@ func (m *Modulo) itensDo(ctx context.Context, documentoID string) ([]regras.Linh
 //	Isso NÃO dispensa a conferência no lançamento: entre gerar e lançar, alguém
 //	pode ter lançado outra coisa. São duas conferências de propósito.
 func (m *Modulo) criarOrcamento(ctx context.Context, p *seguranca.Principal,
-	d documentoPronto, t ticketDoDocumento, itens []regras.Item,
-	valor regras.Dinheiro, par regras.Parametros) (string, string, error) {
+	d documentoPronto, parte parteDaNota, par regras.Parametros) (string, string, error) {
 
-	jaNoTicket, err := m.custosDoTicket(ctx, *t.ChamadoID)
-	if err != nil {
-		return "", "", fmt.Errorf("não consegui somar os custos do ticket: %w", err)
-	}
+	t, v, custo := parte.ticket, parte.veredito, parte.custo
 
-	v := regras.AplicarTeto(valor, jaNoTicket, par)
-
-	itensFinais := itens
 	aviso := ""
 	if v.Reduziu() {
-		itensFinais, err = regras.Encaixar(itens, v.Valor)
-		if err != nil {
-			return "", "", err
-		}
 		aviso = fmt.Sprintf("reduzido de %s para %s: o ticket já tinha %s e o teto é %s",
 			v.ValorOriginal.Reais(), v.Valor.Reais(), v.JaNoTicket.Reais(), v.Teto.Reais())
 	}
+	// O CARIMBO EXPLICA O CORTE QUE NÃO TEM OUTRA EXPLICAÇÃO
+	//   Sem esta frase, alguém abre um orçamento de R$ 600 para uma nota de
+	//   R$ 700 e não tem como saber se foi regra, erro de digitação ou fraude.
+	if custo.Ajustada() {
+		aviso = fmt.Sprintf(
+			"ajustada por conta do teto: a nota soma %s, pagamos %s, e o máximo que cabe no teto de %s é %s",
+			custo.Cheio.Reais(), custo.ComDesconto.Reais(), par.Teto.Reais(), custo.BaseMaxima.Reais())
+	}
 
+	// O ORÇAMENTO ACIMA DO TETO NASCE PARADO
+	//
+	//	Eu tinha tirado esta decisão quando `planejarNota` passou a barrar antes
+	//	de chegar aqui — e estava certo enquanto NADA podia passar do teto. Com
+	//	o "mandar para aprovação", volta a haver um caminho legítimo até este
+	//	ponto com o valor cheio, e sem isto o orçamento nasceria `gerado`:
+	//	pronto para ser lançado sem ninguém ter aprovado nada.
 	status := "gerado"
 	if v.Decisao == regras.Aprovacao {
 		status = "aguardando_aprovacao"
@@ -397,7 +593,7 @@ func (m *Modulo) criarOrcamento(ctx context.Context, p *seguranca.Principal,
 			v.ValorOriginal.Reais(), v.JaNoTicket.Reais(), v.Teto.Reais())
 	}
 
-	parte, err := m.proximaParte(ctx, p.ClienteID, t.Ticket)
+	parteN, err := m.proximaParte(ctx, p.ClienteID, t.Ticket)
 	if err != nil {
 		return "", "", err
 	}
@@ -409,17 +605,22 @@ func (m *Modulo) criarOrcamento(ctx context.Context, p *seguranca.Principal,
 	}
 
 	linha := map[string]any{
-		"cliente_id":         p.ClienteID,
-		"ticket":             t.Ticket,
-		"parte":              parte,
-		"chamado_id":         *t.ChamadoID,
-		"unidade_id":         chamado["unidade_id"],
-		"conta":              chamado["conta"],
-		"valor_nota":         d.Valor,
+		"cliente_id": p.ClienteID,
+		"ticket":     t.Ticket,
+		"parte":      parteN,
+		"chamado_id": *t.ChamadoID,
+		"unidade_id": chamado["unidade_id"],
+		"conta":      chamado["conta"],
+		// O QUE SE PAGOU E O QUE A NOTA SOMA, LADO A LADO
+		//   Iguais quando não houve desconto. Diferentes, contam a história
+		//   inteira sem ninguém precisar reconstruir a conta.
+		"valor_nota":         custo.ComDesconto.Float(),
+		"valor_nota_cheio":   custo.Cheio.Float(),
 		"valor":              v.Valor.Float(),
 		"margem_aplicada":    float64(par.MargemBP) / 10000,
 		"teto_aplicado":      v.Teto.Float(),
 		"reduzido_pelo_teto": v.Reduziu(),
+		"ajustado_pelo_teto": custo.Ajustada(),
 		"rateio":             d.Fila == "rateio",
 		"status":             status,
 		"criado_por":         p.UserID,
@@ -440,7 +641,7 @@ func (m *Modulo) criarOrcamento(ctx context.Context, p *seguranca.Principal,
 	}
 	id := fmt.Sprint(criados[0]["id"])
 
-	if err := m.gravarItensDoOrcamento(ctx, id, itensFinais); err != nil {
+	if err := m.gravarItensDoOrcamento(ctx, id, parte.itens); err != nil {
 		return id, aviso, fmt.Errorf("gravei o orçamento mas não os itens: %w", err)
 	}
 
@@ -550,11 +751,17 @@ func (m *Modulo) aprovar(w http.ResponseWriter, r *http.Request) {
 	}
 	var pedido pedidoDeAprovacao
 	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&pedido)
-	if strings.TrimSpace(pedido.Nota) == "" {
-		web.Falhar(w, http.StatusBadRequest,
-			"Escreva onde está a aprovação do cliente (e-mail, print, conversa). Sem isso o orçamento fica sem defesa.")
-		return
-	}
+	// A JUSTIFICATIVA DEIXOU DE SER OBRIGATÓRIA EM 26/08/2026
+	//
+	//	Decisão do dono: registrar quem e quando basta. O campo continua
+	//	existindo e continua sendo gravado quando alguém escreve — tirar a
+	//	COLUNA seria destruir a defesa dos orçamentos que já a têm, e a de quem
+	//	quiser escrever amanhã.
+	//
+	//	Vale dizer o que se perde: sem o texto, seis meses depois o registro diz
+	//	que fulano clicou, não em que fulano se baseou. Se um dia a discussão
+	//	for com o cliente, é a diferença entre "foi aprovado" e "foi aprovado
+	//	por e-mail do Beltrano em tal dia".
 
 	filtro := "id=eq." + id + "&cliente_id=eq." + banco.Escapar(p.ClienteID) +
 		"&status=eq.aguardando_aprovacao"

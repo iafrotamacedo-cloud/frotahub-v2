@@ -119,6 +119,8 @@ func main() {
 	defer parar()
 
 	l := &Leitor{bd: bd, arm: arm, ia: ia, quem: quemSou()}
+	l.recolherOrfaos(ctx)
+
 	vazias, lidas, falhas := 0, 0, 0
 
 	for volta := 1; volta <= 2000 && ctx.Err() == nil; volta++ {
@@ -181,6 +183,62 @@ type Trabalho struct {
 	ClienteID  string `json:"cliente_id"`
 	Alvo       string `json:"alvo_id"`
 	Tentativas int    `json:"tentativas"`
+}
+
+// TempoDeOrfandade é quanto um trabalho pode ficar "rodando" antes de a gente
+// concluir que ninguém está rodando ele.
+//
+// Trinta minutos é o teto do próprio workflow: passando disso, a máquina que
+// tomou o trabalho não existe mais — o GitHub a desligou. Um pouco de margem
+// para o relógio das duas pontas não bater, e chega.
+const TempoDeOrfandade = 40 * time.Minute
+
+// recolherOrfaos devolve para a fila o trabalho que ficou na mão de uma máquina
+// que morreu.
+//
+// O BURACO QUE ISTO TAPA
+//
+//	`tomarTrabalho` marca o trabalho como "rodando" e só o fecha no fim. Se a
+//	corrida morre no meio — o Actions cai, o tempo estoura, alguém cancela — o
+//	trabalho fica "rodando" para sempre. Nenhuma corrida futura o pega, porque
+//	todas procuram por `na_fila`.
+//
+//	Aconteceu em 26/08/2026, num dia em que o próprio GitHub teve incidente. O
+//	documento não some, não dá erro e não aparece como falhado: ele simplesmente
+//	nunca mais é lido. É a falha mais difícil de notar que existe — a que não
+//	deixa rastro em lugar nenhum.
+//
+// POR QUE VOLTAR PARA A FILA E NÃO MARCAR COMO FALHADO
+//
+//	Porque não houve falha: houve interrupção. A nota está inteira, o arquivo
+//	está no armazém, e a leitura nunca chegou a ser tentada até o fim. Marcar
+//	"falhou" seria acusar a nota de um problema que foi da máquina.
+//
+//	A tentativa NÃO é devolvida de propósito: ela já foi gasta, e um trabalho
+//	que morre a máquina toda vez precisa parar de ser tentado em algum momento —
+//	senão uma nota que trava o processo vira laço infinito.
+func (l *Leitor) recolherOrfaos(ctx context.Context) {
+	limite := time.Now().UTC().Add(-TempoDeOrfandade).Format(time.RFC3339)
+
+	var recolhidos []Trabalho
+	err := l.bd.AtualizarDevolvendo(ctx, "jobs",
+		"status=eq.rodando&tipo=eq.ler_documento&comecou_em=lt."+limite,
+		map[string]any{
+			"status":     "na_fila",
+			"comecou_em": nil,
+			"tomado_por": nil,
+			"erro":       "a máquina que tinha este trabalho não terminou; devolvido para a fila",
+		}, &recolhidos)
+	if err != nil {
+		// Não derruba a corrida: recolher órfão é limpeza, e a fila normal
+		// continua funcionando sem ela.
+		log.Printf("não consegui recolher trabalho órfão: %v", err)
+		return
+	}
+	if len(recolhidos) > 0 {
+		log.Printf("%d trabalho(s) tinham ficado presos em uma corrida que morreu — devolvidos para a fila",
+			len(recolhidos))
+	}
 }
 
 // tomarTrabalho pega uma linha da fila SEM correr o risco de duas máquinas

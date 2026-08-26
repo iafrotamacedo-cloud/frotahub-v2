@@ -131,6 +131,23 @@
 .orc-nome { display: block; font-weight: 500; color: var(--ink); }
 .orc-detalhe { display: block; margin-top: 2px; font-size: 11px; color: var(--mut); }
 
+/* A LINHA DE DETALHE QUE PRECISA SER LIDA
+ *
+ *   O detalhe normal é cinza porque é contexto: o número da nota, o emitente.
+ *   Mas a frase que diz por que a nota não gera orçamento não é contexto, é a
+ *   única coisa que importa naquela linha — e cinza-sobre-branco é a cor de
+ *   "pode ignorar". Herda as mesmas cores dos selos, que já são as do sistema
+ *   inteiro para aviso e erro.
+ *
+ *   `max-width` porque a frase do bloqueio é uma frase de verdade, com o número
+ *   do ticket e a instrução: sem limite ela estica a coluna e empurra o valor
+ *   para fora da tela. */
+.orc-detalhe.aviso { color: var(--warn); }
+.orc-detalhe.ruim  { color: var(--err); }
+.orc-detalhe.aviso, .orc-detalhe.ruim {
+  max-width: 46ch; white-space: normal; line-height: 1.35;
+}
+
 .orc-acoes { text-align: right; white-space: nowrap; }
 .orc-acoes button {
   border: 0; background: none; cursor: pointer;
@@ -482,3 +499,166 @@
 
 .fat-diferenca { display: block; margin-top: 2px; font-size: 11px; color: var(--warn); }
 .fat-paga td { background: var(--ok-bg); }
+
+/* ---------------------------------------------------------------------------
+ * o visor da nota — tratamento das filas (26/08/2026)
+ *
+ * POR QUE A BARRA É `sticky` E O PAPEL ROLA POR BAIXO
+ *   A tarefa é ler o número escrito na nota e digitá-lo. Se a barra rolasse
+ *   junto, a pessoa desceria para achar o ticket no rodapé do documento e a
+ *   caixa de digitar sumiria — obrigando a decorar o número e subir. Decorar é
+ *   exatamente onde se troca um dígito.
+ * ------------------------------------------------------------------------- */
+.visor { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+
+.visor-barra {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--line);
+}
+.visor-esq { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+.visor-dir { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+.visor-esq input {
+  width: 168px; padding: 7px 10px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.visor-esq input:focus { border-color: var(--red); outline: none; }
+
+/* Os tickets já postos. Fica no MEIO de propósito: é o que se confere entre
+ * digitar (esquerda) e decidir (direita). */
+.visor-postos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.visor-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 8px 4px 10px; border-radius: 20px;
+  background: var(--ok-bg); color: var(--ok); font-size: 12px;
+}
+.visor-chip.ruim { background: var(--err-bg); color: var(--err); }
+.visor-chip b { font-weight: 700; }
+.visor-chip i { font-style: normal; opacity: .8; font-size: 11px; }
+.visor-chip u, .visor-chip s {
+  text-decoration: none; cursor: pointer; font-weight: 700; opacity: .75;
+}
+.visor-chip u { font-size: 11px; }
+.visor-chip s { font-size: 14px; line-height: 1; }
+.visor-chip u:hover, .visor-chip s:hover { opacity: 1; }
+
+/* O OK é maior porque é o único botão que ENCERRA. Os outros mudam alguma
+ * coisa; este diz "terminei aqui". */
+.visor-ok {
+  border: 0; cursor: pointer; border-radius: 9px;
+  padding: 10px 26px; font-size: 14px; font-weight: 700;
+  background: var(--red); color: #fff;
+}
+.visor-ok:disabled { opacity: .5; cursor: default; }
+.visor-dir button.mut {
+  border: 1px solid var(--line); background: var(--bg); cursor: pointer;
+  border-radius: 8px; padding: 8px 14px; font-size: 12.5px; color: var(--gray);
+}
+.visor-dir button.mut.perigo { color: var(--err); border-color: var(--err-bg); }
+
+.visor-aviso {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 8px 16px; font-size: 12px; color: var(--mut);
+}
+.visor-aviso > button { margin-left: auto; }
+.visor-ok-txt { color: var(--ok); font-weight: 600; }
+.visor-ruim-txt { color: var(--err); font-weight: 600; }
+
+/* O papel. `min-height` porque uma nota pequena numa tela grande deixaria a
+ * caixa espremida contra a barra, e o zoom do PDF encolhe junto. */
+.visor-papel {
+  flex: 1; min-height: 60vh; overflow: auto;
+  background: var(--line-2); padding: 12px 16px 20px;
+}
+.visor-papel iframe { width: 100%; height: 78vh; border: 0; background: #fff; border-radius: 8px; }
+.visor-papel img { display: block; max-width: 100%; margin: 0 auto; border-radius: 8px; background: #fff; }
+
+/* ---------- a barra de atualizar / reprocessar ---------- */
+.orc-barra-acoes {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--line);
+}
+.orc-barra-acoes button.forte {
+  border: 0; cursor: pointer; border-radius: 8px; padding: 8px 16px;
+  font-size: 12.5px; font-weight: 700; background: var(--red); color: #fff;
+}
+.orc-barra-acoes button.forte:disabled { opacity: .45; cursor: default; }
+.orc-recado { font-size: 12px; color: var(--mut); }
+
+/* VERDE E VERMELHO SÃO O RESULTADO DE UM `atualizar`, NÃO UM ESTADO ETERNO
+ *   A linha só ganha cor depois de alguém olhar. Sem isso, uma tela aberta
+ *   desde a manhã mostraria "pronta" para uma nota que travou às onze. */
+.orc-tabela tr.linha-verde   { background: var(--ok-bg); }
+.orc-tabela tr.linha-vermelha { background: var(--err-bg); }
+.orc-tk {
+  display: inline-block; margin-right: 5px; padding: 2px 7px;
+  border-radius: 5px; background: var(--line-2); font-size: 11.5px; font-weight: 600;
+}
+
+/* ---------- a confirmação em dois passos ---------- */
+/* O MESMO TAMANHO NOS DOIS PASSOS
+ *   Pedido do dono. Uma caixa que muda de tamanho no meio da confirmação faz o
+ *   botão de confirmar aparecer onde estava o de cancelar — e o dedo já está a
+ *   caminho. `min-height` fixa a altura para os dois conteúdos. */
+.orc-janela-caixa.confirma { max-width: 460px; min-height: 232px; display: flex; flex-direction: column; }
+.orc-janela-caixa.confirma h3 { margin-bottom: 6px; line-height: 1.35; }
+.orc-janela-caixa.confirma input {
+  width: 100%; padding: 10px 12px; font-size: 14px; margin-top: 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+.confirma-botoes { display: flex; justify-content: flex-end; gap: 10px; margin-top: auto; padding-top: 16px; }
+.confirma-botoes .orc-bt.forte { background: var(--red); color: #fff; border-color: var(--red); font-weight: 700; }
+
+/* ---------- faturamento direto ---------- */
+/* O AVISO FICA NO TOPO DA TELA, E NÃO NUM `title`
+ *   Esta fila se parece com as outras e faz o contrário de uma delas: nada aqui
+ *   é cobrado do cliente. Quem abrir a tela pela primeira vez precisa ler isso
+ *   antes de inserir a primeira nota, não depois de faturar errado. */
+.orc-aviso-fila {
+  margin: 0 16px 12px; padding: 10px 14px; border-radius: 8px;
+  background: var(--warn-bg); color: var(--warn);
+  font-size: 12.5px; line-height: 1.5;
+}
+.orc-filtros {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 0 16px 12px; font-size: 12px; color: var(--mut);
+}
+.orc-filtros input {
+  padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg); max-width: 150px;
+}
+.orc-filtros label { display: inline-flex; align-items: center; gap: 6px; }
+.orc-filtros button.mut {
+  border: 0; background: none; cursor: pointer; color: var(--red);
+  font-weight: 600; font-size: 12px;
+}
+.orc-digita { display: inline-flex; align-items: center; gap: 6px; }
+.orc-digita input {
+  width: 90px; padding: 4px 8px; font-size: 12.5px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+}
+.orc-digita button.forte {
+  border: 0; cursor: pointer; border-radius: 6px; padding: 4px 10px;
+  font-size: 12px; font-weight: 700; background: var(--red); color: #fff;
+}
+
+/* ---------- A pagar: pedido de faturamento ---------- */
+.pg-resumo { font-size: 12.5px; color: var(--gray); display: inline-flex; align-items: baseline; gap: 8px; }
+.pg-resumo b { font-size: 15px; font-weight: 750; color: var(--ink); }
+.pg-resumo u { text-decoration: none; font-weight: 700; color: var(--ink); }
+
+/* O BOTÃO QUE MUDA ALGUMA COISA TEM OUTRA COR
+ *   Os outros dois baixam arquivo e não mexem em nada; este tira as DAVs da
+ *   fila. Dar a ele a mesma cara dos vizinhos é convidar o clique distraído —
+ *   e o desfazer existe, mas só enquanto o pedido não foi enviado. */
+.pg-fechar {
+  margin-left: auto; border: 0; cursor: pointer; border-radius: 8px;
+  padding: 9px 18px; font-size: 12.5px; font-weight: 700;
+  background: var(--ink); color: #fff;
+}
+.pg-fechar:disabled { opacity: .4; cursor: default; }
+.orc-barra-acoes input[type="date"] {
+  padding: 6px 10px; font-size: 12.5px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--bg);
+}

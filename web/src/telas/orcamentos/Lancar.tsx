@@ -251,6 +251,23 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                           era {emReais(o.valor_antes_do_teto)}
                         </span>
                       )}
+                      {/* O CARIMBO DO DESCONTO — NOSSO, NUNCA DO CLIENTE
+                          Um orçamento de R$ 600 para uma nota de R$ 700 não se
+                          explica sozinho. Sem esta linha, quem abrir isto daqui
+                          a seis meses não tem como saber se foi regra, erro de
+                          digitação ou coisa pior — e vai ter que abrir o PDF da
+                          nota para descobrir.
+
+                          Fica só aqui, na tela de quem trabalha. O documento
+                          que sai para o cliente mostra o preço cobrado, e de
+                          onde ele veio é assunto nosso. */}
+                      {o.ajustado_pelo_teto && (
+                        <span className="orc-detalhe aviso"
+                          title={`a nota soma ${emReais(o.valor_nota_cheio)}, pagamos ${emReais(o.valor_nota)}, `
+                            + 'e o orçamento foi fechado no teto do ticket'}>
+                          ajustada pelo teto · nota {emReais(o.valor_nota_cheio)}
+                        </span>
+                      )}
                     </td>
                     <td>{emDataHora(o.criado_em)}</td>
                     <td className="orc-acoes">

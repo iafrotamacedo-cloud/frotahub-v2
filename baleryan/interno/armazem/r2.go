@@ -141,6 +141,38 @@ func (c *Cliente) Enviar(ctx context.Context, chave string, corpo io.ReadSeeker,
 // só durante este prazo.
 //
 // O corpo não é assinado (UNSIGNED-PAYLOAD): numa leitura não existe corpo.
+// Baixar traz o arquivo de volta.
+//
+// PELO LINK TEMPORÁRIO, E NÃO POR UMA CHAMADA ASSINADA NOVA
+//
+//	A assinatura já está escrita e testada em `linkEm`. Uma segunda maneira de
+//	autenticar contra o R2 seria uma segunda maneira de errar a assinatura — e
+//	erro de assinatura só aparece em produção, como 403 sem explicação.
+//
+//	Cinco minutos de validade: é uma chamada nossa, feita e consumida no mesmo
+//	instante. Link que dura mais é link que vaza em log.
+func (c *Cliente) Baixar(ctx context.Context, chave string) ([]byte, error) {
+	url, err := c.LinkTemporario(chave, 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("não consegui buscar o arquivo no armazém: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("o armazém respondeu %d ao buscar o arquivo", resp.StatusCode)
+	}
+	// O teto existe para o caso de o armazém devolver algo inesperadamente
+	// grande: ler sem limite é entregar a memória do motor a quem responder.
+	return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+}
+
 func (c *Cliente) LinkTemporario(chave string, validade time.Duration) (string, error) {
 	return c.linkEm(chave, validade, time.Now().UTC())
 }
