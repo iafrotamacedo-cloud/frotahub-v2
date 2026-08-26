@@ -68,6 +68,7 @@ jobs:
           # sozinhas, e a nota entra com chave de acesso e valor, sem itens,
           # pedindo conferência na tela. Com ela, entra completa.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODELO: gemini-2.5-flash-lite
           # O robô do Trílogo exige as duas contas para subir; o leitor não as
           # usa, mas compartilha a mesma configuração.
           TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
