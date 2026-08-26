@@ -527,9 +527,14 @@ func (l *Leitor) desistirOuRepetir(ctx context.Context, t *Trabalho, documentoID
 	//   Ficar como "inserido" para sempre a esconderia: ninguém procura o que
 	//   parece estar em ordem. Marcada como falhou, com o motivo, ela entra na
 	//   lista de quem precisa de conferência manual.
+	// O MOTIVO VAI PARA A TELA, ENTÃO VAI EM PORTUGUÊS
+	//   Quem lê `leitura_erro` é quem precisa DECIDIR o que fazer com a nota, e
+	//   não quem escreveu o programa. A frase crua do Google — "This model is no
+	//   longer available to new users" — não diz nada a essa pessoa. O detalhe
+	//   técnico continua lá, entre parênteses.
 	_ = l.bd.Atualizar(ctx, "documentos", "id=eq."+documentoID, map[string]any{
 		"status":       "falhou",
-		"leitura_erro": causa.Error(),
+		"leitura_erro": leitor.EmPortugues(causa.Error()),
 	})
 }
 

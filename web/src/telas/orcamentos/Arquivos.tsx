@@ -290,11 +290,16 @@ export function Arquivos({ fila, voltar }: Props) {
                       )}
                       {/* MOTIVO ESCONDIDO NO `title` É MOTIVO QUE NINGUÉM LÊ
                           Quem chega nesta tela para tratar precisa da frase à
-                          vista — ela diz qual ticket travou e o que fazer.
-                          Bloqueio sem saída visível é o que faz o usuário
-                          desistir do sistema e abrir uma planilha. */}
-                      {d.bloqueio_motivo && (
-                        <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
+                          vista — ela diz o que travou e o que fazer. Motivo sem
+                          saída visível é o que faz o usuário desistir do sistema
+                          e abrir uma planilha.
+
+                          Vale para TODOS os impedimentos, e não só o bloqueio:
+                          a leitura que falhou, a nota repetida, a aprovação
+                          pedida. A frase vem da visão (`motivo_conferencia`),
+                          então a lista e a tela cheia dizem a mesma coisa. */}
+                      {d.motivo_conferencia && (
+                        <span className="orc-detalhe ruim">{d.motivo_conferencia}</span>
                       )}
                       {d.duplicada_de && (
                         <span className="orc-detalhe ruim">
