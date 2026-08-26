@@ -37,10 +37,7 @@ jobs:
       # O dicionário em português importa: sem ele o Tesseract lê "MANUTENÇÃO"
       # como "MANUTENCAG" e a observação — que é de onde sai o ticket — vira
       # ruído.
-      - name: Instalar OCR
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq poppler-utils tesseract-ocr tesseract-ocr-por
+    
 
       # O OTIMIZADOR DE IMAGEM
       #
@@ -51,8 +48,7 @@ jobs:
       #
       #   `headless` porque aqui não há tela: a versão cheia do OpenCV arrasta
       #   GTK e Qt para nada.
-      - name: Instalar o otimizador de imagem
-        run: pip install --quiet opencv-python-headless numpy
+
 
       - name: Ler as notas da fila
         working-directory: baleryan
@@ -68,7 +64,7 @@ jobs:
           # sozinhas, e a nota entra com chave de acesso e valor, sem itens,
           # pedindo conferência na tela. Com ela, entra completa.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODELO: gemini-2.5-flash-lite
+          GEMINI_MODELO: gemini-3.5-flash-lite
           # O robô do Trílogo exige as duas contas para subir; o leitor não as
           # usa, mas compartilha a mesma configuração.
           TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
