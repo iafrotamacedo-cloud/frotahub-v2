@@ -305,7 +305,10 @@ button.tri-num:hover{color:var(--red);text-decoration:underline}
 .fi-custos .fi-tipo{width:96px}
 .fi-custos .fi-valor{width:86px;text-align:right;font-variant-numeric:tabular-nums}
 .fi-custos .fi-total td{border-bottom:0;font-weight:700;color:var(--ink);padding-top:7px}
-.fi-arquivo{color:var(--red);text-decoration:none;font-size:11.2px}
+/* Virou botão porque abre na tela, e não noutra aba — mas continua parecendo o
+   link que era: quem já usava a ficha não precisa reaprender onde clicar. */
+.fi-arquivo{color:var(--red);text-decoration:none;font-size:11.2px;
+  border:0;background:none;padding:0;cursor:pointer;font-family:inherit;text-align:left}
 .fi-arquivo:hover{text-decoration:underline}
 .fi-semdoc{color:var(--mut)}
 

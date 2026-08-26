@@ -33,6 +33,7 @@ interface Ficha {
 export function FichaDoOrcamento({ id, voltar }: { id: string; voltar: () => void }) {
   const [ficha, setFicha] = useState<Ficha | null>(null)
   const [erro, setErro] = useState('')
+  const [notaAberta, setNotaAberta] = useState<{ endereco: string; nome: string } | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -47,10 +48,14 @@ export function FichaDoOrcamento({ id, voltar }: { id: string; voltar: () => voi
     return () => { vivo = false }
   }, [id])
 
+  // A NOTA ABRE POR CIMA DO ORÇAMENTO, NA MESMA TELA
+  //   Ela é o documento que se confere CONTRA o orçamento; mandá-la para outra
+  //   aba obriga a alternar entre janelas com números na cabeça, que é
+  //   exatamente o que esta tela existe para evitar.
   async function verDocOriginal(nota: NotaDoOrcamento) {
     try {
       const r = await motor<{ url: string }>(`/orcamentos/documentos/${nota.id}/arquivo`)
-      window.open(r.url, '_blank', 'noopener')
+      setNotaAberta({ endereco: r.url, nome: nota.nome_arquivo })
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui abrir o documento original.')
     }
@@ -59,6 +64,19 @@ export function FichaDoOrcamento({ id, voltar }: { id: string; voltar: () => voi
   const o = ficha?.orcamento
   const notas = ficha?.notas ?? []
   const nome = o ? `orcamento-${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}.pdf` : undefined
+
+  // Voltar da nota devolve ao orçamento, e não à lista: quem abriu a nota
+  // estava conferindo o orçamento, e é para ele que quer voltar.
+  if (notaAberta) {
+    return (
+      <VisorDeDocumento
+        endereco={notaAberta.endereco}
+        nomeSugerido={notaAberta.nome}
+        titulo={`Documento original · ${notaAberta.nome}`}
+        voltar={() => setNotaAberta(null)}
+      />
+    )
+  }
 
   return (
     <>

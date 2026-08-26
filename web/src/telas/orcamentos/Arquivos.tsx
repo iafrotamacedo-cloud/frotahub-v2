@@ -16,6 +16,7 @@
 //	segurança que a lixeira dele era.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
 import {
   emDataHora, emReais, confiancaEmPalavras,
@@ -60,6 +61,8 @@ export function Arquivos({ fila, voltar }: Props) {
   const [vista, setVista] = useState<Vista>('fila')
   const [erro, setErro] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  // O documento que está aberto na tela. Ver documento é na tela, sempre.
+  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
 
   // A nota aberta em tela cheia para receber tickets — o "+" da fila de rateio.
   const [abrindo, setAbrindo] = useState<Documento | null>(null)
@@ -134,13 +137,28 @@ export function Arquivos({ fila, voltar }: Props) {
     }
   }
 
+  // VER É NA TELA — REGRA DA CASA
+  //   Abrir noutra aba tira a pessoa do sistema e deixa o documento à deriva num
+  //   lugar sem voltar, sem contexto e sem as ações daquela nota. Ver documento
+  //   é sempre aqui dentro. Ver `claude/padroes-de-tela.md`.
   async function abrirArquivo(d: Documento) {
     try {
       const r = await motor<{ url: string }>(`/orcamentos/documentos/${d.id}/arquivo`)
-      window.open(r.url, '_blank', 'noopener')
+      setVendo({ endereco: r.url, nome: d.nome_arquivo })
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui abrir o arquivo.')
     }
+  }
+
+  if (vendo) {
+    return (
+      <VisorDeDocumento
+        endereco={vendo.endereco}
+        nomeSugerido={vendo.nome}
+        titulo={vendo.nome}
+        voltar={() => setVendo(null)}
+      />
+    )
   }
 
   if (abrindo) {

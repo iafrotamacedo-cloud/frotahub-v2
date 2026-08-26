@@ -17,6 +17,7 @@
 //	filtro por mês teria feito aqueles 39 orçamentos sumirem da cobrança.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta } from './Arquivos'
 import {
@@ -57,6 +58,8 @@ function Fila() {
   const [recado, setRecado] = useState('')
   const [fechando, setFechando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  // PDF É DOCUMENTO: ABRE NA TELA (ver `claude/padroes-de-tela.md`).
+  const [vendoPDF, setVendoPDF] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -70,6 +73,9 @@ function Fila() {
   useEffect(() => { void carregar() }, [carregar])
 
   async function extrair(formato: 'xlsx' | 'pdf') {
+    // O Excel é matéria-prima: ninguém "vê" uma planilha, leva-se ela para
+    // outro programa. O PDF é peça de leitura, e peça de leitura abre aqui.
+    if (formato === 'pdf') { setVendoPDF(true); return }
     try {
       await baixarDoMotor(`/orcamentos/faturamento.${formato}`)
     } catch (e) {
@@ -97,6 +103,17 @@ function Fila() {
     } finally {
       setFechando(false)
     }
+  }
+
+  if (vendoPDF) {
+    return (
+      <VisorDeDocumento
+        caminho="/orcamentos/faturamento.pdf"
+        nomeSugerido="faturamento.pdf"
+        titulo="Faturamento ao cliente"
+        voltar={() => setVendoPDF(false)}
+      />
+    )
   }
 
   if (erro && !dados) return <p className="erro">{erro}</p>

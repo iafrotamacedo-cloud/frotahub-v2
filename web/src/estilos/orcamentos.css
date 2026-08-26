@@ -731,3 +731,7 @@
 /* A linha que abre alguma coisa diz isso antes do clique. Cursor de mão e o
    mesmo realce de passagem que a tabela já usa — sem inventar cor nova. */
 .orc-tabela tr.orc-clicavel { cursor: pointer; }
+
+/* Nem todo documento é PDF: a nota do fornecedor costuma ser foto. A imagem
+   cabe no quadro sem estourar, e o quadro rola quando ela é alta. */
+.orc-visor-doc img { display: block; max-width: 100%; margin: 0 auto; background: #fff; border-radius: 8px; }

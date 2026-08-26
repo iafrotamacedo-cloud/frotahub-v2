@@ -17,6 +17,7 @@ import { motor, baixarDoMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
 import { FichaDoOrcamento } from './FichaDoOrcamento'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { emReais, emDataHora, contaPorExtenso, type Orcamento, type Pagina } from './tipos'
 
 export function Planilhas({ voltar }: { voltar: () => void }) {
@@ -30,6 +31,8 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
   const [ticket, setTicket] = useState('')
   const [erro, setErro] = useState('')
   const [abrindoExtracao, setAbrindoExtracao] = useState(false)
+  // PDF é documento: abre na tela (ver `claude/padroes-de-tela.md`).
+  const [vendoPDF, setVendoPDF] = useState(false)
 
   // A LINHA ABRE O ORÇAMENTO
   //	A planilha responde "quanto" e "quando"; a ficha responde "o quê" — e leva
@@ -63,6 +66,9 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
   //   extração tivesse os próprios filtros, o Excel e a tela passariam a
   //   discordar — e os dois números pareceriam certos separados.
   async function extrair(formato: 'xlsx' | 'pdf') {
+    // Excel é matéria-prima que se leva para outro programa; PDF é peça de
+    // leitura, e peça de leitura abre aqui dentro.
+    if (formato === 'pdf') { setVendoPDF(true); return }
     setAbrindoExtracao(false)
     try {
       await baixarDoMotor(`/orcamentos/planilhas.${formato}?` + filtro())
@@ -76,6 +82,17 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 
   if (aberto) {
     return <FichaDoOrcamento id={aberto} voltar={() => setAberto(null)} />
+  }
+
+  if (vendoPDF) {
+    return (
+      <VisorDeDocumento
+        caminho={'/orcamentos/planilhas.pdf?' + filtro()}
+        nomeSugerido={soLancados ? 'orcamentos-lancados.pdf' : 'orcamentos-gerados.pdf'}
+        titulo={soLancados ? 'Orçamentos lançados' : 'Orçamentos gerados'}
+        voltar={() => setVendoPDF(false)}
+      />
+    )
   }
 
   return (

@@ -16,6 +16,7 @@
 //   folha tendo o chamado 5 ou 80 eventos.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
 import {
   classeDaPrioridade, classeDoStatus, contaPorExtenso, ehImagem, ehVideo, emReais,
@@ -35,6 +36,8 @@ export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Pro
   const [ficha, setFicha] = useState<Ficha | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [aberta, setAberta] = useState<number | null>(null)
+  // O documento do custo, aberto na tela. Ver documento é na tela, sempre.
+  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -67,6 +70,17 @@ export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Pro
   const videos = midias.filter(ehVideo)
   const passos = linhaDoTempo(ficha?.eventos ?? [])
   const total = (ficha?.custos ?? []).reduce((s, k) => s + Number(k.valor || 0), 0)
+
+  if (vendo) {
+    return (
+      <VisorDeDocumento
+        endereco={vendo.endereco}
+        nomeSugerido={vendo.nome}
+        titulo={`Custo do chamado ${numero} · ${vendo.nome}`}
+        voltar={() => setVendo(null)}
+      />
+    )
+  }
 
   return (
     <>
@@ -173,8 +187,16 @@ export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Pro
                           return (
                             <tr key={k.id}>
                               <td>
+                                {/* VER DOCUMENTO É NA TELA — regra da casa.
+                                    Este é o orçamento que subiu para o Trílogo;
+                                    quem clica quer conferir o que foi lançado,
+                                    e conferir noutra aba é conferir de memória.
+                                    Ver `claude/padroes-de-tela.md`. */}
                                 {doc
-                                  ? <a href={doc.link} target="_blank" rel="noreferrer" className="fi-arquivo">{doc.nome}</a>
+                                  ? <button type="button" className="fi-arquivo"
+                                      onClick={() => setVendo({ endereco: doc.link, nome: doc.nome })}>
+                                      {doc.nome}
+                                    </button>
                                   : <span className="fi-semdoc">{k.numero_documento || 'sem arquivo'}</span>}
                               </td>
                               <td className="fi-tipo">{k.tipo || '—'}</td>
@@ -288,7 +310,6 @@ function TelaCheia({ anexos, indice, aoTrocar, aoFechar }: {
           </div>
         </div>
         <span className="fi-veu-conta">{indice + 1} de {anexos.length}</span>
-        <a href={atual.link} target="_blank" rel="noreferrer" title="Abrir em outra aba">↗</a>
         <button type="button" onClick={aoFechar} aria-label="Fechar">×</button>
       </div>
 

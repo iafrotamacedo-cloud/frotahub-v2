@@ -22,6 +22,7 @@
 //   que abre (P-29).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motor, baixarDoMotor, ErroMotor } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
 import { ajustarCelulas } from './encolher'
 import { FichaChamado } from './FichaChamado'
@@ -51,6 +52,8 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
   const [dados, setDados] = useState<Pagina | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
+  // PDF é documento: abre na tela (ver `claude/padroes-de-tela.md`).
+  const [vendoPDF, setVendoPDF] = useState(false)
 
   const [ultima, setUltima] = useState<string | null>(null)
   const [andamento, setAndamento] = useState<string | null>(null)
@@ -241,6 +244,9 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
    * isso `pagina` e `por_pagina` não entram: só os filtros.
    */
   async function extrair(formato: 'pdf' | 'xlsx') {
+    // Excel é matéria-prima que se leva para outro programa; PDF é peça de
+    // leitura, e peça de leitura abre aqui dentro.
+    if (formato === 'pdf') { setVendoPDF(true); return }
     setExtraindo(formato)
     setErro(null)
     try {
@@ -250,6 +256,17 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
     } finally {
       setExtraindo(null)
     }
+  }
+
+  if (vendoPDF) {
+    return (
+      <VisorDeDocumento
+        caminho={`/trilogo/chamados.pdf?${paramsDoFiltro()}`}
+        nomeSugerido="chamados.pdf"
+        titulo="Chamados do Trílogo"
+        voltar={() => setVendoPDF(false)}
+      />
+    )
   }
 
   return (

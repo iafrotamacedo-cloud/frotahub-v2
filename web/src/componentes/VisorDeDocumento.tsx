@@ -20,16 +20,24 @@
 //	na mão. Baixar de novo do servidor abriria a porta para a tela mostrar uma
 //	versão e o disco receber outra.
 import { useEffect, useState, type ReactNode } from 'react'
-import { arquivoDoMotor, salvarArquivo, type ArquivoDoMotor } from '../motor/cliente'
+import { arquivoDoMotor, salvarArquivo } from '../motor/cliente'
 import { usePedirFoco } from './Foco'
 
 export function VisorDeDocumento({
-  titulo, caminho, nomeSugerido, voltar, acoes,
+  titulo, caminho, endereco, nomeSugerido, voltar, acoes,
 }: {
   /** O que a barra diz que é este documento. */
   titulo: ReactNode
-  /** A rota do motor que devolve o arquivo. */
-  caminho: string
+  /** A rota do motor que devolve o arquivo — vai com o cabeçalho de sessão. */
+  caminho?: string
+  /**
+   * Um endereço que JÁ vale por si — o link temporário do armazém, por exemplo.
+   *
+   * São dois caminhos porque são duas naturezas: o que o motor MONTA na hora
+   * (orçamento, pedido, extração) precisa do token; o que já está GUARDADO no
+   * armazém vem com a assinatura na própria URL. Um só dos dois é preenchido.
+   */
+  endereco?: string
   /** Nome oferecido no "salvar como". Sem ele, vale o que o motor sugeriu. */
   nomeSugerido?: string
   voltar: () => void
@@ -38,16 +46,24 @@ export function VisorDeDocumento({
 }) {
   usePedirFoco()
 
-  const [arq, setArq] = useState<ArquivoDoMotor | null>(null)
+  const [arq, setArq] = useState<{ url: string; blob: Blob | null; nome: string } | null>(null)
   const [erro, setErro] = useState('')
 
   useEffect(() => {
+    // O endereço pronto não passa por busca nenhuma: ele já é exibível, e
+    // baixá-lo aqui só para mostrar seria pedir o arquivo duas vezes.
+    if (endereco) {
+      setArq({ url: endereco, blob: null, nome: nomeSugerido ?? 'documento' })
+      return
+    }
+    if (!caminho) return
+
     let vivo = true
-    let endereco = ''
+    let local = ''
     void (async () => {
       try {
         const a = await arquivoDoMotor(caminho)
-        endereco = a.url
+        local = a.url
         if (!vivo) {
           URL.revokeObjectURL(a.url)
           return
@@ -61,9 +77,23 @@ export function VisorDeDocumento({
     // fechar. Quem confere vinte numa tarde carrega vinte.
     return () => {
       vivo = false
-      if (endereco) URL.revokeObjectURL(endereco)
+      if (local) URL.revokeObjectURL(local)
     }
-  }, [caminho])
+  }, [caminho, endereco, nomeSugerido])
+
+  // SALVAR NÃO PEDE O ARQUIVO DE NOVO — quando ele já está na mão.
+  //   O que veio do motor já é blob. O que veio do armazém é um endereço, e aí
+  //   sim é preciso buscar; se o armazém recusar a busca de outra origem, o
+  //   botão diz isso em vez de não fazer nada.
+  async function salvar() {
+    if (!arq) return
+    try {
+      const blob = arq.blob ?? await (await fetch(arq.url)).blob()
+      await salvarArquivo(blob, nomeSugerido ?? arq.nome)
+    } catch {
+      setErro('Não consegui salvar este arquivo. Ele continua à vista aqui.')
+    }
+  }
 
   return (
     <div className="orc-tela">
@@ -76,7 +106,7 @@ export function VisorDeDocumento({
             type="button"
             className="orc-bt"
             disabled={!arq}
-            onClick={() => { if (arq) void salvarArquivo(arq.blob, nomeSugerido ?? arq.nome) }}
+            onClick={() => void salvar()}
           >
             salvar como…
           </button>
@@ -88,11 +118,20 @@ export function VisorDeDocumento({
       <div className="orc-visor-doc">
         {!arq
           ? <p className="orc-vazio">abrindo o documento…</p>
-          // `toolbar=0` e `navpanes=0` tiram a régua e a coluna de miniaturas do
-          // leitor do navegador: numa folha só elas comem largura, e a largura
-          // aqui é onde os valores estão.
-          : <iframe src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
+          : ehImagem(arq.url, nomeSugerido)
+            ? <img src={arq.url} alt="documento" />
+            // `toolbar=0` e `navpanes=0` tiram a régua e a coluna de miniaturas
+            // do leitor do navegador: numa folha só elas comem largura, e a
+            // largura aqui é onde os valores estão.
+            : <iframe src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
       </div>
     </div>
   )
+}
+
+// ehImagem decide pelo nome, e não pelo endereço: o link do armazém vem com
+// assinatura na query e termina em qualquer coisa.
+function ehImagem(url: string, nome?: string): boolean {
+  const alvo = (nome ?? url).toLowerCase()
+  return /\.(jpe?g|png|webp|gif|heic|bmp)(\?|$)/.test(alvo)
 }
