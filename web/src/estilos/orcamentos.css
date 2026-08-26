@@ -743,3 +743,7 @@
   background: var(--warn-bg); color: var(--warn);
   font-size: 12.5px; border-bottom: 1px solid var(--line);
 }
+
+/* O selo que EXPLICA é mais largo que o que só rotula. Sem isto ele empurraria
+   a coluna de ações para fora — e a frase é a razão de o selo existir. */
+.orc-selo.aviso, .orc-selo.ruim { white-space: normal; max-width: 34ch; line-height: 1.35; }

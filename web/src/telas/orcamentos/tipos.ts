@@ -336,6 +336,29 @@ export function confiancaEmPalavras(camada: string | null, c: number | null): { 
   return { texto: 'confira com atenção', classe: 'ruim' }
 }
 
+/**
+ * O QUE conferir — porque "confira" sozinho não é instrução.
+ *
+ * A confiança da leitura é uma soma de partes: a chave de acesso vale 0,35, os
+ * itens completos 0,35, a soma que fecha com o total 0,25, a data 0,05. Quando
+ * ela não chega a 85%, ALGUMA dessas partes faltou — e é essa que a pessoa
+ * precisa olhar no papel.
+ *
+ * Mandar conferir sem dizer o quê faz a pessoa reler a nota inteira, ou, o que é
+ * pior, ignorar o aviso porque ele nunca ajudou.
+ *
+ * A ordem é de peso: a maior lacuna primeiro.
+ */
+export function oQueConferir(d: Documento): string | null {
+  if (!d.itens) return 'nenhum item foi lido'
+  // A chave é a identidade de uma DANFE — e o que a trava de duplicidade
+  // compara primeiro. DAV não tem chave, e isso não é falha dele.
+  if (d.tipo === 'nf' && !d.chave_acesso) return 'a chave de acesso não foi lida'
+  if (!d.valor_total) return 'o valor total não foi lido'
+  if (!d.emissao) return 'a data de emissão não foi lida'
+  return 'os números contra o papel'
+}
+
 export function contaPorExtenso(c: string | null): string {
   if (c === 'instalacoes') return 'Instalações'
   if (c === 'civil') return 'Civil'

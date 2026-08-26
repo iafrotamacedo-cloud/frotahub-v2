@@ -20,7 +20,7 @@ import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { VisorDaNota } from './VisorDaNota'
 import { Carregando } from '../../componentes/Carregando'
 import {
-  emDataHora, emReais, confiancaEmPalavras,
+  emDataHora, emReais, confiancaEmPalavras, oQueConferir,
   type Documento, type Pagina, type ResultadoDaInsercao, type ResultadoDaGeracao,
   type TicketDoDocumento,
 } from './tipos'
@@ -671,7 +671,17 @@ function Leitura({ d }: { d: Documento }) {
   }
 
   const c = confiancaEmPalavras(d.leitura_camada, d.leitura_confianca)
-  return <span className={'orc-selo ' + c.classe}>{c.texto}</span>
+  if (c.classe === 'ok') {
+    return <span className={'orc-selo ' + c.classe}>{c.texto}</span>
+  }
+  // "CONFIRA" SOZINHO NÃO É INSTRUÇÃO
+  //   Quem lê precisa saber o que abrir a nota para olhar. Sem isso, ou se relê
+  //   a nota inteira, ou — mais provável — o aviso é ignorado por nunca ajudar.
+  return (
+    <span className={'orc-selo ' + c.classe} title={`confiança de ${Math.round((d.leitura_confianca ?? 0) * 100)}%`}>
+      {c.texto}: {oQueConferir(d)}
+    </span>
+  )
 }
 
 export function Paginacao({ pagina, por, aoTrocarPagina, aoTrocarPor }: {
