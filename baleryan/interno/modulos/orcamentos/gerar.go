@@ -234,6 +234,39 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		return []saidaDaGeracao{base}
 	}
 
+	// O QUE JÁ FOI ORÇADO NÃO SE ORÇA DE NOVO — E ISSO NÃO É ERRO
+	//
+	//	`orcamento_documentos` tem índice único em (documento_id, ticket): é a
+	//	trava que impede a loja de pagar o mesmo material duas vezes. Até
+	//	26/08/2026 a geração não a consultava, só esbarrava nela — o banco
+	//	devolvia 409, o orçamento já tinha nascido, e sobrava um órfão sem
+	//	vínculo para alguém limpar na mão.
+	//
+	//	Perguntar antes custa uma consulta. Descobrir depois custa um registro
+	//	pela metade.
+	jaOrcados, err := m.ticketsJaOrcados(ctx, d.ID)
+	if err != nil {
+		base.Erro = "não consegui ver o que esta nota já orçou: " + err.Error()
+		return []saidaDaGeracao{base}
+	}
+	if faltam := semOsJaOrcados(tickets, jaOrcados); len(faltam) != len(tickets) {
+		if len(faltam) == 0 {
+			base.Erro = "esta nota já virou orçamento em todos os seus tickets"
+			return []saidaDaGeracao{base}
+		}
+		// UMA NOTA RATEADA NÃO SE COMPLETA PELA METADE
+		//   O valor de cada parte depende de QUANTOS tickets a nota atende.
+		//   Gerar só os que faltam faria essas partes saírem com um valor que
+		//   não conversa com as que já existem — e cada uma fecharia a própria
+		//   conta, parecendo certa.
+		base.Erro = fmt.Sprintf(
+			"esta nota já virou orçamento em %s e ainda falta%s %s. "+
+				"Apague o que já existe antes de gerar de novo — gerar só o que falta "+
+				"daria valores que não conversam entre si.",
+			listaDeTickets(jaOrcados), plural(len(faltam), "", "m"), listaDeTickets(numerosDe(faltam)))
+		return []saidaDaGeracao{base}
+	}
+
 	lidos, err := m.itensDo(ctx, d.ID)
 	if err != nil || len(lidos.Linhas) == 0 {
 		base.Erro = "esta nota não tem itens lidos"
@@ -515,6 +548,52 @@ func concordancia(n int) string {
 		return "existe"
 	}
 	return "existem"
+}
+
+// ticketsJaOrcados diz em quais tickets esta nota JÁ tem vínculo.
+//
+// A pergunta é sobre a linha de `orcamento_documentos`, não sobre o status do
+// orçamento. É a linha que ocupa a chave única — enquanto ela existir, aquele
+// par (nota, ticket) não aceita outro orçamento, mesmo que o dono dela esteja
+// marcado como removido. Quem apaga um orçamento tem que soltar o vínculo; é
+// exatamente isso que `apagarOrcamento` faz.
+func (m *Modulo) ticketsJaOrcados(ctx context.Context, documentoID string) ([]int, error) {
+	var linhas []struct {
+		Ticket *int `json:"ticket"`
+	}
+	if err := m.bd.Buscar(ctx, "orcamento_documentos?documento_id=eq."+documentoID+
+		"&removido_em=is.null&order=ticket&select=ticket", &linhas); err != nil {
+		return nil, err
+	}
+	saida := make([]int, 0, len(linhas))
+	for _, l := range linhas {
+		if l.Ticket != nil {
+			saida = append(saida, *l.Ticket)
+		}
+	}
+	return saida, nil
+}
+
+func semOsJaOrcados(tickets []ticketDoDocumento, jaOrcados []int) []ticketDoDocumento {
+	tem := make(map[int]bool, len(jaOrcados))
+	for _, t := range jaOrcados {
+		tem[t] = true
+	}
+	faltam := make([]ticketDoDocumento, 0, len(tickets))
+	for _, t := range tickets {
+		if !tem[t.Ticket] {
+			faltam = append(faltam, t)
+		}
+	}
+	return faltam
+}
+
+func numerosDe(tickets []ticketDoDocumento) []int {
+	ns := make([]int, 0, len(tickets))
+	for _, t := range tickets {
+		ns = append(ns, t.Ticket)
+	}
+	return ns
 }
 
 type ticketDoDocumento struct {
@@ -890,6 +969,15 @@ func (m *Modulo) apagarOrcamento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// QUAL NOTA ESTE ORÇAMENTO PRENDE — PERGUNTADO ANTES DE SOLTAR
+	//   Depois de apagar o vínculo não há mais como descobrir, e a nota ficaria
+	//   presa em `usado` sem ninguém saber qual era.
+	notas, err := m.notasDoOrcamento(r.Context(), id)
+	if err != nil {
+		m.erro(w, "não consegui ver a que nota este orçamento pertence", err)
+		return
+	}
+
 	if err := m.bd.Atualizar(r.Context(), "orcamentos",
 		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), map[string]any{
 			"status":          "removido",
@@ -900,8 +988,60 @@ func (m *Modulo) apagarOrcamento(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não consegui apagar", err)
 		return
 	}
+
+	// SOLTAR O VÍNCULO É PARTE DE APAGAR, NÃO UM EXTRA
+	//
+	//	O índice único de `orcamento_documentos` é (documento_id, ticket) e não
+	//	olha o status do orçamento. Marcar o orçamento como removido e deixar o
+	//	vínculo de pé tornava aquela nota impossível de reorçar NAQUELE ticket
+	//	para sempre — o banco recusava com 409, e o orçamento novo já tinha
+	//	nascido quando a recusa chegava. Sobrava um órfão.
+	//
+	//	Aconteceu em 26/08/2026, ao refazer o orçamento da DAV 19329.
+	//
+	//	A linha é MARCADA, não apagada (migração 025): o índice só enxerga as
+	//	vivas, então a chave se libera, e restaurar continua sabendo de qual
+	//	nota este orçamento veio.
+	if err := m.bd.Atualizar(r.Context(), "orcamento_documentos",
+		"orcamento_id=eq."+id+"&removido_em=is.null",
+		map[string]any{"removido_em": time.Now().UTC().Format(time.RFC3339)}); err != nil {
+		m.erro(w, "apaguei o orçamento mas não consegui soltar a nota", err)
+		return
+	}
+
+	// E A NOTA VOLTA PARA A FILA
+	//   Gerar virou o documento de `lido` para `usado`, e é o `usado` que o tira
+	//   da lista de prontas. Apagar sem desfazer isso deixa a nota invisível:
+	//   sem orçamento e fora da fila, que é o pior dos dois mundos.
+	for _, n := range notas {
+		if err := m.bd.Atualizar(r.Context(), "documentos",
+			"id=eq."+n+"&status=eq.usado", map[string]any{"status": "lido"}); err != nil {
+			log.Printf("orcamentos: apaguei %s mas não devolvi a nota %s para a fila: %v", id, n, err)
+		}
+	}
+
 	_ = m.hist.Registrar(r.Context(), p, "orcamentos", id, "apagar", nil)
-	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
+	web.Responder(w, http.StatusOK, map[string]any{"ok": true, "notas": notas})
+}
+
+// notasDoOrcamento lista as notas que este orçamento consumiu.
+//
+// É plural porque a tabela permite: um orçamento pode nascer de mais de uma
+// nota. Hoje nenhum nasce, mas escrever no singular aqui seria embutir na
+// escrita de um lado uma regra que o outro não tem.
+func (m *Modulo) notasDoOrcamento(ctx context.Context, orcamentoID string) ([]string, error) {
+	var linhas []struct {
+		Documento string `json:"documento_id"`
+	}
+	if err := m.bd.Buscar(ctx, "orcamento_documentos?orcamento_id=eq."+orcamentoID+
+		"&select=documento_id", &linhas); err != nil {
+		return nil, err
+	}
+	notas := make([]string, 0, len(linhas))
+	for _, l := range linhas {
+		notas = append(notas, l.Documento)
+	}
+	return notas, nil
 }
 
 // restaurarOrcamento é a frente 2.4.4 da tela de Correções.
@@ -919,6 +1059,28 @@ func (m *Modulo) restaurarOrcamento(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
 		return
 	}
+	// O VÍNCULO VOLTA PRIMEIRO — É ELE QUE PODE RECUSAR
+	//
+	//	Enquanto o orçamento esteve apagado, a nota pode ter virado outro
+	//	orçamento no mesmo ticket. Aí a chave está ocupada e restaurar este aqui
+	//	deixaria DOIS orçamentos vivos para o mesmo par — a loja pagando duas
+	//	vezes, que é exatamente o que o índice existe para impedir.
+	//
+	//	Tentando o vínculo antes do status, uma recusa deixa tudo como estava.
+	//	Na ordem inversa, o orçamento voltaria a valer sem nota atrás.
+	notas, err := m.notasDoOrcamento(r.Context(), id)
+	if err != nil {
+		m.erro(w, "não consegui ver a que nota este orçamento pertence", err)
+		return
+	}
+	if err := m.bd.Atualizar(r.Context(), "orcamento_documentos",
+		"orcamento_id=eq."+id, map[string]any{"removido_em": nil}); err != nil {
+		web.Falhar(w, http.StatusConflict,
+			"Não dá para restaurar: a nota já virou outro orçamento neste ticket. "+
+				"Apague o novo antes, ou deixe este como está.")
+		return
+	}
+
 	if err := m.bd.Atualizar(r.Context(), "orcamentos",
 		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&status=eq.removido",
 		map[string]any{
@@ -930,6 +1092,17 @@ func (m *Modulo) restaurarOrcamento(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não consegui restaurar", err)
 		return
 	}
+
+	// E A NOTA SAI DA FILA DE NOVO
+	//   Apagar devolveu ela para `lido`. Restaurar sem desfazer isso a deixaria
+	//   pronta para gerar um segundo orçamento que o vínculo agora recusaria.
+	for _, n := range notas {
+		if err := m.bd.Atualizar(r.Context(), "documentos",
+			"id=eq."+n+"&status=eq.lido", map[string]any{"status": "usado"}); err != nil {
+			log.Printf("orcamentos: restaurei %s mas não tirei a nota %s da fila: %v", id, n, err)
+		}
+	}
+
 	_ = m.hist.Registrar(r.Context(), p, "orcamentos", id, "restaurar", nil)
 	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
 }

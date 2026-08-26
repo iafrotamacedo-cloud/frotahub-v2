@@ -127,6 +127,32 @@ export function Lancar({ voltar }: { voltar: () => void }) {
     await carregar()
   }
 
+  // APAGAR É O CAMINHO DE VOLTA DE UM ORÇAMENTO ERRADO
+  //
+  //   Antes desta tela não havia nenhum: um orçamento gerado com valor errado
+  //   ficava lá, e a nota atrás dele ficava presa em `usado`, fora da fila e
+  //   sem orçamento válido. A saída era SQL na mão.
+  //
+  //   O motivo é obrigatório de propósito. Quem abrir isto daqui a seis meses
+  //   vai encontrar um orçamento removido e uma nota reorçada com outro valor;
+  //   sem a frase, não tem como saber se foi correção, arrependimento ou erro.
+  async function apagar(o: Orcamento) {
+    const motivo = window.prompt(
+      `Apagar o orçamento do ticket ${o.ticket} (${emReais(o.valor)})?\n\n` +
+      'A nota volta para a fila em Notas e DAVs e pode ser orçada de novo.\n' +
+      'Diga por quê — fica registrado com o seu nome.')
+    if (!motivo?.trim()) return
+    try {
+      await motor(`/orcamentos/ficha/${o.id}?motivo=${encodeURIComponent(motivo.trim())}`,
+        { metodo: 'DELETE' })
+      setErro('')
+      setAviso(`Ticket ${o.ticket}: orçamento apagado. A nota voltou para a fila em Notas e DAVs.`)
+      await carregar()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui apagar.')
+    }
+  }
+
   async function aprovar(o: Orcamento) {
     const nota = window.prompt(
       `Onde está a aprovação do cliente para o ticket ${o.ticket} (${emReais(o.valor)})?\n` +
@@ -282,6 +308,13 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                       )}
                       {o.status === 'lancado' && (
                         <span className="orc-selo ok">custo {o.trilogo_custo_id}</span>
+                      )}
+                      {/* Um lançado não tem "apagar": o custo está vivo no
+                          Trílogo, e apagar só aqui deixaria os dois sistemas
+                          discordando. O motor recusa também — o botão some para
+                          não prometer o que a rota nega. */}
+                      {o.status !== 'lancado' && (
+                        <button type="button" className="perigo" onClick={() => void apagar(o)}>apagar</button>
                       )}
                     </td>
                   </tr>

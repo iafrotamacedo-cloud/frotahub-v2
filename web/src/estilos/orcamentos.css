@@ -166,6 +166,10 @@
   color: var(--red); font-weight: 600; font-size: 11.5px; margin-left: 12px; padding: 2px 0;
 }
 .orc-acoes button.mut { color: var(--gray); font-weight: 500; }
+/* Apagar não compete com lançar. Fica cinza até a pessoa passar o mouse — quem
+   procura acha, quem não procura não esbarra. */
+.orc-acoes button.perigo { color: var(--gray); font-weight: 500; }
+.orc-acoes button.perigo:hover { color: var(--err); }
 .orc-acoes button.forte {
   border: 1px solid var(--red); border-radius: 7px; padding: 3px 10px;
 }
