@@ -47,7 +47,18 @@ type IA struct {
 
 // ModeloPadrao é o que o dono escolheu: rápido e barato o bastante para rodar em
 // toda nota sem pensar duas vezes.
-const ModeloPadrao = "gemini-2.5-flash"
+//
+// MODELO APOSENTADO NÃO AVISA ANTES, AVISA DEPOIS
+//
+//	Em 26/08/2026 as cinco chamadas de uma rodada voltaram com "This model
+//	models/gemini-2.5-flash is no longer available to new users". Não foi
+//	chave, nem cota, nem rede: o modelo foi desligado do lado de lá, e a única
+//	notícia disso foi a nota que entrou sem item nenhum.
+//
+//	Por isso o nome mora AQUI, uma vez só (CORE-25), e `GEMINI_MODELO` existe
+//	para trocar de modelo sem subir código no dia em que isso se repetir — que
+//	vai se repetir.
+const ModeloPadrao = "gemini-3.6-flash"
 
 func NovaIA(chave string) *IA {
 	return &IA{

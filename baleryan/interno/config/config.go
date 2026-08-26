@@ -381,7 +381,12 @@ func Carregar() (*Config, error) {
 	// camadas 1 e 2 funcionam sozinhas, só com menos alcance.
 	ia := IA{
 		Chave:  l.segredo("GEMINI_API_KEY", false, 0, ""),
-		Modelo: l.texto("GEMINI_MODELO", "gemini-2.5-flash", false, ""),
+		// VAZIO DE PROPÓSITO
+		//   O nome do modelo é do pacote `leitor` (ModeloPadrao). Repetir o padrão
+		//   aqui criava DOIS lugares para trocar — e este vencia sempre, porque
+		//   nunca ficava vazio. Trocar só o outro não mudaria nada, e o erro
+		//   voltaria idêntico na rodada seguinte.
+		Modelo: l.texto("GEMINI_MODELO", "", false, ""),
 	}
 
 	// QUEM ESTÁ LIGANDO

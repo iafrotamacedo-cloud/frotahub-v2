@@ -348,12 +348,15 @@ type documento struct {
 	ID   string `json:"id"`
 	Nome string `json:"nome_arquivo"`
 	SHA  string `json:"arquivo_sha256"`
+	// Qual das duas entradas: `orcamento` ou `rateio`. Muda quem manda no
+	// ticket — veja `amarraSozinho`.
+	Fila string `json:"fila"`
 }
 
 func (l *Leitor) documento(ctx context.Context, id string) (*documento, error) {
 	var d []documento
 	if err := l.bd.Buscar(ctx, "documentos?id=eq."+id+
-		"&select=id,nome_arquivo,arquivo_sha256&limit=1", &d); err != nil {
+		"&select=id,nome_arquivo,arquivo_sha256,fila&limit=1", &d); err != nil {
 		return nil, err
 	}
 	if len(d) == 0 {
@@ -459,13 +462,50 @@ func (l *Leitor) gravar(ctx context.Context, doc *documento, lida *leitor.Leitur
 // os 29 tickets estavam CERTOS. Nenhum ticket errado. Os 6 que ficaram de fora
 // caem na fila manual, que é exatamente onde deveriam cair.
 func (l *Leitor) amarrarOTicket(ctx context.Context, doc *documento, lida *leitor.Leitura) error {
-	ticket, confiavel := leitor.TicketConfiavel(lida)
-	if !confiavel {
-		log.Printf("documento %s · ticket não confiável (campo=%v, observação=%q) — vai para SEM TICKET",
-			doc.Nome, lida.ObservacaoDoCampo, encurtar(lida.Observacao, 60))
+	ticket, pode, porque := amarraSozinho(doc.Fila, lida)
+	if !pode {
+		log.Printf("documento %s · %s (campo=%v, observação=%q) — vai para SEM TICKET",
+			doc.Nome, porque, lida.ObservacaoDoCampo, encurtar(lida.Observacao, 60))
 		return nil
 	}
 	return l.amarrarTickets(ctx, doc.ID, []int{ticket})
+}
+
+// FilaRateio é a entrada em que o ticket NÃO sai da nota.
+const FilaRateio = "rateio"
+
+// amarraSozinho responde se o robô pode amarrar o ticket que leu.
+//
+// A FILA DE RATEIO É O CONTRÁRIO DA OUTRA
+//
+//	Na fila `orcamento`, a nota traz o próprio ticket na observação e ler esse
+//	número é o serviço. Na fila `rateio`, a nota foi separada JUSTAMENTE porque
+//	o material dela se divide entre vários chamados — quem dita os tickets é o
+//	usuário, na tela.
+//
+//	O leitor não sabia disso: rodava a mesma regra nas duas. Uma nota de rateio
+//	com um ticket escrito na observação seria amarrada sozinha, e aí o custo
+//	inteiro cairia numa loja só — o rateio cancelado antes de alguém abrir a
+//	tela para fazê-lo. E sem travar nada: gera, lança e cobra a loja errada, em
+//	silêncio. É o mesmo modo de falha que a regra dos três critérios existe para
+//	impedir, entrando por uma porta que ninguém tinha olhado.
+//
+//	Em 26/08/2026 as duas notas de rateio da fila escaparam por sorte: o campo
+//	de observação não foi lido, porque a IA estava fora do ar. Sorte não é
+//	regra.
+//
+// É função à parte, e não um `if` dentro do método, porque a decisão é o que
+// importa aqui — e decisão que não dá para testar sem subir um banco não é
+// testada (P-30).
+func amarraSozinho(fila string, lida *leitor.Leitura) (int, bool, string) {
+	if fila == FilaRateio {
+		return 0, false, "é da fila de rateio, onde quem dita o ticket é o usuário"
+	}
+	ticket, confiavel := leitor.TicketConfiavel(lida)
+	if !confiavel {
+		return 0, false, "ticket não confiável"
+	}
+	return ticket, true, ""
 }
 
 func (l *Leitor) amarrarTickets(ctx context.Context, documentoID string, tickets []int) error {
