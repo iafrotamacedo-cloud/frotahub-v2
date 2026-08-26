@@ -1,4 +1,4 @@
-// rev 7 — a árvore de menus
+// rev 8 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -30,7 +30,9 @@ export interface ItemMenu {
   sub?: ItemMenu[]
 }
 
-export type Icone = 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
+export type Icone =
+  | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
+  | 'dinheiro' | 'saida' | 'entrada' | 'balanca'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos'
@@ -63,6 +65,45 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             desc: 'Notas, rateio, lançamento no Trílogo e as planilhas de controle',
             tela: 'orcamentos',
             rotina: 'CONTRATO_ORCAMENTOS',
+          },
+          {
+            // O MENU EXISTE ANTES DAS TELAS, E É DE PROPÓSITO
+            //
+            //   As três já aparecem marcadas "em breve": dá a medida do que vem
+            //   sem prometer o que ainda não funciona (CORE-23). O que muda em
+            //   relação a um menu escondido é que o desenho fica combinado
+            //   agora, em vez de ser inventado no dia de construir cada uma.
+            //
+            //   Sem `rotina` ainda: a linha no catálogo de permissões nasce
+            //   junto com a tela que ela protege. Rotina apontando para o vazio
+            //   é uma caixa para alguém marcar sem saber o que está liberando.
+            t: 'Financeiro',
+            rota: 'financeiro',
+            icone: 'dinheiro',
+            desc: 'O que sai para o fornecedor, o que entra do cliente, e a diferença',
+            sub: [
+              {
+                t: 'A pagar',
+                rota: 'a-pagar',
+                icone: 'saida',
+                desc: 'DAVs e notas do fornecedor: o que foi faturado, o que foi pago e o que está em aberto',
+                breve: true,
+              },
+              {
+                t: 'A receber',
+                rota: 'a-receber',
+                icone: 'entrada',
+                desc: 'Espelhos de faturamento ao cliente e o que já voltou dele',
+                breve: true,
+              },
+              {
+                t: 'Balanço',
+                rota: 'balanco',
+                icone: 'balanca',
+                desc: 'A pagar contra a receber, no período escolhido',
+                breve: true,
+              },
+            ],
           },
         ],
       },

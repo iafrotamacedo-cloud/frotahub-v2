@@ -1,4 +1,4 @@
-// rev 4 — os ícones do sistema, desenhados à mão
+// rev 5 — os ícones do sistema, desenhados à mão
 //
 // Sem biblioteca de ícones: são poucos, e assim eles herdam a cor e a espessura do
 // resto da interface em vez de trazerem um estilo próprio (CORE-25).
@@ -64,6 +64,43 @@ const CAMINHOS: Record<NomeIcone, JSX.Element> = {
       <rect x="3.4" y="4.6" width="17.2" height="14.8" rx="2" />
       <path d="M3.4 9.2h17.2" />
       <path d="M8.6 9.2v10.2" />
+    </>
+  ),
+
+  // ---- Financeiro ----
+  //
+  // A SETA APONTA PARA FORA OU PARA DENTRO DA CAIXA, E É SÓ ISSO
+  //   Dois ícones quase iguais, invertidos, são o desenho certo aqui: a
+  //   diferença entre pagar e receber é a DIREÇÃO do dinheiro, e um par
+  //   espelhado diz isso sem precisar de legenda.
+  'dinheiro': (
+    <>
+      <rect x="2.6" y="6.2" width="18.8" height="11.6" rx="2" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M5.9 12h.2M17.9 12h.2" />
+    </>
+  ),
+  'saida': (
+    <>
+      <path d="M10.4 4.6H5.6a2 2 0 0 0-2 2v10.8a2 2 0 0 0 2 2h4.8" />
+      <path d="M20.4 12h-10" />
+      <path d="m17 8.6 3.4 3.4-3.4 3.4" />
+    </>
+  ),
+  'entrada': (
+    <>
+      <path d="M13.6 4.6h4.8a2 2 0 0 1 2 2v10.8a2 2 0 0 1-2 2h-4.8" />
+      <path d="M3.6 12h10" />
+      <path d="m10.2 8.6 3.4 3.4-3.4 3.4" />
+    </>
+  ),
+  'balanca': (
+    <>
+      <path d="M12 4.8v14.7" />
+      <path d="M8.4 19.5h7.2" />
+      <path d="M4.6 7.6h14.8" />
+      <path d="M4.6 7.6 2 13.3a2.6 2.6 0 0 0 5.2 0Z" />
+      <path d="M19.4 7.6 16.8 13.3a2.6 2.6 0 0 0 5.2 0Z" />
     </>
   ),
 }
