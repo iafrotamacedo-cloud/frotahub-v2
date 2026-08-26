@@ -735,3 +735,11 @@
 /* Nem todo documento é PDF: a nota do fornecedor costuma ser foto. A imagem
    cabe no quadro sem estourar, e o quadro rola quando ela é alta. */
 .orc-visor-doc img { display: block; max-width: 100%; margin: 0 auto; background: #fff; border-radius: 8px; }
+
+/* A razão de a nota estar aberta, entre a barra de ação e o papel. Amarelo de
+   aviso, e não vermelho: é coisa para tratar, não erro do programa. */
+.visor-motivo {
+  margin: 0; padding: 8px 16px; flex: 0 0 auto;
+  background: var(--warn-bg); color: var(--warn);
+  font-size: 12.5px; border-bottom: 1px solid var(--line);
+}

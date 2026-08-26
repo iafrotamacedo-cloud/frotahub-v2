@@ -76,7 +76,7 @@ func (m *Modulo) painel(w http.ResponseWriter, r *http.Request) {
 		//   Mesma razão do contador (migração 028): "últimos inseridos" cheio de
 		//   notas resolvidas esconde as que precisam de gente.
 		"notas": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
-			"&fila=eq.orcamento&oculto_em=is.null&status=neq.usado"+
+			"&fila=eq.orcamento&oculto_em=is.null&onde=eq.fila"+
 			"&order=inserido_em.desc&limit=9"+
 			"&select=nome_arquivo,inserido_em,valor_total"),
 		"rateio": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
@@ -157,9 +157,18 @@ func filtroDosDocumentos(clienteID, fila string, q url.Values) string {
 		// segundos do aviso, e depois disso o arquivo virou fantasma.
 		filtro += "&oculto_em=not.is.null&order=oculto_em.desc"
 	case "processadas":
-		filtro += "&oculto_em=is.null&status=eq.usado&order=inserido_em.desc"
+		filtro += "&oculto_em=is.null&onde=eq.usada&order=inserido_em.desc"
 	default:
-		filtro += "&oculto_em=is.null&status=neq.usado&order=inserido_em.desc"
+		// A FILA É O QUE SE RESOLVE AQUI
+		//   Nota sem ticket e nota com ticket que não existe na base vivem em
+		//   Correções — lá é que se conserta ticket. Aqui fica o que ainda não
+		//   foi lido, o que falhou, o que está repetido ou bloqueado, e o que
+		//   está pronto para gerar.
+		//
+		//   Quem decide é a coluna `onde` da visão (migração 029), e não um
+		//   punhado de condições repetidas aqui. Era assim que a lista e o
+		//   contador conseguiam discordar.
+		filtro += "&oculto_em=is.null&onde=eq.fila&order=inserido_em.desc"
 	}
 	if busca := strings.TrimSpace(q.Get("busca")); busca != "" {
 		filtro += "&or=(nome_arquivo.ilike.*" + banco.Escapar(busca) +

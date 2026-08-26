@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { VisorDaNota } from './VisorDaNota'
 import { Carregando } from '../../componentes/Carregando'
 import {
   emDataHora, emReais, confiancaEmPalavras,
@@ -63,6 +64,8 @@ export function Arquivos({ fila, voltar }: Props) {
   const [ocupado, setOcupado] = useState(false)
   // O documento que está aberto na tela. Ver documento é na tela, sempre.
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+  // A nota que ficou na fila esperando conferência, aberta em tela cheia.
+  const [conferindo, setConferindo] = useState<Documento | null>(null)
 
   // A nota aberta em tela cheia para receber tickets — o "+" da fila de rateio.
   const [abrindo, setAbrindo] = useState<Documento | null>(null)
@@ -148,6 +151,36 @@ export function Arquivos({ fila, voltar }: Props) {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui abrir o arquivo.')
     }
+  }
+
+  // A NOTA DE CONFERÊNCIA SE RESOLVE AQUI MESMO
+  //   Ela não vai para Correções: o problema dela não é ticket. Abre em tela
+  //   cheia, com o motivo escrito acima do papel e todos os reparos à mão —
+  //   inserir ticket, trocar, mandar para rateio, tirar da fila.
+  if (conferindo) {
+    return (
+      <VisorDaNota
+        documento={conferindo.id}
+        nome={conferindo.nome_arquivo}
+        valor={conferindo.valor_total}
+        tickets={conferindo.ticket_numeros ?? []}
+        modo="conferencia"
+        motivo={conferindo.motivo_conferencia}
+        acoes={{
+          excluir: async () => {
+            await motor(`/orcamentos/documentos/${conferindo.id}`, { metodo: 'DELETE' })
+            setConferindo(null); await carregar()
+          },
+          rateada: async () => {
+            await motor(`/orcamentos/documentos/${conferindo.id}/fila`,
+              { metodo: 'POST', corpo: { fila: 'rateio' } })
+            setConferindo(null); await carregar()
+          },
+          concluir: async () => { setConferindo(null); await carregar() },
+          fechar: () => setConferindo(null),
+        }}
+      />
+    )
   }
 
   if (vendo) {
@@ -276,7 +309,11 @@ export function Arquivos({ fila, voltar }: Props) {
                     )}
                     <td><Leitura d={d} /></td>
                     <td className="orc-acoes">
-                      <button type="button" onClick={() => void abrirArquivo(d)}>ver</button>
+                      {/* Ver é ver; conferir é resolver. Quando a nota tem um
+                          motivo, o botão principal leva para o reparo. */}
+                      {d.motivo_conferencia
+                        ? <button type="button" className="forte" onClick={() => setConferindo(d)}>conferir</button>
+                        : <button type="button" onClick={() => void abrirArquivo(d)}>ver</button>}
                       {fila === 'rateio' && vista === 'fila' && (
                         <button type="button" className="orc-mais" onClick={() => setAbrindo(d)} title="amarrar tickets">+</button>
                       )}

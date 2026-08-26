@@ -38,14 +38,28 @@ export interface Acoes {
 }
 
 export function VisorDaNota({
-  documento, nome, valor, tickets, modo, acoes,
+  documento, nome, valor, tickets, modo, motivo, acoes,
 }: {
   documento: string
   nome: string
   valor: number | null
   /** Os tickets que a nota já tem. Vazio na fila "sem ticket". */
   tickets: number[]
-  modo: 'sem-ticket' | 'sem-associacao'
+  /**
+   * De onde a pessoa veio, e portanto o que ela vai fazer aqui.
+   *
+   * `conferencia` é a nota que FICOU na fila: repetida, bloqueada, ou com a
+   * leitura falhada. Ela tem todos os reparos à mão porque o problema dela pode
+   * ser qualquer um — e quem abriu ainda não sabe qual vai usar.
+   */
+  modo: 'sem-ticket' | 'sem-associacao' | 'conferencia'
+  /**
+   * Por que esta nota precisa de gente, escrito acima do papel.
+   *
+   * Vem da visão (`motivo_conferencia`, migração 029) e não do navegador: a
+   * lista, esta tela e qualquer relatório dizem a mesma frase.
+   */
+  motivo?: string | null
   acoes: Acoes
 }) {
   // A NOTA PEDE A TELA INTEIRA
@@ -152,7 +166,7 @@ export function VisorDaNota({
     <div className="visor">
       <div className="visor-barra">
         <div className="visor-esq">
-          {modo === 'sem-ticket' && (
+          {(modo === 'sem-ticket' || modo === 'conferencia') && (
             <>
               <input
                 type="text" inputMode="numeric" placeholder="número do ticket"
@@ -171,7 +185,7 @@ export function VisorDaNota({
               <span key={t} className={'visor-chip' + (paradoNoTicket(conf, t) ? ' ruim' : '')}>
                 <b>{t}</b>
                 <i>{lojaDoTicket(conf, t)}</i>
-                {modo === 'sem-associacao' && (
+                {(modo === 'sem-associacao' || modo === 'conferencia') && (
                   <u onClick={() => setTrocando(t)} role="button" tabIndex={0}
                     onKeyDown={e => { if (e.key === 'Enter') setTrocando(t) }}>trocar</u>
                 )}
@@ -200,6 +214,12 @@ export function VisorDaNota({
         <Veredicto conf={conf} />
         <button type="button" className="mut" onClick={acoes.fechar}>voltar sem gravar mais nada</button>
       </div>
+
+      {/* O MOTIVO FICA ENTRE A BARRA E O PAPEL
+          É onde o olho passa: quem abriu a nota vai da ação (em cima) para o
+          documento (embaixo), e a frase explica no caminho por que ela está
+          aqui. No `title` de um ícone, ninguém leria. */}
+      {motivo && <p className="visor-motivo">{motivo}</p>}
 
       {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
 

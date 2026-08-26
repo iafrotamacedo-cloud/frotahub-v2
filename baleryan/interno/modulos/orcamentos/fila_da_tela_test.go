@@ -31,8 +31,8 @@ func filtroDaVista(vista string) string {
 
 func TestAFilaNaoMostraOQueJaVirouOrcamento(t *testing.T) {
 	f := filtroDaVista("")
-	if !strings.Contains(f, "status=neq.usado") {
-		t.Errorf("a vista padrão mostra as notas já resolvidas: %q", f)
+	if !strings.Contains(f, "onde=eq.fila") {
+		t.Errorf("a vista padrão não usa a regra de onde a nota mora: %q", f)
 	}
 	if !strings.Contains(f, "oculto_em=is.null") {
 		t.Errorf("a vista padrão perdeu o filtro das tiradas da fila: %q", f)
@@ -43,7 +43,7 @@ func TestAsProcessadasContinuamAlcancaveis(t *testing.T) {
 	// Sair da fila não é sumir. Se não houvesse esta vista, "tirar da lista"
 	// viraria "esconder para sempre" — e aí a queixa seria a oposta.
 	f := filtroDaVista("processadas")
-	if !strings.Contains(f, "status=eq.usado") {
+	if !strings.Contains(f, "onde=eq.usada") {
 		t.Errorf("não dá para ver o que já virou orçamento: %q", f)
 	}
 }
@@ -56,8 +56,8 @@ func TestForaDaFilaMostraAsTiradas(t *testing.T) {
 	// Aqui o status NÃO entra: tirada da fila é tirada, tenha virado orçamento
 	// ou não. Filtrar por status faria a nota resolvida E tirada não aparecer em
 	// vista nenhuma — sumida de verdade, que é o que este desenho evita.
-	if strings.Contains(f, "status=") {
-		t.Errorf("a vista de fora da fila filtra por status e esconde casos: %q", f)
+	if strings.Contains(f, "onde=") {
+		t.Errorf("a vista de fora da fila filtra por `onde` e esconde casos: %q", f)
 	}
 }
 
@@ -96,10 +96,31 @@ func TestAPreviaDoPainelNaoMostraOQueJaFoi(t *testing.T) {
 	})}
 
 	m.previa(context.Background(), "documentos_lista?cliente_id=eq.x"+
-		"&fila=eq.orcamento&oculto_em=is.null&status=neq.usado"+
+		"&fila=eq.orcamento&oculto_em=is.null&onde=eq.fila"+
 		"&order=inserido_em.desc&limit=9&select=nome_arquivo")
 
-	if len(perguntou) != 1 || !strings.Contains(perguntou[0], "status=neq.usado") {
+	if len(perguntou) != 1 || !strings.Contains(perguntou[0], "onde=eq.fila") {
 		t.Errorf("a prévia não filtra o que já virou orçamento: %v", perguntou)
+	}
+}
+
+// A REGRA DE ONDE A NOTA MORA É UMA SÓ
+//
+//	Antes, a lista, o contador e as telas de Correções perguntavam cada uma à sua
+//	maneira "esta nota é minha?". Três respostas para a mesma pergunta foi como
+//	nasceu a tela que mostrava 31 com o botão dizendo 77.
+//
+//	Agora quem responde é a coluna `onde` da visão. O que este teste protege é a
+//	consulta CONTINUAR perguntando a ela, em vez de alguém reescrever as
+//	condições aqui "para não depender da view".
+func TestAListaPerguntaOndeAoInvesDeAdivinhar(t *testing.T) {
+	f := filtroDaVista("")
+	for _, proibido := range []string{"duplicada_de", "bloqueio_motivo", "ticket_soltos", "tickets="} {
+		if strings.Contains(f, proibido) {
+			t.Errorf("a lista voltou a repetir a regra (%s): %q", proibido, f)
+		}
+	}
+	if !strings.Contains(f, "onde=eq.fila") {
+		t.Errorf("a lista não pergunta onde a nota mora: %q", f)
 	}
 }

@@ -75,6 +75,13 @@ export interface Documento {
   pronto_para_gerar: boolean
   itens: number
 
+  // ---- a 029 ----
+  /** Onde esta nota mora: `fila`, `sem-ticket`, `sem-associacao` ou `usada`.
+   *  A regra vive na visão, e não em condições repetidas por tela. */
+  onde?: 'fila' | 'sem-ticket' | 'sem-associacao' | 'usada'
+  /** Por que ela precisa de gente. Nulo quando não precisa. */
+  motivo_conferencia?: string | null
+
   // ---- a 019 ----
   /** Quando preenchida, esta nota é a MESMA que a apontada — mesma chave de
    *  acesso, ou mesmo número e valor. Ela não gera orçamento. O nome da outra
