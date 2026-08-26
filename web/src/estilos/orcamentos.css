@@ -400,6 +400,36 @@
 .orc-saidas { font-weight: 600; }
 .orc-bloqueio ul { margin: 4px 0 12px; padding-left: 22px; font-size: 12.5px; }
 
+/* ---------------------------------------------------------------------------
+   O ticket já tem um custo deste valor
+
+   MAIS VERMELHO QUE O AVISO DO TETO, DE PROPÓSITO
+     Passar do teto é uma negociação. Lançar duas vezes é cobrar o cliente duas
+     vezes por um serviço só — e é a única coisa nesta tela que ninguém desfaz
+     sozinho depois.
+   --------------------------------------------------------------------------- */
+
+.orc-duplicata { border-color: var(--red); background: var(--red-050); }
+.orc-duplicata h3 { color: var(--red); }
+.orc-duplicata table { width: 100%; border-collapse: collapse; }
+.orc-duplicata thead th {
+  text-align: left; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--txt); padding: 0 14px 4px 0;
+}
+.orc-duplicata tbody td { padding: 3px 14px 3px 0; border-top: 1px solid var(--line); }
+.orc-duplicata tbody td:nth-child(2) { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* A linha do que está para subir, para os dois valores ficarem um sob o outro —
+   é a comparação que a pessoa veio fazer. */
+.orc-duplicata-este td { color: var(--txt); font-style: italic; }
+
+/* NÃO LANÇAR É O CAMINHO NORMAL, E POR ISSO VEM PRIMEIRO E PESADO.
+   Seguir é a exceção — tem que parecer uma. */
+.orc-duplicata-bts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.orc-duplicata-bts .forte { background: var(--red); border-color: var(--red); color: #fff; }
+
+
 
 /* ---------------------------------------------------------------------------
    O lote de lançamento

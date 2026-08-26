@@ -52,6 +52,10 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   //   ficha, e o salvar mora lá dentro — com escolha de pasta.
   const [abrindo, setAbrindo] = useState<string | null>(null)
   const [bloqueio, setBloqueio] = useState<BloqueioDoTeto | null>(null)
+  // A DUPLICATA GUARDA O ORÇAMENTO, E NÃO SÓ A MENSAGEM
+  //   Sem ele, o "lançar mesmo assim" não teria em quem mandar — e a única saída
+  //   da tela seria fechar e clicar de novo na linha, torcendo para ser a certa.
+  const [duplicata, setDuplicata] = useState<{ dados: BloqueioDeDuplicata; orc: Orcamento } | null>(null)
   const [lote, setLote] = useState<Lote | null>(null)
   // Parar é um `ref`, não um estado: o laço já está rodando quando a pessoa
   // clica, e um estado só chegaria nele no próximo desenho da tela.
@@ -72,22 +76,32 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   // subirUm é a única chamada de lançamento da tela. O botão da linha e o lote
   // passam os dois por aqui — assim não existe uma segunda versão da regra que
   // um dia deixa de concordar com a primeira.
-  async function subirUm(o: Orcamento): Promise<Resultado> {
+  //  A CONFIRMAÇÃO DE DUPLICATA É UM ARGUMENTO, E NUNCA UM PADRÃO
+  //    `confirmandoDuplicata` só chega aqui como `true` vindo do botão que a
+  //    pessoa aperta com o custo existente na frente. O lote chama sem ele.
+  async function subirUm(o: Orcamento, confirmandoDuplicata = false): Promise<Resultado> {
     try {
       const r = await motor<{ trilogo_custo_id: number }>(
-        `/orcamentos/ficha/${o.id}/lancar`, { metodo: 'POST' })
+        `/orcamentos/ficha/${o.id}/lancar` + (confirmandoDuplicata ? '?duplicata=confirmo' : ''),
+        { metodo: 'POST' })
       return { ok: true, custo: r.trilogo_custo_id }
     } catch (e) {
-      const corpo = (e as { corpo?: BloqueioDoTeto }).corpo
+      const corpo = (e as { corpo?: BloqueioDoTeto & BloqueioDeDuplicata }).corpo
+      // A DUPLICATA VEM ANTES DO TETO NESTA ESCADA
+      //   As duas respostas trazem `saidas`. Se o teto fosse testado primeiro,
+      //   toda duplicata apareceria como bloqueio de teto — com os números do
+      //   teto zerados, que é a tela que não explica nada.
+      if (corpo?.duplicata) return { ok: false, duplicata: corpo, motivo: fraseDaDuplicata(corpo) }
       if (corpo?.saidas) return { ok: false, teto: corpo, motivo: frasedoTeto(corpo) }
       return { ok: false, motivo: e instanceof Error ? e.message : 'Não consegui lançar.' }
     }
   }
 
-  async function lancar(o: Orcamento) {
+  async function lancar(o: Orcamento, confirmandoDuplicata = false) {
     setLancando(o.id)
     setAviso('')
-    const r = await subirUm(o)
+    if (confirmandoDuplicata) setDuplicata(null)
+    const r = await subirUm(o, confirmandoDuplicata)
     setLancando(null)
     if (r.ok) {
       setAviso(`Ticket ${o.ticket}: lançado no Trílogo (custo nº ${r.custo}).`)
@@ -98,7 +112,8 @@ export function Lancar({ voltar }: { voltar: () => void }) {
     //   Ele vem com números e com saídas. Mostrar só a frase jogaria fora
     //   justamente a parte que resolve — e é assim que o usuário acaba
     //   montando planilha paralela para entender o que travou.
-    if (r.teto) setBloqueio(r.teto)
+    if (r.duplicata) setDuplicata({ dados: r.duplicata, orc: o })
+    else if (r.teto) setBloqueio(r.teto)
     else setErro(r.motivo)
     await carregar()
   }
@@ -223,6 +238,14 @@ export function Lancar({ voltar }: { voltar: () => void }) {
       {aviso && <p className="orc-ok">{aviso}</p>}
       {erro && <p className="erro">{erro}</p>}
       {bloqueio && <Bloqueio dados={bloqueio} fechar={() => setBloqueio(null)} />}
+      {duplicata && (
+        <Duplicata
+          dados={duplicata.dados}
+          lancando={lancando === duplicata.orc.id}
+          fechar={() => setDuplicata(null)}
+          lancarMesmoAssim={() => void lancar(duplicata.orc, true)}
+        />
+      )}
 
       <div className="orc-lista">
         <div className="orc-lista-cab">
@@ -376,6 +399,86 @@ function Bloqueio({ dados, fechar }: { dados: BloqueioDoTeto; fechar: () => void
   )
 }
 
+interface CustoLa {
+  id: number
+  valor: number
+  emissao: string
+  tipo: string
+  documento: string
+  permalink?: string
+}
+
+interface BloqueioDeDuplicata {
+  erro: string
+  duplicata: true
+  ticket: number
+  deste: number
+  iguais: CustoLa[]
+  saidas: string[]
+}
+
+/** O ticket JÁ TEM um custo deste valor.
+ *
+ *  POR QUE ISTO NÃO É UM ERRO VERMELHO E PRONTO
+ *    Duas notas iguais no mesmo serviço acontecem. O que não pode acontecer é
+ *    lançar a segunda SEM SABER que a primeira está lá. Então a tela mostra o
+ *    custo que existe — número, data, valor e o documento — e deixa a decisão
+ *    com quem consegue abrir os dois e comparar.
+ *
+ *  O BOTÃO DE SEGUIR NÃO É O DESTAQUE
+ *    "Não lançar" é o certo na maioria das vezes. Ele fica em primeiro e com o
+ *    peso visual; seguir é a exceção, e tem que parecer uma. */
+function Duplicata({ dados, lancando, fechar, lancarMesmoAssim }: {
+  dados: BloqueioDeDuplicata
+  lancando: boolean
+  fechar: () => void
+  lancarMesmoAssim: () => void
+}) {
+  return (
+    <div className="orc-bloqueio orc-duplicata">
+      <h3>Ticket {dados.ticket} já tem um custo deste valor</h3>
+      <p>{dados.erro}</p>
+      <table>
+        <thead>
+          <tr><th>custo</th><th>valor</th><th>emissão</th><th>tipo</th><th /></tr>
+        </thead>
+        <tbody>
+          {dados.iguais.map(c => (
+            <tr key={c.id}>
+              <td>nº {c.id}</td>
+              <td>{emReais(c.valor)}</td>
+              <td>{c.emissao || '—'}</td>
+              <td>{c.tipo || '—'}</td>
+              <td>
+                {c.permalink
+                  ? <a href={c.permalink} target="_blank" rel="noreferrer">ver o documento</a>
+                  : <span className="orc-detalhe">sem documento</span>}
+              </td>
+            </tr>
+          ))}
+          <tr className="orc-duplicata-este">
+            <td>este orçamento</td>
+            <td>{emReais(dados.deste)}</td>
+            <td colSpan={3}>ainda não lançado</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="orc-saidas">O que dá para fazer:</p>
+      <ul>{dados.saidas.map(s => <li key={s}>{s}</li>)}</ul>
+      <div className="orc-duplicata-bts">
+        <button type="button" className="orc-bt forte" onClick={fechar}>Não lançar</button>
+        <button type="button" className="orc-bt" disabled={lancando} onClick={lancarMesmoAssim}>
+          {lancando ? 'Lançando…' : 'São notas diferentes — lançar assim mesmo'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function fraseDaDuplicata(b: BloqueioDeDuplicata): string {
+  const ids = b.iguais.map(c => `nº ${c.id}`).join(', ')
+  return `o ticket já tem ${emReais(b.deste)} lançado (${ids}) — pode ser duplicata`
+}
 
 // ---------------------------------------------------------------------------
 // o lote
@@ -398,7 +501,7 @@ interface Lote {
 
 type Resultado =
   | { ok: true; custo: number }
-  | { ok: false; motivo: string; teto?: BloqueioDoTeto }
+  | { ok: false; motivo: string; teto?: BloqueioDoTeto; duplicata?: BloqueioDeDuplicata }
 
 /** Entra no lote quem a view diz que pode subir AGORA. */
 function podeSubir(o: Orcamento): boolean {

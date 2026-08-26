@@ -103,12 +103,85 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// PASSO 1 — o teto, de novo, contra a verdade de agora.
+	// PASSO 1 — o que o ticket JÁ TEM, contra a verdade de agora.
+	//
+	// Uma leitura só serve às duas perguntas que vêm a seguir: "isto já está
+	// lançado?" e "com isto, passa do teto?". Duas idas ao Trílogo para os mesmos
+	// custos seriam duas respostas que um dia discordam.
 	custos, err := sessao.Custos(r.Context(), ticket)
 	if err != nil {
 		m.erro(w, "não consegui ler os custos do ticket no Trílogo", err)
 		return
 	}
+	// PASSO 1a — JÁ EXISTE ESTE MESMO CUSTO LÁ?
+	//
+	// ELA VEM ANTES DO TETO, E ISSO É SEGURANÇA, NÃO ORDEM DE LEITURA
+	//
+	//	Um orçamento pode ser duplicata E passar do teto ao mesmo tempo — aliás,
+	//	é o caso comum, porque o valor repetido entra na soma duas vezes. Se o
+	//	teto respondesse primeiro, a tela ofereceria "aprovar com a autorização
+	//	do cliente" para uma cobrança repetida: a trava mandaria a pessoa
+	//	exatamente para o botão que não devia existir ali.
+	//
+	// O QUE ISTO PEGA, E QUE NADA MAIS PEGAVA
+	//
+	//	`status = 'lancado'` impede relançar A MESMA LINHA nossa. Não diz nada
+	//	sobre um custo idêntico que chegou ao ticket por outro caminho: o sistema
+	//	antigo, a mão de alguém na tela do Trílogo, ou uma linha nossa gêmea. O
+	//	teto também não pega: ele só reclama acima de R$ 60.000, e a duplicata
+	//	típica é de R$ 143,28.
+	//
+	//	Medido em 26/08/2026, na base: o ticket 126998 tem um custo de R$ 143,28
+	//	lançado (nº 37671) e um orçamento gerado de R$ 143,28 esperando. Sem esta
+	//	conferência, o botão o lançaria de novo, e o cliente pagaria duas vezes.
+	//
+	// POR QUE O VALOR, E SÓ O VALOR
+	//
+	//	Do lado do Trílogo um custo é UM número com um PDF pendurado — não há
+	//	lista de itens para comparar. O `documentNumber` é o próprio ticket, igual
+	//	em todos. E o nome do arquivo não serve: o Trílogo RENOMEIA o que sobe
+	//	(os custos capturados trazem `tmphymsviw2.pdf`), então casar por nome
+	//	acharia zero duplicata e daria a impressão de estar conferindo.
+	//
+	//	Sobra o valor, que é exatamente o que se quer barrar: mesmo ticket, mesmo
+	//	valor final. E ele cobre também a duplicata entre duas linhas nossas — a
+	//	segunda encontra o custo que a primeira acabou de criar.
+	//
+	// COMPARADO EM CENTAVOS, NUNCA EM float
+	//
+	//	143.28 vindo do JSON deles e 143.28 vindo do nosso `numeric` não são
+	//	necessariamente o mesmo float64. `regras.DinheiroDe` põe os dois na mesma
+	//	régua inteira antes de comparar — a mesma que o resto do sistema usa.
+	//
+	// A SAÍDA É EXPLÍCITA, E NUNCA VEM DO LOTE
+	//
+	//	Dois custos idênticos no mesmo ticket PODEM ser legítimos: duas notas
+	//	iguais, do mesmo fornecedor, no mesmo serviço. Então isto não é uma parede
+	//	— é uma pergunta. Quem responde é uma pessoa, um orçamento por vez, com o
+	//	custo existente na frente. O botão "lançar todos" não manda a confirmação:
+	//	se mandasse, a trava não existiria justamente na hora em que ela importa.
+	if iguais := custosIguais(custos, valor); len(iguais) > 0 && !duplicataConfirmada(r) {
+		det := fmt.Sprintf("o ticket já tem %s lançado no custo nº %d",
+			valor.Reais(), iguais[0].ID)
+		m.bloquear(r.Context(), p, id, orc, "possivel_duplicata", det)
+		web.Responder(w, http.StatusConflict, map[string]any{
+			"erro": fmt.Sprintf(
+				"O ticket %d já tem um custo de %s lançado. Este orçamento é do mesmo valor — "+
+					"lançar agora cobraria o cliente duas vezes.",
+				ticket, valor.Reais()),
+			"duplicata": true,
+			"ticket":    ticket,
+			"deste":     valor.Float(),
+			"iguais":    descreverCustos(iguais),
+			"saidas": []string{
+				"conferir no Trílogo se o custo que já está lá é este mesmo orçamento",
+				"apagar este orçamento, se ele for repetido",
+				"lançar mesmo assim, se forem duas notas iguais de verdade",
+			},
+		})
+		return
+	}
+
 	par, _, _ := m.param.Do(r.Context(), p.ClienteID)
 	jaLa := regras.DinheiroDe(trilogo.SomaDosCustos(custos))
 
@@ -312,6 +385,56 @@ func quemResolve(status int) string {
 		return "o cliente, que é quem reabre chamado arquivado"
 	}
 	return "quem cuida do chamado"
+}
+
+// custosIguais devolve os custos do ticket que batem, ao centavo, com o valor
+// que está para subir.
+//
+// Devolve a LISTA, e não o primeiro: se um ticket já foi duplicado antes, quem
+// abrir a resposta precisa ver os dois para saber qual apagar.
+func custosIguais(cs []trilogo.Custo, valor regras.Dinheiro) []trilogo.Custo {
+	var iguais []trilogo.Custo
+	for _, c := range cs {
+		if regras.DinheiroDe(trilogo.ValorDoCusto(c)) == valor {
+			iguais = append(iguais, c)
+		}
+	}
+	return iguais
+}
+
+// duplicataConfirmada — a pessoa viu o custo que já está lá e disse para subir
+// assim mesmo.
+//
+// A confirmação é um valor EXATO, e não "qualquer coisa preenchida": um
+// `?duplicata=1` que aparecesse por acidente numa montagem de URL não pode
+// valer como decisão humana.
+func duplicataConfirmada(r *http.Request) bool {
+	return r.URL.Query().Get("duplicata") == "confirmo"
+}
+
+// descreverCustos põe na resposta o que a pessoa precisa para decidir sem sair
+// da tela: quanto, de quando, de que tipo, e o link do documento que está lá.
+func descreverCustos(cs []trilogo.Custo) []map[string]any {
+	fora := make([]map[string]any, 0, len(cs))
+	for _, c := range cs {
+		d := map[string]any{
+			"id":        c.ID,
+			"valor":     trilogo.ValorDoCusto(c),
+			"emissao":   c.IssueDate,
+			"tipo":      rotuloDoCusto[c.Type],
+			"documento": c.DocumentNumber,
+		}
+		if len(c.InvoiceFiles) > 0 {
+			d["permalink"] = c.InvoiceFiles[0].Permalink
+		}
+		fora = append(fora, d)
+	}
+	return fora
+}
+
+var rotuloDoCusto = map[int]string{
+	trilogo.TipoMateriais: "Materiais",
+	trilogo.TipoMaoDeObra: "Mão de obra",
 }
 
 // bloquear grava POR QUE não deu, e não interrompe nada quando falha.

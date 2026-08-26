@@ -218,16 +218,37 @@ func (s *Sessao) ExcluirCusto(ctx context.Context, ticket, custo int) error {
 func SomaDosCustos(cs []Custo) float64 {
 	var soma float64
 	for _, c := range cs {
-		switch {
-		case c.TotalValue != nil:
-			soma += *c.TotalValue
-		case c.ServiceCost != nil:
-			soma += *c.ServiceCost
-		case c.ProductCost != nil:
-			soma += *c.ProductCost
-		}
+		soma += ValorDoCusto(c)
 	}
 	return soma
+}
+
+// ValorDoCusto diz qual dos três números deste custo é O valor dele.
+//
+// POR QUE TRÊS CAMPOS PARA UMA COISA SÓ
+//
+//	O Trílogo guarda o valor em `serviceCost` quando o custo é Mão de obra e em
+//	`productCost` quando é Materiais, e ainda mantém `totalValue` por cima dos
+//	dois. Custo antigo pode vir com só um deles preenchido — por isso a escada,
+//	e por isso ela começa no total, que é o campo que o sistema deles trata como
+//	oficial.
+//
+// ELA MORA AQUI PORQUE DUAS PERGUNTAS DEPENDEM DELA
+//
+//	A soma do teto e a conferência de duplicidade precisam ler o valor de um
+//	custo exatamente da mesma maneira. Se cada uma tivesse a sua escada, um dia
+//	uma acharia R$ 143,28 onde a outra achasse zero — e a que enxerga zero é a
+//	que deixa passar o lançamento repetido.
+func ValorDoCusto(c Custo) float64 {
+	switch {
+	case c.TotalValue != nil:
+		return *c.TotalValue
+	case c.ServiceCost != nil:
+		return *c.ServiceCost
+	case c.ProductCost != nil:
+		return *c.ProductCost
+	}
+	return 0
 }
 
 func primeiraLinha(b []byte) string {
