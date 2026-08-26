@@ -2,13 +2,25 @@ name: Leitor de notas
 
 # POR QUE ISTO RODA AQUI E NÃO NO MOTOR
 #
-#   OCR não é Go puro: precisa do Tesseract e de um conversor de PDF para
-#   imagem. Instalar os dois no contêiner do motor derrubaria a regra de zero
-#   dependência e engordaria um serviço que roda num plano que adormece.
-#
-#   Aqui há tempo, disco e liberdade para instalar o que for. O motor só
+#   O motor roda num plano que adormece, e ler nota é trabalho de picos: fica
+#   parado o dia inteiro e depois precisa de fôlego para oitenta arquivos de
+#   uma vez. Aqui há tempo, disco e uma máquina limpa a cada corrida. O motor só
 #   enfileira o trabalho; este robô lê a fila, faz o trabalho pesado e grava o
 #   resultado. É o mesmo desenho do robô do Trílogo.
+#
+# O OCR SAIU EM 26/08/2026
+#
+#   O Tesseract achatava a página numa fita de texto onde a coluna
+#   "quantidade" virava vizinha da coluna "valor unitário" — e a IA, recebendo
+#   só a fita, tinha que adivinhar onde uma acabava e a outra começava.
+#
+#   Hoje o arquivo vai INTEIRO para o modelo, que enxerga a página com as
+#   colunas no lugar. Por isso não há mais Tesseract, nem pdftoppm, nem
+#   otimizador em Python aqui — dois minutos de instalação por corrida que não
+#   serviam para nada.
+#
+#   Sobrou o `pdftotext`: o PDF que já traz camada de texto é lido de graça e
+#   sem chamar a IA, e ali o texto é exato porque veio do arquivo.
 
 on:
   schedule:
@@ -34,21 +46,15 @@ jobs:
           go-version: "1.24"
           cache-dependency-path: baleryan/go.sum
 
-      # O dicionário em português importa: sem ele o Tesseract lê "MANUTENÇÃO"
-      # como "MANUTENCAG" e a observação — que é de onde sai o ticket — vira
-      # ruído.
-    
-
-      # O OTIMIZADOR DE IMAGEM
+      # A ÚNICA FERRAMENTA DE FORA QUE O ROBÔ AINDA CHAMA
       #
-      #   As notas deste contrato são capturas de tela: o documento ocupa uns
-      #   530x330 de uma tela de 1440x900, e a letra fica com 6 a 8 pixels —
-      #   metade do que o Tesseract precisa. Ampliar e binarizar antes de ler
-      #   levou o valor total de 10/35 para 31/35 documentos, medido.
-      #
-      #   `headless` porque aqui não há tela: a versão cheia do OpenCV arrasta
-      #   GTK e Qt para nada.
-
+      #   Um em cada treze PDFs do contrato é digital. Mandá-lo para a IA seria
+      #   trocar o texto exato do arquivo por uma leitura da imagem dele — e
+      #   gastar cota para piorar. O robô confere isto ANTES de tomar o primeiro
+      #   trabalho: sem o pdftotext ele para na hora, em vez de marcar as notas
+      #   como "rodando" sem ninguém rodando.
+      - name: Instalar o pdftotext
+        run: sudo apt-get install -y poppler-utils
 
       - name: Ler as notas da fila
         working-directory: baleryan
@@ -60,11 +66,25 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          # Sem esta chave o robô ainda roda: as camadas 1 e 2 funcionam
-          # sozinhas, e a nota entra com chave de acesso e valor, sem itens,
-          # pedindo conferência na tela. Com ela, entra completa.
+          # Sem esta chave o robô ainda roda, mas só lê XML e PDF com camada de
+          # texto. Imagem, sem ela, não tem leitor nenhum — e o robô diz isso em
+          # voz alta em vez de gravar uma nota vazia.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # O NOME DO MODELO MORA AQUI DE PROPÓSITO
+          #
+          #   O Google aposenta modelo sem avisar antes — avisa depois, na
+          #   recusa. Em 26/08/2026 caíram o gemini-2.5-flash e o
+          #   gemini-2.5-flash-lite no mesmo dia, os dois com a mensagem "no
+          #   longer available to new users". E a cota gratuita é POR MODELO:
+          #   trocar de modelo é trocar de balde.
+          #
+          #   Estando aqui, os dois casos se resolvem editando uma linha, sem
+          #   subir código. Vazio faz valer o padrão do programa.
           GEMINI_MODELO: gemini-3.5-flash-lite
+          # Segundos entre duas leituras. O limite do plano é por MINUTO, e
+          # estourá-lo não devolve "espere", devolve erro. Vazio = 7 segundos.
+          # O número real da sua conta está em aistudio.google.com/rate-limit.
+          GEMINI_INTERVALO: ""
           # O robô do Trílogo exige as duas contas para subir; o leitor não as
           # usa, mas compartilha a mesma configuração.
           TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
