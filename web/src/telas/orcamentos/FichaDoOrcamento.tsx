@@ -14,7 +14,8 @@
 //	— e até hoje não oferecia o caminho. Quem queria conferir decorava o número
 //	e ia procurar na outra tela.
 import { useEffect, useState } from 'react'
-import { arquivoDoMotor, baixarDoMotor, motor } from '../../motor/cliente'
+import { motor } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { emReais } from './tipos'
 
 interface NotaDoOrcamento {
@@ -31,33 +32,19 @@ interface Ficha {
 
 export function FichaDoOrcamento({ id, voltar }: { id: string; voltar: () => void }) {
   const [ficha, setFicha] = useState<Ficha | null>(null)
-  const [pdf, setPdf] = useState('')
   const [erro, setErro] = useState('')
 
   useEffect(() => {
     let vivo = true
-    let endereco = ''
     void (async () => {
       try {
-        const [f, url] = await Promise.all([
-          motor<Ficha>(`/orcamentos/ficha/${id}`),
-          arquivoDoMotor(`/orcamentos/ficha/${id}/pdf`),
-        ])
-        endereco = url
-        if (!vivo) return
-        setFicha(f)
-        setPdf(url)
+        const f = await motor<Ficha>(`/orcamentos/ficha/${id}`)
+        if (vivo) setFicha(f)
       } catch (e) {
         if (vivo) setErro(e instanceof Error ? e.message : 'Não consegui abrir o orçamento.')
       }
     })()
-    // SEM ISTO CADA VISITA DEIXA UM PDF PRESO NA MEMÓRIA DA ABA
-    //   Quem abre vinte orçamentos numa tarde carrega vinte arquivos até
-    //   fechar o navegador.
-    return () => {
-      vivo = false
-      if (endereco) URL.revokeObjectURL(endereco)
-    }
+    return () => { vivo = false }
   }, [id])
 
   async function verDocOriginal(nota: NotaDoOrcamento) {
@@ -71,41 +58,35 @@ export function FichaDoOrcamento({ id, voltar }: { id: string; voltar: () => voi
 
   const o = ficha?.orcamento
   const notas = ficha?.notas ?? []
+  const nome = o ? `orcamento-${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}.pdf` : undefined
 
   return (
-    <div className="orc-tela">
-      <div className="orc-barra">
-        <button type="button" className="orc-voltar" onClick={voltar}>← voltar</button>
-        <b>
-          {o ? `Ticket ${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}` : 'Orçamento'}
-          {o?.loja ? ` · ${o.loja}` : ''}
-          {o ? ` · ${emReais(o.valor)}` : ''}
-        </b>
-
-        <span className="orc-ficha-direita">
-          {/* SEM NOTA VINCULADA O BOTÃO NÃO APARECE
-              Um botão que abre nada é pior que a ausência dele: a pessoa
-              clica, não acontece nada, e passa a desconfiar da tela inteira.
-              Acontece com orçamento cujo vínculo foi solto — ver a 025. */}
-          {notas.map(n => (
+    <>
+      {erro && <p className="erro">{erro}</p>}
+      <VisorDeDocumento
+        caminho={`/orcamentos/ficha/${id}/pdf`}
+        nomeSugerido={nome}
+        voltar={voltar}
+        titulo={
+          o
+            ? `Ticket ${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}`
+              + (o.loja ? ` · ${o.loja}` : '') + ` · ${emReais(o.valor)}`
+            : 'Orçamento'
+        }
+        acoes={
+          /* SEM NOTA VINCULADA O BOTÃO NÃO APARECE
+             Um botão que abre nada é pior que a ausência dele: a pessoa clica,
+             não acontece nada, e passa a desconfiar da tela inteira. Acontece
+             com orçamento cujo vínculo foi solto — ver a 025. */
+          notas.map(n => (
             <button key={n.id} type="button" className="orc-bt"
               onClick={() => void verDocOriginal(n)} title={n.nome_arquivo}>
               ver doc original
               {notas.length > 1 && (n.dav_numero ?? n.numero ? ` (${n.dav_numero ?? n.numero})` : '')}
             </button>
-          ))}
-          <button type="button" className="orc-bt forte"
-            onClick={() => void baixarDoMotor(`/orcamentos/ficha/${id}/pdf`)}>baixar pdf</button>
-        </span>
-      </div>
-
-      {erro && <p className="erro">{erro}</p>}
-
-      <div className="orc-visor-doc">
-        {!pdf
-          ? <p className="orc-vazio">abrindo o orçamento…</p>
-          : <iframe src={pdf} title="orçamento" />}
-      </div>
-    </div>
+          ))
+        }
+      />
+    </>
   )
 }

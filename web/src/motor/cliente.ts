@@ -133,19 +133,7 @@ export async function baixarDoMotor(caminho: string): Promise<void> {
   const resposta = await pedirArquivo(caminho)
 
   const nome = nomeDoCabecalho(resposta.headers.get('Content-Disposition')) ?? 'extracao'
-  const blob = await resposta.blob()
-  const endereco = URL.createObjectURL(blob)
-  try {
-    const a = document.createElement('a')
-    a.href = endereco
-    a.download = nome
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  } finally {
-    // Sem isto o arquivo fica preso na memória da aba até ela fechar.
-    setTimeout(() => URL.revokeObjectURL(endereco), 1000)
-  }
+  baixarBlob(await resposta.blob(), nome)
 }
 
 function nomeDoCabecalho(cabecalho: string | null): string | null {
@@ -219,7 +207,72 @@ export async function enviarArquivos<T>(caminho: string, arquivos: File[]): Prom
  *   que troca de registro isso vaza um PDF por visita — por isso a devolução é
  *   do chamador, no `useEffect`, e não daqui.
  */
-export async function arquivoDoMotor(caminho: string): Promise<string> {
+export interface ArquivoDoMotor {
+  /** Endereço local, para mostrar num `iframe` ou `img`. */
+  url: string
+  /** O mesmo arquivo, para salvar sem pedir de novo ao servidor. */
+  blob: Blob
+  /** O nome que o motor sugeriu no cabeçalho. */
+  nome: string
+}
+
+export async function arquivoDoMotor(caminho: string): Promise<ArquivoDoMotor> {
   const resposta = await pedirArquivo(caminho)
-  return URL.createObjectURL(await resposta.blob())
+  const nome = nomeDoCabecalho(resposta.headers.get('Content-Disposition')) ?? 'documento'
+  const blob = await resposta.blob()
+  return { url: URL.createObjectURL(blob), blob, nome }
+}
+
+/**
+ * Salva um arquivo que já está na mão, deixando o usuário ESCOLHER a pasta.
+ *
+ * POR QUE NÃO É O DOWNLOAD DE SEMPRE
+ *   O download comum joga o arquivo na pasta padrão do navegador e pronto. Quem
+ *   trabalha com estes documentos os arquiva por loja e por mês — e ter que
+ *   caçar em Downloads e mover à mão, um por um, é trabalho que o programa
+ *   estava criando.
+ *
+ * O SELETOR DE PASTA NÃO EXISTE EM TODO NAVEGADOR
+ *   `showSaveFilePicker` é do Chrome e derivados. Onde não houver, cai no
+ *   download comum — pior, mas funcionando. E se a pessoa fechar o seletor sem
+ *   escolher, isso é uma desistência, não um erro: não se avisa ninguém.
+ */
+export async function salvarArquivo(blob: Blob, nome: string): Promise<void> {
+  const janela = window as unknown as {
+    showSaveFilePicker?: (o: unknown) => Promise<{
+      createWritable: () => Promise<{ write: (b: Blob) => Promise<void>; close: () => Promise<void> }>
+    }>
+  }
+  if (janela.showSaveFilePicker) {
+    try {
+      const ponta = nome.slice(nome.lastIndexOf('.'))
+      const alvo = await janela.showSaveFilePicker({
+        suggestedName: nome,
+        types: [{ description: ponta === '.pdf' ? 'Documento PDF' : 'Arquivo', accept: { [blob.type || 'application/octet-stream']: [ponta] } }],
+      })
+      const fluxo = await alvo.createWritable()
+      await fluxo.write(blob)
+      await fluxo.close()
+      return
+    } catch (e) {
+      // AbortError é a pessoa fechando o seletor. Qualquer outra coisa cai no
+      // caminho antigo, que é melhor que não salvar nada.
+      if ((e as { name?: string }).name === 'AbortError') return
+    }
+  }
+  baixarBlob(blob, nome)
+}
+
+function baixarBlob(blob: Blob, nome: string): void {
+  const endereco = URL.createObjectURL(blob)
+  try {
+    const a = document.createElement('a')
+    a.href = endereco
+    a.download = nome
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(endereco), 1000)
+  }
 }

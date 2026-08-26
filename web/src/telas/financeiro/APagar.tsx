@@ -19,6 +19,7 @@
 //	sem intenção de mandar, e as DAVs somem da fila do mês.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta } from '../orcamentos/Arquivos'
 import { emReais, emData, emDataHora } from '../orcamentos/tipos'
@@ -55,6 +56,8 @@ export function APagar({ voltar }: { voltar: () => void }) {
   const [dados, setDados] = useState<Aberto | null>(null)
   const [ate, setAte] = useState(hoje())
   const [erro, setErro] = useState('')
+  // O pedido é documento: abre na tela, e o salvar mora lá dentro.
+  const [vendoPedido, setVendoPedido] = useState(false)
   const [recado, setRecado] = useState('')
   const [fechando, setFechando] = useState(false)
 
@@ -97,6 +100,17 @@ export function APagar({ voltar }: { voltar: () => void }) {
     }
   }
 
+  if (vendoPedido) {
+    return (
+      <VisorDeDocumento
+        caminho={'/orcamentos/pedido.pdf?ate=' + ate}
+        nomeSugerido={`pedido-de-faturamento-${ate}.pdf`}
+        titulo={`Pedido de faturamento · até ${ate}`}
+        voltar={() => setVendoPedido(false)}
+      />
+    )
+  }
+
   return (
     <div className="orc-tela">
       <BarraDeVolta voltar={voltar} titulo="A pagar › Pedido de faturamento" />
@@ -126,9 +140,13 @@ export function APagar({ voltar }: { voltar: () => void }) {
               onClick={() => void baixarDoMotor('/orcamentos/pedido.xlsx?ate=' + ate)}>
               baixar a relação (Excel)
             </button>
+            {/* O EXCEL BAIXA; O PDF ABRE
+                O Excel é matéria-prima: ninguém "vê" uma planilha, leva-se ela
+                para outro programa. O PDF é o documento que vai ao fornecedor —
+                e documento se confere na tela antes de sair. */}
             <button type="button" className="forte" disabled={!dados.quantas}
-              onClick={() => void baixarDoMotor('/orcamentos/pedido.pdf?ate=' + ate)}>
-              PDF
+              onClick={() => setVendoPedido(true)}>
+              ver o pedido (PDF)
             </button>
 
             {/* FECHAR É O ÚNICO BOTÃO QUE MUDA ALGUMA COISA

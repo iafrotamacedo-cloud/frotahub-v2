@@ -29,7 +29,8 @@
 //	sozinhos em seis dias. Tentar um chamado Arquivado é gastar uma subida de PDF
 //	para receber a mesma recusa de ontem.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { motor, baixarDoMotor } from '../../motor/cliente'
+import { motor } from '../../motor/cliente'
+import { FichaDoOrcamento } from './FichaDoOrcamento'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
 import {
@@ -45,6 +46,11 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [lancando, setLancando] = useState<string | null>(null)
+  // VER É ABRIR, NÃO BAIXAR
+  //   O botão desta linha baixava o PDF. Conferir cinco orçamentos deixava cinco
+  //   cópias na pasta de Downloads que ninguém queria guardar. Agora abre a
+  //   ficha, e o salvar mora lá dentro — com escolha de pasta.
+  const [abrindo, setAbrindo] = useState<string | null>(null)
   const [bloqueio, setBloqueio] = useState<BloqueioDoTeto | null>(null)
   const [lote, setLote] = useState<Lote | null>(null)
   // Parar é um `ref`, não um estado: o laço já está rodando quando a pessoa
@@ -170,6 +176,17 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   // Quantos desta PÁGINA podem subir agora. Da página, e não do banco inteiro:
   // o botão só mexe no que está à vista, e é isso que ele promete no rótulo.
   const prontos = (pagina?.linhas ?? []).filter(podeSubir).length
+
+  // Voltar da ficha recarrega: o orçamento pode ter sido apagado lá dentro, e
+  // uma lista que mostra o que não existe mais é pior que uma lista lenta.
+  if (abrindo) {
+    return (
+      <FichaDoOrcamento
+        id={abrindo}
+        voltar={() => { setAbrindo(null); void carregar() }}
+      />
+    )
+  }
 
   return (
     <div className="orc-tela">
@@ -297,7 +314,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                     </td>
                     <td>{emDataHora(o.criado_em)}</td>
                     <td className="orc-acoes">
-                      <button type="button" onClick={() => void baixarDoMotor(`/orcamentos/ficha/${o.id}/pdf`)}>pdf</button>
+                      <button type="button" onClick={() => setAbrindo(o.id)}>ver</button>
                       {o.status === 'gerado' && (
                         <button type="button" className="forte" disabled={lancando === o.id} onClick={() => void lancar(o)}>
                           {lancando === o.id ? 'lançando…' : 'lançar'}
