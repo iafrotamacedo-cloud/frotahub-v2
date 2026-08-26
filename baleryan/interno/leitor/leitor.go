@@ -75,6 +75,21 @@ type Leitura struct {
 
 	Itens []Item `json:"itens"`
 
+	// ObservacaoDoCampo diz se a observação acima é o CAMPO do documento ou a
+	// página inteira usada como último recurso.
+	//
+	// É ESTA MARCA QUE DECIDE SE O TICKET VALE
+	//
+	//	O fornecedor digita o ticket no campo "Observação" do sistema dele. Um
+	//	número lido DALI é texto digitado, e o OCR acerta. Um número achado
+	//	solto no meio da página pode ser qualquer coisa — inclusive rabisco à
+	//	mão na margem, que é onde o OCR erra e erra em silêncio.
+	//
+	//	Amarrar um orçamento ao chamado errado não falha alto: gera, lança e
+	//	cobra a loja errada. Por isso, sem o campo, a nota vai para "sem ticket"
+	//	e uma pessoa digita o número.
+	ObservacaoDoCampo bool `json:"observacao_do_campo,omitempty"`
+
 	Camada    Camada  `json:"camada"`
 	Confianca float64 `json:"confianca"`
 }

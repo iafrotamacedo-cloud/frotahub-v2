@@ -197,6 +197,26 @@ func Conferir(l *Leitura) float64 {
 		}
 	}
 
+	// O DAV NÃO TEM CHAVE DE ACESSO, E ISSO NÃO É CULPA DELE
+	//
+	//	A conta acima nasceu pensando em DANFE, onde 0,35 da confiança vem do
+	//	dígito verificador da chave. Um DAV do SysPDV não tem chave nenhuma —
+	//	então, por perfeito que fosse, ele empacava em 0,65 e a tela dizia
+	//	"confira" para sempre, inclusive numa leitura que fecha a própria conta.
+	//	Aviso que nunca muda é aviso que ninguém lê.
+	//
+	//	A identidade dele é outra: o número do documento e o CNPJ de quem
+	//	emitiu. Valem menos que um dígito verificador, e por isso valem menos
+	//	pontos — mas valem.
+	if l.ChaveAcesso == "" && l.Tipo == "dav" {
+		if l.DAV != "" {
+			c += 0.12
+		}
+		if len(l.EmitenteCNPJ) == 14 {
+			c += 0.08
+		}
+	}
+
 	if len(l.Itens) > 0 {
 		c += 0.20
 		var soma float64

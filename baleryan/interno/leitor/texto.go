@@ -33,6 +33,13 @@ var (
 	doCNPJ = regexp.MustCompile(`\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}`)
 
 	doValorTotal = regexp.MustCompile(`(?i)valor\s+total\s+d[ao]\s+nota[^\d]{0,40}([\d.,]+)`)
+	// O RÓTULO VEM DEPOIS DO VALOR, E NÃO ANTES
+	//   Numa DANFE, "VALOR TOTAL DA NOTA" e o número dele estão em células
+	//   vizinhas de uma tabela. Ao achatar o PDF em texto, o `pdftotext` põe o
+	//   número numa linha e o rótulo na SEGUINTE. Medido no documento 17934: a
+	//   linha 169 é "500,00" e a 170 é "VALOR TOTAL DA NOTA" — o regex que só
+	//   olha para frente devolvia zero numa nota perfeitamente legível.
+	doValorAntes = regexp.MustCompile(`(?im)^\s*([\d.,]+)\s*$\n^\s*valor\s+total\s+d[ao]\s+nota\s*$`)
 	doValorNF    = regexp.MustCompile(`(?i)\bv(?:alor)?\.?\s*(?:total\s+)?nf\b[^\d]{0,20}([\d.,]+)`)
 	doFrete      = regexp.MustCompile(`(?i)valor\s+d[oe]\s+frete[^\d]{0,40}([\d.,]+)`)
 
@@ -72,7 +79,7 @@ func DoTexto(texto string) *Leitura {
 		}
 	}
 
-	for _, re := range []*regexp.Regexp{doValorTotal, doValorNF} {
+	for _, re := range []*regexp.Regexp{doValorTotal, doValorAntes, doValorNF} {
 		if m := re.FindStringSubmatch(texto); m != nil {
 			if v, ok := Decimal(m[1]); ok && v > 0 {
 				l.ValorTotal = v
