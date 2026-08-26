@@ -235,3 +235,45 @@ aside ::-webkit-scrollbar-thumb{background:#3d3234;border-color:var(--side-bg)}
   .content{padding:18px 16px 40px}
   .auth-marca{display:none}
 }
+
+/* ---------------------------------------------------------------------------
+   Voltar e migalha clicável                                    (26/08/2026)
+   --------------------------------------------------------------------------- */
+
+/* O VOLTAR VIVE NA BARRA DE CIMA, NÃO DENTRO DE CADA TELA
+   Dentro da tela, cada uma o desenharia de um jeito e algumas esqueceriam. Na
+   casca ele é um só, aparece sempre que há de onde voltar, e some no início —
+   onde voltar não significaria nada. */
+.tp-voltar {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  margin-right: 4px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--gray);
+  font-size: 15px; line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--transicao), color var(--transicao), background var(--transicao);
+}
+.tp-voltar:hover { border-color: var(--txt); color: var(--ink); }
+
+/* A migalha era texto morto: mostrava o caminho e não deixava andar nele. */
+.crumb-link {
+  background: none; border: 0; padding: 0;
+  font: inherit; color: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.crumb-link:hover { color: var(--red); text-decoration: underline; }
+.crumb-link:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+/* O último não é link: já estamos nele. Link que não leva a lugar nenhum ensina
+   a pessoa a parar de clicar na migalha inteira. */
+.crumb-aqui { font-weight: 600; color: var(--gray); }
+
+.lay.escura .tp-voltar {
+  border-color: var(--d-line); background: var(--d-bg2); color: var(--d-mut);
+}
+.lay.escura .tp-voltar:hover { border-color: var(--d-txt2); color: var(--d-txt); }
+.lay.escura .crumb-aqui { color: var(--d-txt2); }

@@ -224,13 +224,23 @@
 
 /* A prévia é o que transforma uma barra alta e vazia num painel de trabalho:
    as últimas linhas da própria etapa, lidas sem clicar. */
+/* CORTE NO MEIO DA LINHA É O QUE FAZIA "A lançar" PARECER DEFEITO
+   `overflow: hidden` cortava a última linha na metade da altura — a pessoa via
+   meia palavra e um número pela metade, que lê como tela quebrada e não como
+   "tem mais". Agora a linha inteira aparece ou não aparece: as linhas viram uma
+   coluna com altura múltipla da linha, e o que não couber some inteiro. */
 .pn-previa {
   margin: 22px 0 0;
   padding-top: 16px;
   border-top: 1px solid var(--d-line);
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+.pn-previa i {
+  flex: 0 0 auto;
 }
 .pn-previa .cap {
   font-size: 9.5px;
@@ -248,6 +258,7 @@
   padding: 6px 0;
   border-bottom: 1px solid rgba(255, 255, 255, .035);
   font-size: 11.5px;
+  line-height: 15px;
   color: var(--d-txt2);
   white-space: nowrap;
   overflow: hidden;
@@ -273,7 +284,6 @@
   line-height: 1.25;
   color: var(--d-txt);
 }
-.pn-sub { margin-top: 7px; font-size: 11.5px; line-height: 1.45; color: var(--d-mut); }
 
 /* --------------------------------------------------------------------------
    menu de navegação: a mesma barra, sem contador
@@ -406,7 +416,6 @@
 .pn-sub4 .lin i u { text-decoration: none; margin-left: auto; color: var(--d-fraco); font-size: 10px; }
 .pn-sub4 .lin .nada { font-size: 11px; color: var(--d-fraco); font-style: italic; padding: 4px 0; }
 .pn-sub4 .t { font-size: 12.5px; font-weight: 600; line-height: 1.25; color: var(--d-txt); }
-.pn-sub4 .d { margin-top: 5px; font-size: 10.5px; line-height: 1.4; color: var(--d-mut); }
 
 /* Telas estreitas: as barras deixam de ser colunas e viram cartões empilhados.
    Cinco colunas de 190px são ilegíveis; cinco cartões de altura fixa, não. */

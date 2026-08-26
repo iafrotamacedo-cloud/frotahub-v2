@@ -149,9 +149,16 @@ export function Lancar({ voltar }: { voltar: () => void }) {
                       <span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span>
                       <span className="orc-detalhe">{contaPorExtenso(o.conta)}{o.rateio ? ' · rateio' : ''}</span>
                     </td>
-                    <td>
+                    <td title={o.chamado_descricao ?? undefined}>
                       <span className="orc-nome">{o.loja ?? '–'}</span>
-                      {o.chamado_descricao && <span className="orc-detalhe">{o.chamado_descricao}</span>}
+                      {/* A DESCRIÇÃO DO CHAMADO SAIU DAQUI
+                          Ela vem do Trílogo sem limite de tamanho — um chamado
+                          de quatro parágrafos virava uma linha de meia tela, e
+                          duas linhas assim já enchiam a página. Quem está
+                          lançando precisa de ticket, loja e valor; o texto do
+                          chamado é contexto, e contexto não pode empurrar a
+                          informação para fora da vista. Continua no `title`,
+                          para ler passando o mouse. */}
                     </td>
                     <td>{o.notas ?? '–'}</td>
                     <td style={{ textAlign: 'right' }}>

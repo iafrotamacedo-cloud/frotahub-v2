@@ -163,11 +163,6 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
         <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />
       </div>
 
-      <p className="orc-nota-de-rodape">
-        <b>Faturado</b> e <b>pago</b> ainda não são preenchidos por ninguém: quem vai escrevê-los é o
-        módulo financeiro, que ainda não existe. Enquanto isso, as duas colunas mostram traço — e o
-        traço aqui quer dizer “ninguém informou”, não “não foi pago”.
-      </p>
     </div>
   )
 }
@@ -176,5 +171,9 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 function Marca({ v }: { v: boolean }) {
   return v
     ? <span className="orc-marca" title="sim">✓</span>
-    : <span className="orc-traco" title="não">–</span>
+    // O TRAÇO EXPLICA A SI MESMO, ONDE ELE ESTÁ
+    //   A explicação era um parágrafo no pé da página — longe da dúvida, e
+    //   roubando altura da tabela. Ela passa a viver em cima do próprio traço,
+    //   que é onde a pergunta nasce.
+    : <span className="orc-traco" title="ninguém informou — não quer dizer “não foi pago”">–</span>
 }

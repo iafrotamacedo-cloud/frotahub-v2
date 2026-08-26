@@ -73,14 +73,15 @@ export default function App() {
 
   // QUAIS TELAS SÃO ESCURAS
   //
-  //	A regra do dono: menu escuro, listagem clara. Menu aqui é a tela inicial,
-  //	qualquer tela que só oferece caminhos (as que têm `sub`) e o painel de
-  //	Orçamentos — que também é um menu, só que com contadores.
+  //	A regra do dono: moldura escura, listagem clara. Entram aqui a tela
+  //	inicial, qualquer tela que só oferece caminhos, e as duas de trabalho —
+  //	Orçamentos e Dados do Trílogo. Nelas o ÚNICO retângulo claro é a tabela, e
+  //	é esse contraste que leva o olho direto ao dado.
   //
-  //	As telas que SÃO listagem (chamados do Trílogo, usuários, categorias)
-  //	continuam claras da barra de cima até o rodapé. Dentro das escuras, o
-  //	quadro branco é só a tabela.
-  const ehEscura = caminho.length === 0 || !!atual?.sub?.length || atual?.tela === 'orcamentos'
+  //	Dados do Trílogo entrou por pedido do dono em 26/08/2026; antes ela era
+  //	clara de ponta a ponta e a tabela não se destacava de nada.
+  const ehEscura = caminho.length === 0 || !!atual?.sub?.length
+    || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -201,11 +202,60 @@ export default function App() {
           <button className="burger" onClick={alternarNav} type="button" aria-label="Abrir menu">
             <Menu />
           </button>
+          {/* VOLTAR EM TODA TELA
+              Estar dentro de alguma coisa e não ter como sair dela obriga a
+              pessoa a caçar o item no menu — ou a usar o botão do navegador,
+              que nem todo mundo lembra que funciona aqui. */}
+          {caminho.length > 0 && (
+            <button
+              type="button"
+              className="tp-voltar"
+              aria-label="Voltar"
+              title="Voltar"
+              onClick={() =>
+                // Dentro de uma sub-tela, voltar FECHA a sub-tela. Só depois é
+                // que sai do nível. Pular direto seria fazer um clique desfazer
+                // dois passos.
+                extra.length > 0 ? navegar(caminho) : navegar(caminho.slice(0, -1))
+              }
+            >
+              ←
+            </button>
+          )}
           <div className="tp-info">
+            {/* A MIGALHA É CLICÁVEL
+                Ela já mostra o caminho inteiro; deixá-la inerte era desenhar um
+                mapa e não deixar ninguém andar nele. */}
             <div className="crumb">
-              {caminho.length === 0 ? 'FrotaHub' : ['FrotaHub', ...caminho.map(c => c.t)].join(' › ')}
+              <button type="button" className="crumb-link" onClick={() => navegar([])}>
+                FrotaHub
+              </button>
+              {caminho.map((c, i) => (
+                <span key={c.t}>
+                  {' › '}
+                  {i === caminho.length - 1 && extra.length === 0 ? (
+                    // O último é onde já estamos: vira texto, não link. Link que
+                    // não leva a lugar nenhum ensina a pessoa a não clicar.
+                    <b className="crumb-aqui">{c.t}</b>
+                  ) : (
+                    <button
+                      type="button"
+                      className="crumb-link"
+                      onClick={() => navegar(caminho.slice(0, i + 1))}
+                    >
+                      {c.t}
+                    </button>
+                  )}
+                </span>
+              ))}
             </div>
-            <div className="titulo">{atual ? atual.t : 'Início'}</div>
+            {/* O TÍTULO SÓ APARECE ONDE NÃO HÁ HERO
+                Antes, "Contrato São Luiz" saía TRÊS vezes na mesma tela: na
+                migalha, aqui, e no título grande logo abaixo. Nas telas que têm
+                hero, este some; nas que não têm, ele é o único título. */}
+            {!atual?.sub?.length && (
+              <div className="titulo">{atual ? atual.t : 'Início'}</div>
+            )}
           </div>
         </header>
 

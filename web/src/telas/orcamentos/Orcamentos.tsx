@@ -15,6 +15,7 @@ import { Arquivos } from './Arquivos'
 import { Lancar } from './Lancar'
 import { Correcoes } from './Correcoes'
 import { Planilhas } from './Planilhas'
+import { Faturamento } from './Faturamento'
 import { emReais, emDataHora, type Painel as DadosDoPainel } from './tipos'
 
 interface Props {
@@ -46,6 +47,7 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
     return <Correcoes frente={onde.split(':')[1]} voltar={voltar} />
   }
   if (onde === 'planilhas') return <Planilhas voltar={voltar} />
+  if (onde === 'faturar') return <Faturamento voltar={voltar} />
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
@@ -159,6 +161,26 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       ],
     },
     {
+      chave: 'faturar',
+      titulo: 'Faturar ao cliente',
+      descricao: 'A planilha que sai e o dinheiro que volta.',
+      icone: <IconeFatura />,
+      // O NÚMERO É A FILA, NÃO O MÊS
+      //   O que entra na próxima planilha é o que ainda não foi cobrado. Em
+      //   julho a fatura fechou no dia 29 e a leva do dia 31 rolou para agosto:
+      //   contar "orçamentos do mês" teria perdido aqueles 39.
+      numero: d.a_faturar,
+      rotulo: 'a faturar',
+      faixa: '#2E7D5B',
+      rodape: emReais(d.valor_a_faturar) + ' a cobrar',
+      previaTitulo: 'ainda não cobrados',
+      previa: [
+        { texto: 'Orçamentos', fim: String(d.a_faturar) },
+        { texto: 'Valor', fim: emReais(d.valor_a_faturar) },
+      ],
+      previaVazia: 'tudo já está numa fatura',
+    },
+    {
       chave: 'planilhas',
       titulo: 'Planilhas de controle',
       descricao: 'O livro-razão: gerados, lançados, faturados, pagos.',
@@ -235,6 +257,15 @@ function IconeTabela() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11M15 9v11" />
+    </svg>
+  )
+}
+
+function IconeFatura() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1z" />
+      <path d="M9 8h6M9 12h6" />
     </svg>
   )
 }

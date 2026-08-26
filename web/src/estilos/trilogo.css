@@ -1,4 +1,4 @@
-/* rev 4 — Dados do Trílogo
+/* rev 5 — Dados do Trílogo
    Só o que é próprio desta tela. Tabela, botão, aviso e pino vêm do telas.css:
    a identidade é a mesma em todo lugar (P-19), e uma tela que traz o próprio
    visual é o começo de dois sistemas dentro do mesmo sistema. */
@@ -6,27 +6,32 @@
 /* ---------- carimbo + botão, encostados à direita da faixa de filtros ---------- */
 .tri-canto{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
 .tri-carimbo{
-  font-size:12px;color:var(--gray);background:var(--card);
-  border:1px solid var(--line);border-radius:var(--r-s);padding:6px 10px;white-space:nowrap;
+  font-size:12px;color:var(--d-mut);background:var(--d-card2);
+  border:1px solid var(--d-line2);border-radius:var(--r-s);padding:6px 10px;white-space:nowrap;
 }
-.tri-carimbo b{color:var(--ink);font-weight:600}
+.tri-carimbo b{color:var(--d-txt);font-weight:600}
 
 /* ---------- filtros ---------- */
 /* Uma faixa só, que quebra sozinha em telas estreitas. O ticket vem primeiro e
-   com borda escura: é o caminho de quem já sabe o número, e é o mais usado. */
+   com borda escura: é o caminho de quem já sabe o número, e é o mais usado.
+
+   A FAIXA É ESCURA, COMO EM ORÇAMENTOS
+     A moldura da tela é escura e o único retângulo claro é a tabela. Filtro,
+     carimbo e resumo são ferramenta, não dado — e ferramenta clara do lado de
+     dado claro faz o olho procurar onde está a informação. */
 .tri-filtros{
   display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
-  box-shadow:var(--sh-1);padding:12px 14px;margin:0 0 12px;
+  background:var(--d-bg2);border:1px solid var(--d-line);border-radius:var(--r-m);
+  padding:8px 14px;margin:0 0 8px;
 }
 .tri-campo{display:flex;flex-direction:column;gap:4px;min-width:0}
 .tri-campo>span{
-  font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);
+  font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--d-fraco);
 }
 .tri-oculto{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .tri-campo input,.tri-campo select{
-  font-family:var(--f);font-size:12.8px;color:var(--ink);background:var(--card);
-  border:1px solid var(--line);border-radius:var(--r-s);padding:7px 9px;height:34px;
+  font-family:var(--f);font-size:12.8px;color:var(--d-txt2);background:var(--d-card2);
+  border:1px solid var(--d-line2);border-radius:var(--r-s);padding:7px 9px;height:32px;
   transition:border-color var(--transicao),box-shadow var(--transicao);
 }
 .tri-campo select{min-width:120px;cursor:pointer}
@@ -34,20 +39,20 @@
   outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100);
 }
 .tri-ticket input{
-  min-width:210px;border-width:1.6px;border-color:var(--txt);font-weight:600;
+  min-width:210px;border-width:1.6px;border-color:var(--d-txt2);font-weight:600;
 }
-.tri-ticket input::placeholder{font-weight:400;color:var(--mut)}
+.tri-ticket input::placeholder{font-weight:400;color:var(--d-fraco)}
 .tri-periodo{display:flex;align-items:flex-end;gap:8px;flex-wrap:nowrap}
-.tri-ate{font-size:12px;color:var(--mut);padding-bottom:9px}
+.tri-ate{font-size:12px;color:var(--d-fraco);padding-bottom:9px}
 .tri-limpar{
   background:none;border:0;padding:0 0 10px;margin-left:2px;cursor:pointer;
-  font-family:var(--f);font-size:12px;color:var(--gray);text-decoration:underline;
+  font-family:var(--f);font-size:12px;color:var(--d-mut);text-decoration:underline;
 }
 .tri-limpar:hover{color:var(--red)}
 
 /* ---------- resumo ---------- */
-.tri-resumo{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:12.2px;color:var(--gray)}
-.tri-resumo b{color:var(--ink);font-weight:700}
+.tri-resumo{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:12.2px;color:var(--d-mut)}
+.tri-resumo b{color:var(--d-txt);font-weight:700}
 .tri-pt{width:3px;height:3px;border-radius:50%;background:var(--mut);display:inline-block}
 
 /* ---------- o painel: termina onde a janela termina ---------- */

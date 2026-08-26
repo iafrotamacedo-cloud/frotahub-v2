@@ -23,6 +23,13 @@ export interface Painel {
   prontos_para_lancar: number
   esperando_cliente: number
   esperando_equipe: number
+
+  // ---- a 017 ----
+  // A fila do faturamento é uma coluna VAZIA (`fatura_id is null`), não um mês.
+  // Em julho a planilha fechou no dia 29 e a leva do dia 31 rolou para agosto:
+  // pelo mês, aqueles 39 orçamentos teriam sumido da cobrança para sempre.
+  a_faturar: number
+  valor_a_faturar: number
   no_total: number
   valor_total: number
   ultima_insercao?: string | null
@@ -118,6 +125,67 @@ export type Bloqueio =
   | 'desconhecido'
 
 export type Destino = 'pode_lancar' | 'cliente' | 'encarregados' | 'sem_chamado' | 'outro'
+
+// ---------------------------------------------------------------------------
+// faturamento ao cliente (017)
+//
+// NÃO CONFUNDIR COM `faturado`/`pago` DO ORÇAMENTO
+//   Aquelas duas são do lado do FORNECEDOR — a nota que compramos, o dinheiro
+//   que saiu. Isto aqui é o outro lado do balcão.
+// ---------------------------------------------------------------------------
+
+/** Um par loja×conta: exatamente uma nota do cliente. A palavra é dele — ele
+ *  abre um PCO por conta/loja/período, e célula vazia não gera fatura. */
+export interface Celula {
+  unidade_id: string
+  loja: string
+  conta: string
+  orcamentos: number
+  valor: number
+}
+
+export interface Faturamento {
+  competencia: string
+  orcamentos: number
+  valor: number
+  celulas: Celula[]
+  faturas: number
+  /** Ainda não subiram para o Trílogo. Não impede faturar — em julho dois
+   *  orçamentos sem custo lá foram cobrados e pagos — mas quem assina a
+   *  planilha merece saber. */
+  nao_lancados: number
+  /** Sem loja ou sem conta não existe PCO possível. Estes não entram em célula
+   *  nenhuma, e por isso aparecem sozinhos. */
+  sem_destino: number
+  desde: string
+  ate: string
+}
+
+export interface Fatura {
+  id: string
+  competencia: string
+  loja: string
+  conta: string
+  orcamentos: number
+  valor: number
+  pco_numero: string | null
+  nf_numero: string | null
+  nf_em: string | null
+  recebido_em: string | null
+  valor_recebido: number | null
+  observacao: string | null
+  recebida: boolean
+  /** Faturado menos recebido. Diferente de zero é o que o controle existe para
+   *  mostrar: pagamento parcial, glosa, desconto. */
+  diferenca: number
+}
+
+export interface Faturas {
+  faturas: Fatura[]
+  faturado: number
+  recebido: number
+  a_receber: number
+}
 
 export interface TicketDoDocumento {
   id: string

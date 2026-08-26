@@ -1,4 +1,4 @@
-// rev 1 — o painel de barras verticais
+// rev 2 — o painel de barras verticais
 //
 // ESTE É O PADRÃO DE MENU DO PROGRAMA
 //
@@ -111,6 +111,10 @@ export function Painel({ etapas, aoEscolher }: Props) {
             <button
               type="button"
               className="pn-corpo"
+              // A descrição saiu da TELA, não do sistema: ela continua sendo o
+              // rótulo que um leitor de tela anuncia. Tirar o texto de dentro do
+              // botão é limpeza; tirar o significado seria perda.
+              aria-label={e.descricao ? `${e.titulo} — ${e.descricao}` : e.titulo}
               disabled={e.desabilitada}
               onClick={() => (temFilhos ? setAberta(estaAberta ? null : e.chave) : aoEscolher(e.chave))}
               // Quando a coluna está aberta, o corpo sai do caminho: deixá-lo
@@ -131,7 +135,6 @@ export function Painel({ etapas, aoEscolher }: Props) {
               )}
 
               <h3>{e.titulo}</h3>
-              <span className="pn-sub" style={{ display: 'block' }}>{e.descricao}</span>
 
               {simples && <span className="pn-espaco" />}
 
@@ -145,7 +148,6 @@ export function Painel({ etapas, aoEscolher }: Props) {
               <div className="pn-quatro">
                 <div className="cab">
                   <h3>{e.titulo}</h3>
-                  <em>{e.descricao}</em>
                 </div>
                 <div className="pn-grade">
                   {e.filhos!.map(f => (
@@ -153,6 +155,7 @@ export function Painel({ etapas, aoEscolher }: Props) {
                       key={f.chave}
                       type="button"
                       className={'pn-sub4' + ((f.numero ?? 0) > 0 ? ' viva' : '')}
+                      aria-label={f.descricao ? `${f.titulo} — ${f.descricao}` : f.titulo}
                       onClick={() => aoEscolher(f.chave)}
                       tabIndex={estaAberta ? 0 : -1}
                     >
@@ -167,7 +170,6 @@ export function Painel({ etapas, aoEscolher }: Props) {
                             : null}
                       </span>
                       <span className="t">{f.titulo}</span>
-                      <span className="d">{f.descricao}</span>
                     </button>
                   ))}
                 </div>

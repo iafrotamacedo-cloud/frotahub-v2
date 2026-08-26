@@ -30,7 +30,7 @@
 }
 .orc-barra-titulo { font-weight: 650; color: var(--d-txt); font-size: 13px; }
 .orc-barra-dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.orc-topo { margin-bottom: 14px; }
+.orc-topo { margin-bottom: 8px; }
 .orc-pulso {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--ok); box-shadow: 0 0 0 3px rgba(63, 164, 106, .16);
@@ -87,8 +87,14 @@
 /* `flex: 0 1 auto` e não `1`: a lista curta encolhe até o tamanho do conteúdo em
    vez de esticar um vazio branco até o rodapé da janela; a longa é espremida
    pela casca, e quem rola é a `.orc-rolagem` de dentro. */
+/* A TABELA TOMA A ALTURA QUE SOBRA, E ELA SOBRA ATÉ O FIM DA PÁGINA
+   Antes era `flex: 0 1 auto` — a lista tinha o tamanho do conteúdo e o resto da
+   janela ficava vazio embaixo. Com `flex: 1` ela cresce até o rodapé, que é o
+   que faz caber mais linha sem mexer em fonte nenhuma. O `margin-top` caiu de
+   18 para 8 pelo mesmo motivo: cada pixel entre as barras é uma linha a menos
+   de tabela. */
 .orc-lista {
-  margin-top: 18px; flex: 0 1 auto; min-height: 0;
+  margin-top: 8px; flex: 1 1 auto; min-height: 0;
   display: flex; flex-direction: column;
   border-radius: var(--r-l); background: var(--card); border: 1px solid var(--line);
   overflow: hidden;
@@ -190,7 +196,7 @@
 
 .orc-filtros {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-top: 14px; padding: 10px 14px;
+  margin-top: 8px; padding: 8px 14px;
   border-radius: var(--r-m); background: var(--d-bg2); border: 1px solid var(--d-line);
 }
 .orc-filtros select, .orc-filtros input {
@@ -340,10 +346,6 @@
 .orc-saidas { font-weight: 600; }
 .orc-bloqueio ul { margin: 4px 0 12px; padding-left: 22px; font-size: 12.5px; }
 
-.orc-nota-de-rodape {
-  margin: 12px 2px 0; font-size: 11.5px; color: var(--mut); line-height: 1.5;
-}
-.orc-nota-de-rodape b { color: var(--gray); }
 
 @media (max-width: 1080px) {
   .orc-insercao { margin-top: 24px; }
@@ -351,3 +353,93 @@
   .orc-aba { flex: 1 1 45%; }
   .orc-desfaz { min-width: 0; width: calc(100vw - 28px); height: auto; padding: 12px 16px; flex-wrap: wrap; }
 }
+
+/* ---------------------------------------------------------------------------
+   Faturar ao cliente (2.6)
+
+   A MESMA FRONTEIRA DOS DOIS TEMAS
+     Abas, cartões de resumo e avisos são CHROME — ficam escuros, como a barra
+     de topo e a de filtros. Só a tabela é clara, e os campos que se editam
+     dentro dela seguem o tema da tabela.
+
+   OS CARTÕES DE CIMA SÃO TRÊS, E TRÊS É O LIMITE
+     Quatro já viram uma faixa de números que ninguém lê. Aqui cada um responde
+     uma pergunta: quanto tem, quanto vale, de quando até quando.
+   --------------------------------------------------------------------------- */
+
+.fat-abas { display: inline-flex; }
+
+.fat-abas button {
+  border: 1px solid var(--d-line2);
+  background: var(--d-card2);
+  color: var(--d-txt2);
+  font: inherit;
+  font-size: 12px;
+  height: 28px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.fat-abas button + button { border-left: 0; }
+.fat-abas button:first-child { border-radius: 7px 0 0 7px; }
+.fat-abas button:last-child  { border-radius: 0 7px 7px 0; }
+.fat-abas button:hover { color: var(--d-txt); }
+.fat-abas button.ativa { background: var(--d-card3); color: var(--d-txt); }
+
+.fat-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fat-cartao {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 14px;
+  border-radius: var(--r-m);
+  background: var(--d-bg2); border: 1px solid var(--d-line);
+  color: var(--d-txt2);
+}
+.fat-cartao strong { font-size: 19px; line-height: 24px; color: var(--d-txt); font-variant-numeric: tabular-nums; }
+.fat-cartao-titulo { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--d-mut); }
+.fat-cartao-rodape { font-size: 11.5px; color: var(--d-mut); }
+
+/* O aviso mora ACIMA da tabela porque é o que muda a decisão de enviar. */
+.fat-aviso, .fat-recado {
+  margin: 8px 0 0;
+  padding: 9px 14px;
+  border-radius: var(--r-m);
+  background: var(--d-bg2);
+  border: 1px solid var(--d-line);
+  border-left: 3px solid #B8801F;
+  color: var(--d-txt2);
+  font-size: 12.5px; line-height: 18px;
+}
+.fat-aviso.ruim { border-left-color: var(--red-lift); }
+.fat-aviso strong { color: var(--d-txt); }
+.fat-recado { border-left-color: var(--ok); }
+
+.fat-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+
+.fat-confirma {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--d-txt2);
+}
+.fat-confirma > span { max-width: 52ch; line-height: 17px; }
+
+/* Campo dentro da tabela: some enquanto ninguém mexe, aparece ao focar. Uma
+   grade de caixinhas transformaria a lista num formulário. */
+.fat-campo {
+  width: 100%; min-width: 88px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--txt);
+  font: inherit; font-size: 12.5px;
+  padding: 2px 5px;
+}
+.fat-campo:focus { border-color: var(--red); outline: none; background: var(--card); }
+.fat-campo-valor { text-align: right; font-variant-numeric: tabular-nums; }
+
+.fat-diferenca { display: block; margin-top: 2px; font-size: 11px; color: var(--warn); }
+.fat-paga td { background: var(--ok-bg); }
