@@ -206,5 +206,25 @@ func (c *Cliente) Atualizar(ctx context.Context, tabela, filtro string, campos a
 	return c.executar(ctx, http.MethodPatch, tabela+"?"+filtro, campos, map[string]string{"Prefer": "return=minimal"}, nil)
 }
 
+// AtualizarDevolvendo altera e DEVOLVE as linhas alteradas.
+//
+// POR QUE ISSO EXISTE, E POR QUE NÃO É UM UPSERT
+//
+//	É a forma de disputar uma linha entre dois processos: o filtro carrega a
+//	condição ("só se ainda estiver na fila"), e quem recebe a linha de volta
+//	ganhou. Quem recebe zero linhas perdeu e vai buscar outra.
+//
+//	Com `Upsert` isso NÃO funciona, e o modo como falha é o pior possível: o
+//	PostgREST monta um `insert ... on conflict do update`, e o insert é
+//	avaliado ANTES do conflito ser resolvido. Faltando qualquer coluna
+//	obrigatória — `cliente_id` e `tipo`, no caso da fila —, o banco recusa a
+//	linha inteira por violação de not-null. Quem só olha o erro e tenta a
+//	próxima linha nunca pega trabalho nenhum, e o robô encerra dizendo
+//	"0 lidas · 0 falhas", que parece fila vazia.
+func (c *Cliente) AtualizarDevolvendo(ctx context.Context, tabela, filtro string, campos, destino any) error {
+	return c.executar(ctx, http.MethodPatch, tabela+"?"+filtro, campos,
+		map[string]string{"Prefer": "return=representation"}, destino)
+}
+
 // Escapar prepara um valor para entrar num filtro do PostgREST.
 func Escapar(v string) string { return url.QueryEscape(v) }

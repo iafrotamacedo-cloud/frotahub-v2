@@ -175,11 +175,24 @@ type Trabalho struct {
 //
 // COMO A CORRIDA É EVITADA
 //
-//	O update é condicional: `status=eq.na_fila`. Duas máquinas que leem a mesma
-//	linha disputam esse update, e só uma o consegue — a outra recebe zero linhas
-//	afetadas e vai buscar a próxima. Sem a condição no WHERE, as duas
-//	trabalhariam a mesma nota e o resultado dependeria de quem gravasse por
-//	último.
+//	A alteração é condicional: `status=eq.na_fila` vai no FILTRO. Duas máquinas
+//	que leem a mesma linha disputam essa alteração, e só uma recebe a linha de
+//	volta — a outra recebe zero e vai buscar a próxima. Sem a condição no
+//	filtro, as duas trabalhariam a mesma nota e o resultado dependeria de quem
+//	gravasse por último.
+//
+// ISTO JÁ FOI UM UPSERT, E POR ISSO O ROBÔ NUNCA PEGOU TRABALHO
+//
+//	O comentário acima sempre descreveu uma alteração condicional; o código
+//	fazia um upsert. O PostgREST monta o upsert como `insert ... on conflict do
+//	update`, e o insert é avaliado antes de o conflito ser resolvido — sem
+//	`cliente_id` e `tipo`, que são obrigatórios na fila, o banco recusava a
+//	linha por violação de not-null. O erro caía no `continue`, as cinco linhas
+//	da fila eram descartadas em silêncio, e a rodada terminava com
+//	"0 lidas · 0 falhas" — a cara de fila vazia.
+//
+//	Medido em 26/08/2026: 7 documentos na fila, 7 trabalhos `na_fila`, e o robô
+//	dizendo que não havia nada para fazer.
 func (l *Leitor) tomarTrabalho(ctx context.Context) (*Trabalho, error) {
 	var fila []Trabalho
 	if err := l.bd.Buscar(ctx, "jobs?status=eq.na_fila&tipo=eq.ler_documento"+
@@ -187,16 +200,23 @@ func (l *Leitor) tomarTrabalho(ctx context.Context) (*Trabalho, error) {
 		return nil, err
 	}
 	for _, t := range fila {
-		var tomados []map[string]any
-		err := l.bd.Upsert(ctx, "jobs?on_conflict=id", []map[string]any{{
-			"id":         t.ID,
-			"status":     "rodando",
-			"comecou_em": time.Now().UTC().Format(time.RFC3339),
-			"tomado_por": l.quem,
-			"tentativas": t.Tentativas + 1,
-		}}, &tomados)
+		var tomados []Trabalho
+		err := l.bd.AtualizarDevolvendo(ctx, "jobs",
+			"id=eq."+t.ID+"&status=eq.na_fila",
+			map[string]any{
+				"status":     "rodando",
+				"comecou_em": time.Now().UTC().Format(time.RFC3339),
+				"tomado_por": l.quem,
+				"tentativas": t.Tentativas + 1,
+			}, &tomados)
 		if err != nil {
+			// Erro aqui não é "alguém pegou primeiro" — é problema de verdade,
+			// e engoli-lo foi exatamente o que escondeu o defeito do upsert.
+			log.Printf("não consegui tomar o trabalho %s: %v", t.ID, err)
 			continue
+		}
+		if len(tomados) == 0 {
+			continue // outra máquina pegou esta linha; segue para a próxima
 		}
 		trabalho := t
 		trabalho.Tentativas++
