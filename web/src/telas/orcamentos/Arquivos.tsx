@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { VisorDaNota } from './VisorDaNota'
+import { ConferirValor } from './ConferirValor'
 import { Carregando } from '../../componentes/Carregando'
 import {
   emDataHora, emReais, confiancaEmPalavras, oQueConferir,
@@ -158,6 +159,33 @@ export function Arquivos({ fila, voltar }: Props) {
   //   cheia, com o motivo escrito acima do papel e todos os reparos à mão —
   //   inserir ticket, trocar, mandar para rateio, tirar da fila.
   if (conferindo) {
+    const reparos = {
+      excluir: async () => {
+        await motor(`/orcamentos/documentos/${conferindo.id}`, { metodo: 'DELETE' })
+        setConferindo(null); await carregar()
+      },
+      rateada: async () => {
+        await motor(`/orcamentos/documentos/${conferindo.id}/fila`,
+          { metodo: 'POST', corpo: { fila: 'rateio' } })
+        setConferindo(null); await carregar()
+      },
+      concluir: async () => { setConferindo(null); await carregar() },
+      fechar: () => setConferindo(null),
+    }
+
+    // A PERGUNTA DO VALOR TEM TELA PRÓPRIA
+    //   Ela não é um aviso a ler, é uma resposta a dar — e a resposta está no
+    //   papel, que fica logo abaixo.
+    if (conferindo.motivo_conferencia === 'confirme o valor desta nota') {
+      return (
+        <ConferirValor
+          documento={conferindo}
+          acoes={reparos}
+          aoResponder={async () => { setConferindo(null); await carregar() }}
+        />
+      )
+    }
+
     return (
       <VisorDaNota
         documento={conferindo.id}
@@ -166,19 +194,7 @@ export function Arquivos({ fila, voltar }: Props) {
         tickets={conferindo.ticket_numeros ?? []}
         modo="conferencia"
         motivo={conferindo.motivo_conferencia}
-        acoes={{
-          excluir: async () => {
-            await motor(`/orcamentos/documentos/${conferindo.id}`, { metodo: 'DELETE' })
-            setConferindo(null); await carregar()
-          },
-          rateada: async () => {
-            await motor(`/orcamentos/documentos/${conferindo.id}/fila`,
-              { metodo: 'POST', corpo: { fila: 'rateio' } })
-            setConferindo(null); await carregar()
-          },
-          concluir: async () => { setConferindo(null); await carregar() },
-          fechar: () => setConferindo(null),
-        }}
+        acoes={reparos}
       />
     )
   }

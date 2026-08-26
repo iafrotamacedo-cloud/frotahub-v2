@@ -20,7 +20,7 @@
 //	          maior, porque é o único que fecha.
 //
 //	Pôr "excluir" ao lado de "adicionar" seria convidar o dedo errado.
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { motor } from '../../motor/cliente'
 import { usePedirFoco } from '../../componentes/Foco'
 import { Candidatos } from './Candidatos'
@@ -38,7 +38,7 @@ export interface Acoes {
 }
 
 export function VisorDaNota({
-  documento, nome, valor, tickets, modo, motivo, acoes,
+  documento, nome, valor, tickets, modo, motivo, cabeca, acoes,
 }: {
   documento: string
   nome: string
@@ -60,6 +60,14 @@ export function VisorDaNota({
    * lista, esta tela e qualquer relatório dizem a mesma frase.
    */
   motivo?: string | null
+  /**
+   * O que aparece ENTRE a barra e o papel, no lugar do motivo em texto.
+   *
+   * Serve para quando a conferência é uma pergunta com resposta, e não um aviso
+   * — a de valor, hoje. Fica aqui, e não numa tela à parte, porque quem
+   * responde precisa do papel à vista: é lá que está a resposta.
+   */
+  cabeca?: ReactNode
   acoes: Acoes
 }) {
   // A NOTA PEDE A TELA INTEIRA
@@ -219,7 +227,7 @@ export function VisorDaNota({
           É onde o olho passa: quem abriu a nota vai da ação (em cima) para o
           documento (embaixo), e a frase explica no caminho por que ela está
           aqui. No `title` de um ícone, ninguém leria. */}
-      {motivo && <p className="visor-motivo">{motivo}</p>}
+      {cabeca ?? (motivo && <p className="visor-motivo">{motivo}</p>)}
 
       {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
 

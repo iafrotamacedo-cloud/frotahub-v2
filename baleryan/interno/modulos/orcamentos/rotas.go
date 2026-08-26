@@ -110,6 +110,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /orcamentos/documentos/{id}/desconto", m.verDesconto)
 	mux.HandleFunc("POST /orcamentos/documentos/{id}/desconto", m.autorizarDesconto)
 	mux.HandleFunc("POST /orcamentos/documentos/{id}/aprovacao", m.pedirAprovacao)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/valor", m.conferirValor)
 
 	// 2.3 — gerar e lançar
 	//

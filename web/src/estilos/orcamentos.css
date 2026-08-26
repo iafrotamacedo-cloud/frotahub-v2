@@ -747,3 +747,27 @@
 /* O selo que EXPLICA é mais largo que o que só rotula. Sem isto ele empurraria
    a coluna de ações para fora — e a frase é a razão de o selo existir. */
 .orc-selo.aviso, .orc-selo.ruim { white-space: normal; max-width: 34ch; line-height: 1.35; }
+
+/* ---------------------------------------------------------------------------
+   A pergunta do valor
+
+   Ela ocupa a faixa entre a barra de ação e o papel — o mesmo lugar do motivo,
+   porque é a mesma função: dizer por que a nota está aberta. A diferença é que
+   esta se responde.
+   --------------------------------------------------------------------------- */
+
+.conf-valor {
+  flex: 0 0 auto; padding: 12px 16px;
+  background: var(--warn-bg); border-bottom: 1px solid var(--line);
+}
+.conf-pergunta { margin: 0; font-size: 14.5px; color: var(--ink); }
+.conf-pergunta b { font-weight: 700; }
+.conf-porque { margin: 4px 0 10px; font-size: 12px; color: var(--warn); }
+.conf-botoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.conf-botoes input {
+  height: 34px; width: 160px; padding: 0 10px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+}
+/* Aqui o botão claro tem que se ler sobre o amarelo do aviso. */
+.conf-botoes .orc-bt { background: var(--card); border-color: var(--line); color: var(--txt); }
+.conf-botoes .orc-bt.forte { background: var(--red); border-color: var(--red); color: #fff; }

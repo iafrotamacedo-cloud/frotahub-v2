@@ -82,6 +82,16 @@ export interface Documento {
   /** Por que ela precisa de gente. Nulo quando não precisa. */
   motivo_conferencia?: string | null
 
+  // ---- a 031 ----
+  /** Quanto os itens lidos somam. É o número que se compara com o total. */
+  soma_dos_itens?: number
+  /** Itens sem descrição, sem quantidade ou sem preço. */
+  itens_incompletos?: number
+  /** A soma dos itens fecha com o total da nota, com 1% de tolerância. */
+  conta_fecha?: boolean
+  /** Quando alguém olhou o papel e respondeu a pergunta do valor. */
+  valor_conferido_em?: string | null
+
   // ---- a 019 ----
   /** Quando preenchida, esta nota é a MESMA que a apontada — mesma chave de
    *  acesso, ou mesmo número e valor. Ela não gera orçamento. O nome da outra
@@ -337,26 +347,23 @@ export function confiancaEmPalavras(camada: string | null, c: number | null): { 
 }
 
 /**
- * O QUE conferir — porque "confira" sozinho não é instrução.
+ * O QUE está errado na conta desta nota — em uma frase que se resolve olhando o
+ * papel.
  *
- * A confiança da leitura é uma soma de partes: a chave de acesso vale 0,35, os
- * itens completos 0,35, a soma que fecha com o total 0,25, a data 0,05. Quando
- * ela não chega a 85%, ALGUMA dessas partes faltou — e é essa que a pessoa
- * precisa olhar no papel.
- *
- * Mandar conferir sem dizer o quê faz a pessoa reler a nota inteira, ou, o que é
- * pior, ignorar o aviso porque ele nunca ajudou.
- *
- * A ordem é de peso: a maior lacuna primeiro.
+ * NÃO FALA DE CHAVE DE ACESSO, E ISSO É DE PROPÓSITO
+ *   A chave tem 44 dígitos, ninguém a digita, não entra no orçamento e não
+ *   impede nada. Ela derrubava o placar de confiança de DANFEs perfeitas e
+ *   virava "confira" eterno. Aviso que nunca muda é aviso que ninguém lê.
  */
-export function oQueConferir(d: Documento): string | null {
-  if (!d.itens) return 'nenhum item foi lido'
-  // A chave é a identidade de uma DANFE — e o que a trava de duplicidade
-  // compara primeiro. DAV não tem chave, e isso não é falha dele.
-  if (d.tipo === 'nf' && !d.chave_acesso) return 'a chave de acesso não foi lida'
+export function oQueConferir(d: Documento): string {
+  if (!d.itens) return 'nenhum item foi lido nesta nota'
+  if (d.itens_incompletos) {
+    return d.itens_incompletos === 1
+      ? 'um item ficou sem quantidade ou sem preço'
+      : `${d.itens_incompletos} itens ficaram sem quantidade ou sem preço`
+  }
   if (!d.valor_total) return 'o valor total não foi lido'
-  if (!d.emissao) return 'a data de emissão não foi lida'
-  return 'os números contra o papel'
+  return 'os itens não somam o total da nota'
 }
 
 export function contaPorExtenso(c: string | null): string {
