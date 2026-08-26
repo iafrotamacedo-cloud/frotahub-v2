@@ -42,6 +42,18 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq poppler-utils tesseract-ocr tesseract-ocr-por
 
+      # O OTIMIZADOR DE IMAGEM
+      #
+      #   As notas deste contrato são capturas de tela: o documento ocupa uns
+      #   530x330 de uma tela de 1440x900, e a letra fica com 6 a 8 pixels —
+      #   metade do que o Tesseract precisa. Ampliar e binarizar antes de ler
+      #   levou o valor total de 10/35 para 31/35 documentos, medido.
+      #
+      #   `headless` porque aqui não há tela: a versão cheia do OpenCV arrasta
+      #   GTK e Qt para nada.
+      - name: Instalar o otimizador de imagem
+        run: pip install --quiet opencv-python-headless numpy
+
       - name: Ler as notas da fila
         working-directory: baleryan
         env:
