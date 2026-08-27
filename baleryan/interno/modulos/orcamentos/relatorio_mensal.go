@@ -45,9 +45,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/relatorio"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
@@ -198,21 +200,7 @@ func (m *Modulo) relatorioMensalExcel(w http.ResponseWriter, r *http.Request) {
 			"a cobrar do que cabe num arquivo — feche este e gere de novo.", TetoDoRelatorio)
 	}
 
-	var soma float64
-	for _, l := range linhas {
-		soma += l.Valor
-	}
-	corpo := linhasDoModelo(linhas)
-
-	tab := relatorio.Tabela{
-		Titulo:    "Orçamentos de materiais",
-		Aba:       "Orçamentos",
-		Subtitulo: fmt.Sprintf("%d orçamentos · R$ %.2f · ainda não cobrados", len(linhas), soma),
-		Colunas:   colunasDoRelatorioMensal,
-		Linhas:    corpo,
-		Aviso:     aviso,
-		Gerado:    time.Now(),
-	}
+	tab := tabelaDoRelatorio(linhas, aviso, p.Nome, time.Now().In(relatorio.FusoDaCasa()))
 	corpoXLSX, err := tab.Planilha()
 	if err != nil {
 		m.erro(w, "não consegui montar a planilha", err)
@@ -221,6 +209,102 @@ func (m *Modulo) relatorioMensalExcel(w http.ResponseWriter, r *http.Request) {
 	entregar(w, corpoXLSX, "orcamentos-materiais", "xlsx",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 }
+
+// tabelaDoRelatorio monta o documento inteiro — a lista e a capa.
+//
+// ELA É SEPARADA DA ROTA DE PROPÓSITO
+//
+//	O que vai ao cliente tem que poder ser conferido sem subir servidor, sem
+//	banco e sem sessão. Enquanto isto morava dentro do `http.HandlerFunc`, a
+//	única forma de olhar o arquivo era gerando um de verdade pela tela.
+func tabelaDoRelatorio(linhas []aCobrar, aviso, quem string, gerado time.Time) relatorio.Tabela {
+	var soma float64
+	de, ate := "", ""
+	for _, l := range linhas {
+		soma += l.Valor
+		if de == "" || l.CriadoEm < de {
+			de = l.CriadoEm
+		}
+		if l.CriadoEm > ate {
+			ate = l.CriadoEm
+		}
+	}
+	return relatorio.Tabela{
+		Titulo:    tituloDoModelo,
+		Aba:       "Orçamentos",
+		Subtitulo: fmt.Sprintf("%d orçamentos · R$ %s · ainda não cobrados", len(linhas), emReais(soma)),
+		Colunas:   colunasDoRelatorioMensal,
+		Linhas:    linhasDoModelo(linhas),
+		Aviso:     aviso,
+		Gerado:    gerado,
+		Capa: &relatorio.Capa{
+			Chapeu:     chapeuDoModelo,
+			Periodo:    periodoDoModelo(de, ate),
+			Assinatura: assinaturaDe(quem, gerado),
+			Resumo:     fmt.Sprintf("%d orçamentos", len(linhas)),
+			Destaque:   "R$ " + emReais(soma),
+		},
+	}
+}
+
+// O que a faixa escura diz. São textos do DOCUMENTO, não do sistema: quem lê
+// está do outro lado.
+const (
+	// O título é o do modelo do cliente, com essas palavras. Ele é o que a
+	// pessoa procura quando tem doze arquivos na pasta de anexos do e-mail.
+	tituloDoModelo = "CUSTOS DE MATERIAIS DOS CHAMADOS DE MANUTENÇÃO"
+	// Quem assina e sob qual contrato. O prestador é sempre a Frota Macedo —
+	// isto não é o nome do cliente e não sai do banco.
+	chapeuDoModelo = "FROTA MACEDO ENGENHARIA  ·  CONTRATO DE MANUTENÇÃO PREDIAL"
+)
+
+// periodoDoModelo escreve a janela dos dados.
+//
+// AQUI O PERÍODO NÃO É UM FILTRO, E A FRASE DIZ ISSO
+//
+//	Nas outras extrações o cabeçalho repete o filtro que a pessoa escolheu.
+//	Neste relatório não existe filtro de data: entra tudo que foi lançado e não
+//	foi cobrado, venha de quando vier. Escrever só "Período: A a B" faria o
+//	cliente entender que pedimos um mês e que o resto vem depois — quando o que
+//	está ali é o resto.
+func periodoDoModelo(de, ate string) string {
+	d, a := soODia(de), soODia(ate)
+	if d == "" || a == "" {
+		return "Orçamentos lançados e ainda não cobrados"
+	}
+	return "Orçamentos lançados e ainda não cobrados  ·  " + d + " a " + a
+}
+
+func soODia(iso string) string {
+	d, ok := emData(iso).(time.Time)
+	if !ok {
+		return ""
+	}
+	return d.Format("02/01/2006")
+}
+
+// assinaturaDe carimba quem gerou e por onde.
+//
+// O "ATRAVÉS DO FROTAHUB®" É PEDIDO DO DONO (27/08/2026)
+//
+//	O documento sai com o nome de uma pessoa. Dizer por qual sistema ela o
+//	gerou é o que separa "uma planilha que o Jailton montou" de "um documento
+//	que a empresa emitiu" — e o cliente lê o nome do sistema junto com o número.
+//
+//	Sem nome de pessoa — chamada por chave de integração, por exemplo — a frase
+//	continua de pé sem o "por": o carimbo do sistema não pode sumir junto.
+func assinaturaDe(nome string, quando time.Time) string {
+	quem := ""
+	if n := strings.TrimSpace(nome); n != "" {
+		quem = " por " + n
+	}
+	return "Gerado em " + quando.Format("02/01/2006") + quem + " através do FrotaHub®"
+}
+
+// emReais escreve 42008.93 como "42.008,93" — o "R$" fica com quem monta a
+// frase. Passa pelo mesmo tipo que o resto do sistema usa para dinheiro, e não
+// por um `%.2f` com a vírgula trocada na mão.
+func emReais(v float64) string { return regras.DinheiroDe(v).Reais() }
 
 // linhasDoModelo monta as oito colunas, na ordem do cliente.
 //

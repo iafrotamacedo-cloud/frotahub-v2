@@ -55,9 +55,15 @@ type Tabela struct {
 	Subtitulo string // o filtro aplicado, escrito para ser lido
 	Colunas   []Coluna
 	Linhas    [][]any // string, float64, int, time.Time ou nil
-	// Aviso aparece no rodapé quando o resultado foi cortado. Corte silencioso é
-	// pior que corte: quem lê acha que está vendo tudo.
+	// Aviso aparece quando o resultado foi cortado. Corte silencioso é pior que
+	// corte: quem lê acha que está vendo tudo. No PDF ele vai no rodapé; na
+	// planilha com capa, no ALTO — ver `capa.go`.
 	Aviso string
+	// Capa liga o cabeçalho gráfico da planilha: faixa escura, marca, título e
+	// total, com a tabela clara embaixo. Nil = a planilha crua de sempre.
+	//
+	// Só a planilha olha para isto. O PDF tem o cabeçalho dele.
+	Capa *Capa
 	// Gerado é carimbado no documento. Vem de fora para o teste poder fixá-lo.
 	Gerado time.Time
 }

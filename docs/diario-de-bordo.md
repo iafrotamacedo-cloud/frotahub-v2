@@ -4062,6 +4062,96 @@ nome é procurar nada.
 
 ---
 
+## FASE 4 · Step 20 — o modelo do cliente vira o arquivo que sai
+
+**Pedido do dono:** aprovou a maquete e disse *"implanta esse modelo na extração
+do relatório mensal. depois do nome da pessoa que criou, complemente com
+'através do FrotaHub®'"*.
+
+### O que estava errado na logo
+
+O modelo antigo ancorava a marca em **1,5" × 0,67"** para uma imagem **2:1**. O
+Excel não recusa isso: ele estica. E a âncora ficava colada em A1, sem folga, por
+cima do título.
+
+Agora a posição é **medida**. A caixa da marca sai da soma das larguras REAIS
+das duas primeiras colunas e das alturas REAIS das linhas da faixa; a imagem é
+encaixada nela mantendo a proporção do arquivo e centrada nos dois eixos. Mexer
+na largura de uma coluna reposiciona a marca sozinho — e existe um teste que
+prova exatamente isso, comparando a âncora antes e depois de alargar a coluna A.
+
+A marca é o `marca.png` do front, com transparência de verdade — por isso ela
+assenta no preto sem retângulo em volta.
+
+### `Tabela.Capa`, e por que ela é opcional
+
+A capa nasceu como um campo a mais na `Tabela`: `Capa *Capa`. **Nil = a planilha
+crua de sempre.** Nenhuma das outras seis extrações do sistema mudou de
+aparência, nem engordou 130 KB, por causa desta — e há um teste que só existe
+para garantir isso.
+
+O escritor ganhou o que não tinha: imagem, células mescladas, preenchimento,
+altura de linha, congelamento calculado, `SUBTOTAL` no pé, repetição do
+cabeçalho ao imprimir e rodapé com número de página.
+
+### Duas decisões que valem mais que o desenho
+
+**O total é `SUBTOTAL(109,…)`, não `SUM`.** A planilha vai com filtro ligado. Com
+`SUM`, quem filtrasse por uma loja leria o total de TODAS embaixo das linhas de
+uma só — e é justamente esse número que a pessoa copia. E a fórmula vai com o
+valor já calculado em cache: leitor que não recalcula mostraria R$ 0,00 no pé de
+um documento que vai ao cliente.
+
+**O aviso de corte subiu para dentro da faixa.** Ele é a frase mais importante de
+um documento cortado. No rodapé de nove páginas, ninguém lê. E como ele empurra
+tudo uma linha para baixo, o mapa de linhas virou uma estrutura calculada
+(`disposicao`) — número de linha escrito à mão em três lugares é como o cabeçalho
+e os dados se desencontram.
+
+### O alinhamento nasce do TIPO da coluna
+
+Nada de uma segunda lista de alinhamentos ao lado da lista de colunas: alguém
+acrescentaria a coluna numa e esqueceria a outra, e a planilha sairia com a data
+à direita e o dinheiro no centro. Dinheiro à direita, texto à esquerda, data e
+número no centro — consequência do `Tipo`. Coluna nova já nasce certa.
+
+### A sabotagem que escapou
+
+Nove sabotagens, oito pegas de primeira. A que escapou foi **a mais importante**:
+quebrei a conta da proporção da marca — o defeito original — e o teste passou.
+
+O motivo: o teste media UMA tabela só, e naquela largura o limite de segurança
+recalculava a altura a partir da largura já cortada, devolvendo a proporção certa
+por acidente. O defeito só aparece onde o limite não morde. Refiz o teste em
+cinco larguras de coluna; sabotado de novo, ele acusou em três delas.
+
+### Práticas
+
+**P-48 — Teste de geometria se faz em mais de uma medida.**
+Uma conta de posição ou tamanho conferida num único tamanho de tela, de coluna ou
+de página pode estar sendo consertada por um limite que só age naquele caso.
+*Origem: a proporção da marca passou sabotada porque o corte de largura a
+recalculava.*
+
+**P-47 confirmada de novo.** O arquivo foi aberto com leitor de verdade em cada
+passo — foi assim que vi a colagem entre ORÇAMENTO e CONTA, a marca sem folga e o
+bloco da direita encostado na borda. Nenhum teste do código reclamava.
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `baleryan/interno/relatorio/capa.go` | **novo** — a capa, a geometria da marca, as partes do zip |
+| `baleryan/interno/relatorio/capa_test.go` | **novo** — catorze guardas |
+| `baleryan/interno/relatorio/marca.png` | **novo** — cópia do front, com teste que compara as duas |
+| `baleryan/interno/relatorio/planilha.go` | folha com capa, 31 estilos, `celulaCom` |
+| `baleryan/interno/relatorio/relatorio.go` | o campo `Capa` |
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal.go` | `tabelaDoRelatorio`, a assinatura, o chapéu |
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal_test.go` | quatro guardas novas |
+
+
+---
+
 ---
 
 ## Endereços e contas

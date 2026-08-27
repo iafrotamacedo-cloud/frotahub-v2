@@ -8,6 +8,9 @@
 package orcamentos
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -315,4 +318,150 @@ func TestATabelaUsaAsMesmasClassesDasOutrasListas(t *testing.T) {
 			"`orc-rolagem` — sem ele a tabela larga estoura a largura do cartão " +
 			"em vez de rolar dentro dele")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// O DOCUMENTO QUE VAI AO CLIENTE
+// ---------------------------------------------------------------------------
+
+func doisOrcamentos() []aCobrar {
+	loja := "LJ-13 - 13.2(SANTOS DUMMONT)"
+	outra := "LJ-27 - 27.2(MERCADÃO MARACANAU)"
+	return []aCobrar{
+		{Ticket: 126498, Valor: 318.77, CriadoEm: "2026-07-13T09:00:00-03:00", Conta: "civil", Loja: &loja},
+		{Ticket: 126658, Valor: 18.96, CriadoEm: "2026-08-14T09:00:00-03:00", Conta: "instalacoes", Loja: &outra},
+	}
+}
+
+// A ASSINATURA DIZ POR ONDE O DOCUMENTO SAIU
+//
+//	Pedido do dono em 27/08/2026: depois do nome de quem gerou, "através do
+//	FrotaHub®". É o que separa "uma planilha que o Jailton montou" de "um
+//	documento que a empresa emitiu".
+func TestAAssinaturaDizPorOndeODocumentoSaiu(t *testing.T) {
+	quando := time.Date(2026, 8, 27, 10, 0, 0, 0, relatorio.FusoDaCasa())
+
+	com := assinaturaDe("Francisco Jailton Barbosa Silva", quando)
+	if !strings.Contains(com, "Francisco Jailton Barbosa Silva") {
+		t.Errorf("a assinatura não traz quem gerou: %q", com)
+	}
+	if !strings.Contains(com, "através do FrotaHub®") {
+		t.Errorf("a assinatura não diz por onde o documento saiu: %q", com)
+	}
+	if !strings.Contains(com, "27/08/2026") {
+		t.Errorf("a assinatura não traz a data: %q", com)
+	}
+
+	// SEM NOME DE PESSOA, O CARIMBO DO SISTEMA NÃO PODE SUMIR JUNTO
+	//   Chamada por integração não tem `Nome`. Se a frase inteira dependesse
+	//   dele, o documento sairia sem dizer de onde veio — e sem o "por" solto
+	//   pendurado no fim.
+	sem := assinaturaDe("   ", quando)
+	if !strings.Contains(sem, "através do FrotaHub®") {
+		t.Errorf("sem nome, a assinatura perdeu o FrotaHub: %q", sem)
+	}
+	if strings.Contains(sem, " por ") {
+		t.Errorf("sem nome, sobrou um \"por\" sem ninguém: %q", sem)
+	}
+}
+
+// O ARQUIVO DO CLIENTE SAI COM A CAPA, E A CAPA CONFERE COM A LISTA
+func TestOArquivoDoClienteSaiComACapa(t *testing.T) {
+	quando := time.Date(2026, 8, 27, 10, 0, 0, 0, relatorio.FusoDaCasa())
+	tab := tabelaDoRelatorio(doisOrcamentos(), "", "Fulano de Tal", quando)
+
+	if tab.Capa == nil {
+		t.Fatal("o relatório mensal saiu sem capa — é o modelo que o dono aprovou " +
+			"em 27/08/2026 que deixou de sair")
+	}
+	if tab.Titulo != tituloDoModelo {
+		t.Errorf("o título não é o do modelo do cliente: %q", tab.Titulo)
+	}
+	// 318,77 + 18,96 = 337,73. O total da faixa é o total da lista.
+	if tab.Capa.Destaque != "R$ 337,73" {
+		t.Errorf("o total da faixa é %q e a lista soma R$ 337,73 — a faixa e a "+
+			"tabela do mesmo documento estão dizendo números diferentes",
+			tab.Capa.Destaque)
+	}
+	if tab.Capa.Resumo != "2 orçamentos" {
+		t.Errorf("a contagem da faixa é %q e a lista tem 2 linhas", tab.Capa.Resumo)
+	}
+	if !strings.Contains(tab.Capa.Assinatura, "Fulano de Tal") ||
+		!strings.Contains(tab.Capa.Assinatura, "através do FrotaHub®") {
+		t.Errorf("a assinatura não chegou ao documento: %q", tab.Capa.Assinatura)
+	}
+	if !strings.Contains(tab.Capa.Chapeu, "FROTA MACEDO ENGENHARIA") {
+		t.Errorf("o documento não diz quem o emite: %q", tab.Capa.Chapeu)
+	}
+	// O período cobre os dois extremos, no dia de Fortaleza.
+	for _, dia := range []string{"13/07/2026", "14/08/2026"} {
+		if !strings.Contains(tab.Capa.Periodo, dia) {
+			t.Errorf("o período não cobre %s: %q", dia, tab.Capa.Periodo)
+		}
+	}
+	// E NÃO PODE PARECER UM FILTRO DE DATA
+	//   Este relatório leva tudo que ficou para trás, venha de quando vier.
+	//   "Período: A a B" faria o cliente entender que o resto vem depois.
+	if !strings.Contains(tab.Capa.Periodo, "ainda não cobrados") {
+		t.Errorf("o período parece um filtro de mês, e não é: %q", tab.Capa.Periodo)
+	}
+}
+
+// O ARQUIVO SAI COM A MARCA DENTRO
+//
+//	A prova de ponta a ponta: o que a rota entrega é um .xlsx com a imagem
+//	dentro dele. Capa montada mas parte não gravada é um arquivo que o Excel
+//	abre "recuperado", sem marca — e ninguém no meio do caminho reclama.
+func TestOArquivoEntregueLevaAMarcaDentro(t *testing.T) {
+	tab := tabelaDoRelatorio(doisOrcamentos(), "", "Fulano de Tal",
+		time.Date(2026, 8, 27, 10, 0, 0, 0, relatorio.FusoDaCasa()))
+	b, err := tab.Planilha()
+	if err != nil {
+		t.Fatalf("não montou a planilha: %v", err)
+	}
+	z, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	if err != nil {
+		t.Fatalf("o arquivo entregue não é um .xlsx válido: %v", err)
+	}
+	achou := false
+	for _, f := range z.File {
+		if f.Name == "xl/media/marca.png" {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Error("o arquivo que vai ao cliente não tem a marca dentro")
+	}
+}
+
+// O AVISO DE CORTE CHEGA AO DOCUMENTO
+//
+//	Corte silencioso é pior que corte. Se o teto bate e o aviso não sai, o
+//	cliente recebe uma lista cortada achando que é a lista inteira — e o que
+//	sobrou nunca é cobrado.
+func TestOCorteChegaAoDocumento(t *testing.T) {
+	aviso := "A relação foi cortada em 2000 linhas."
+	tab := tabelaDoRelatorio(doisOrcamentos(), aviso, "Fulano",
+		time.Date(2026, 8, 27, 10, 0, 0, 0, relatorio.FusoDaCasa()))
+	if tab.Aviso != aviso {
+		t.Fatalf("o aviso não entrou na tabela: %q", tab.Aviso)
+	}
+	b, err := tab.Planilha()
+	if err != nil {
+		t.Fatalf("não montou a planilha: %v", err)
+	}
+	z, _ := zip.NewReader(bytes.NewReader(b), int64(len(b)))
+	for _, f := range z.File {
+		if f.Name != "xl/worksheets/sheet1.xml" {
+			continue
+		}
+		r, _ := f.Open()
+		dados, _ := io.ReadAll(r)
+		r.Close()
+		if !strings.Contains(string(dados), "cortada em 2000 linhas") {
+			t.Error("o aviso de corte não foi escrito no arquivo")
+		}
+		return
+	}
+	t.Fatal("não achei a folha dentro do arquivo")
 }
