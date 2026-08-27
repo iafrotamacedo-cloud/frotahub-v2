@@ -425,6 +425,9 @@ export interface Conferencia {
 
 export interface Pendencia {
   ticket: number
+  /** Um orçamento daquele ticket — serve para pedir a reconferência do chamado.
+   *  Qualquer um serve: o status é do chamado, não do orçamento. */
+  orcamento: string
   loja: string
   conta: string
   ticket_status: string
@@ -440,6 +443,11 @@ export interface Pendencia {
   desde_em: string
   /** Quando esta lista foi cobrada pela última vez. Vazio = nunca. */
   avisado_em: string
+  /** A última recusa deste ticket, quando alguém já tentou lançar. Vazio = nunca
+   *  foi tentado — que não é problema, é trabalho a fazer. */
+  recusa: string
+  recusa_em: string
+  tentativas: number
 }
 
 export interface ListaDePendencias {

@@ -19,14 +19,28 @@ import { VisorDaNota, type Acoes } from './VisorDaNota'
 import { ConfirmarComSenha } from './ConfirmarComSenha'
 import {
   emReais, emDataHora,
-  type Correcoes as Dados, type Bloqueio,
+  type Correcoes as Dados,
   type Documento, type Conferencia, type Desconto,
 } from './tipos'
 
 const FRENTES = [
   { chave: 'sem-ticket', titulo: 'Sem ticket', desc: 'Notas lidas em que nenhum ticket foi encontrado' },
   { chave: 'sem-associacao', titulo: 'Sem associação', desc: 'Tickets escritos que não batem com a nossa base' },
-  { chave: 'recusados', titulo: 'Recusados', desc: 'O Trílogo não aceitou o lançamento — e por quê' },
+  // A FRENTE "RECUSADOS" SAIU DAQUI — 27/08/2026
+  //
+  //	Ela contava orçamentos que JÁ ESTAVAM contados em outro lugar. Medido: dos
+  //	26 recusados, 21 apareciam também em Pendências (travados pelo status do
+  //	chamado) e 5 na fila de Lançar (travados por teto ou duplicidade). O painel
+  //	somava 88 pendências + 36 correções e contava vinte e um deles duas vezes —
+  //	uma das razões de os números parecerem não fechar.
+  //
+  //	E ela era um beco: mostrava o motivo e não oferecia o conserto. Agora o
+  //	motivo aparece ONDE o trabalho é feito — a recusa por status na linha de
+  //	Pendências, com o botão de reconferir ao lado; a recusa por teto ou
+  //	duplicidade na linha de Lançar, com as saídas de sempre.
+  //
+  //	As frentes que ficam aqui são de NOTA: o que travou antes de virar
+  //	orçamento. Mais a lixeira.
   { chave: 'extrapoladas', titulo: 'Passam do teto', desc: 'Notas que não cabem no limite do ticket — e o que dá para fazer' },
   { chave: 'apagados', titulo: 'Apagados', desc: 'O que foi excluído — e pode voltar' },
 ]
@@ -58,7 +72,6 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
       case 'sem-ticket': return dados.sem_ticket.length
       case 'sem-associacao': return dados.sem_associacao.length
       case 'extrapoladas': return dados.extrapoladas?.length ?? 0
-      case 'recusados': return dados.recusados.length
       default: return dados.apagados.length
     }
   }
@@ -97,7 +110,6 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
           {qual === 'extrapoladas' && <Extrapoladas dados={dados} recarregar={carregar} />}
-          {qual === 'recusados' && <Recusados dados={dados} />}
           {qual === 'apagados' && <Apagados dados={dados} recarregar={carregar} />}
         </div>
       )}
@@ -513,108 +525,6 @@ function Extrapoladas({ dados, recarregar }: { dados: Dados; recarregar: () => P
 //   Repare no `ticket_status`: ele NÃO oferece nada de editar. O problema não é
 //   nosso — é o chamado que ainda não andou. Fingir que existe conserto aqui
 //   dentro seria empurrar a pessoa para uma manobra.
-const SAIDAS: Record<Bloqueio, { rotulo: string; cor: string; opcoes: string[] }> = {
-  ticket_status: {
-    rotulo: 'O chamado não aceita custo ainda',
-    cor: 'espera',
-    opcoes: ['Reconferir status agora', 'Incluir na lista de cobrança'],
-  },
-  ticket_recusado: {
-    rotulo: 'Ticket não encontrado nesta conta',
-    cor: 'erro',
-    opcoes: ['Corrigir o ticket', 'Apagar o orçamento'],
-  },
-  // A DUPLICATA NÃO OFERECE "TENTAR DE NOVO"
-  //   Tentar de novo é exatamente o que não pode ser feito aqui: a trava barrou
-  //   porque o ticket JÁ TEM um custo daquele valor. A saída é olhar o custo que
-  //   está lá e decidir — e, se forem duas notas iguais de verdade, o "lançar
-  //   assim mesmo" mora na tela de Lançar, com o custo existente na frente.
-  possivel_duplicata: {
-    rotulo: 'O ticket já tem um custo deste valor',
-    cor: 'erro',
-    opcoes: ['Conferir o custo no Trílogo', 'Apagar o orçamento', 'Lançar assim mesmo, na tela de Lançar'],
-  },
-  teto: {
-    rotulo: 'Passa do teto com o que já está lançado',
-    cor: 'erro',
-    opcoes: ['Aprovar com autorização', 'Gerar de novo com valor menor', 'Apagar o orçamento'],
-  },
-  sem_empresa: {
-    rotulo: 'Falta configurar a empresa no servidor',
-    cor: 'erro',
-    opcoes: ['Avisar quem administra'],
-  },
-  trilogo_fora: {
-    rotulo: 'O Trílogo não respondeu',
-    cor: 'espera',
-    opcoes: ['Tentar de novo'],
-  },
-  desconhecido: {
-    rotulo: 'O Trílogo recusou',
-    cor: 'erro',
-    opcoes: ['Tentar de novo'],
-  },
-}
-
-function Recusados({ dados }: { dados: Dados }) {
-  if (!dados.recusados.length) {
-    return (
-      <p className="orc-vazio grande">
-        Nenhuma recusa. O que está na fila de lançar ainda não foi tentado —
-        e isso não é problema, é trabalho a fazer.
-      </p>
-    )
-  }
-  return (
-    <div className="orc-rolagem">
-      <table className="orc-tabela">
-        <thead>
-          <tr>
-            <th>Ticket</th><th>Loja</th><th style={{ textAlign: 'right' }}>Valor</th>
-            <th>Por que não subiu</th><th>Quem resolve</th><th>Tentado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dados.recusados.map(o => {
-            const s = o.lancamento_bloqueio ? SAIDAS[o.lancamento_bloqueio] : null
-            return (
-              <tr key={o.id}>
-                <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span></td>
-                <td>{o.loja ?? '–'}</td>
-                <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
-                <td>
-                  <span className={`orc-marca ${s?.cor ?? ''}`}>{s?.rotulo ?? 'Recusado'}</span>
-                  {/* A frase do Trílogo, como ela veio. É o que explica o caso
-                      que a categoria não cobre — e o que a pessoa lê quando a
-                      categoria não basta. */}
-                  {o.lancamento_bloqueio_detalhe && (
-                    <div className="orc-sub">{o.lancamento_bloqueio_detalhe}</div>
-                  )}
-                  {s && <div className="orc-sub opcoes">{s.opcoes.join(' · ')}</div>}
-                </td>
-                <td>
-                  {o.destino === 'cliente' ? 'Cliente'
-                    : o.destino === 'encarregados' ? 'Encarregados'
-                    : o.destino === 'pode_lancar' ? 'Já liberou — pode tentar'
-                    : '–'}
-                  {o.reaberto && o.motivo_reabertura && (
-                    <div className="orc-sub">reaberto: {o.motivo_reabertura}</div>
-                  )}
-                </td>
-                <td>
-                  {o.lancamento_tentado_em ? emDataHora(o.lancamento_tentado_em) : '–'}
-                  {o.lancamento_tentativas > 1 && (
-                    <div className="orc-sub">{o.lancamento_tentativas} tentativas</div>
-                  )}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 function Apagados({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
   const [erro, setErro] = useState('')

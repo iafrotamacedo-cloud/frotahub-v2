@@ -51,6 +51,22 @@ func (m *Modulo) listarOrcamentos(w http.ResponseWriter, r *http.Request) {
 	if t := umNumero(q.Get("ticket"), 0); t > 0 {
 		filtro += "&ticket=eq." + strconv.Itoa(t)
 	}
+	// A FILA DE LANÇAR NÃO É A FILA INTEIRA
+	//
+	//	Medido em 27/08/2026: 93 orçamentos `gerado`, e apenas 5 podendo subir.
+	//	A tela mostrava os 93, o botão "lançar todos" percorria os 93, e 88
+	//	levavam recusa — os mesmos 88, toda vez. O dono resumiu: "pode clicar até
+	//	morrer que não adianta nada".
+	//
+	//	Uma fila onde a maioria dos itens não pode ser trabalhada não é fila: é
+	//	uma lista de coisas que a pessoa precisa aprender a ignorar. E o que se
+	//	aprende a ignorar um dia esconde o que importava (P-29).
+	//
+	//	Os 88 não somem — eles moram em Pendências, que é a tela onde existe o
+	//	que fazer com eles.
+	if d := q.Get("destino"); destinoConhecido(d) {
+		filtro += "&destino=eq." + d
+	}
 	filtro += "&order=criado_em.desc"
 
 	var linhas []map[string]any
@@ -60,6 +76,17 @@ func (m *Modulo) listarOrcamentos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Responder(w, http.StatusOK, montarPagina(linhas, total, pagina, por))
+}
+
+// Só os destinos que a view calcula. Um valor inventado é IGNORADO em vez de
+// recusado: filtro que não existe devolve a lista inteira, e isso é preferível a
+// uma tela em branco com erro para quem digitou o endereço à mão.
+func destinoConhecido(d string) bool {
+	switch d {
+	case "pode_lancar", "cliente", "encarregados", "sem_chamado", "outro":
+		return true
+	}
+	return false
 }
 
 func statusConhecido(s string) bool {

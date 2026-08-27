@@ -51,6 +51,7 @@ var listasDePendencia = map[string]string{
 }
 
 type linhaDePendencia struct {
+	ID               string   `json:"id"`
 	Ticket           int      `json:"ticket"`
 	Parte            int      `json:"parte"`
 	Loja             *string  `json:"loja"`
@@ -63,11 +64,22 @@ type linhaDePendencia struct {
 	ChamadoDescricao *string  `json:"chamado_descricao"`
 	AvisadoEm        *string  `json:"avisado_em"`
 	Destino          *string  `json:"destino"`
+	Bloqueio         *string  `json:"lancamento_bloqueio"`
+	BloqueioDetalhe  *string  `json:"lancamento_bloqueio_detalhe"`
+	TentadoEm        *string  `json:"lancamento_tentado_em"`
+	Tentativas       int      `json:"lancamento_tentativas"`
 }
 
 // Pendencia é um TICKET, com os orçamentos dele dentro.
 type Pendencia struct {
-	Ticket     int      `json:"ticket"`
+	Ticket int `json:"ticket"`
+	// UM ORÇAMENTO DAQUELE TICKET — qualquer um serve, e isso não é desleixo.
+	//
+	//	O status é do CHAMADO, não do orçamento: reconferir um destrava todos os
+	//	do mesmo ticket. A tela precisa de um id para chamar a rota, e mandar os
+	//	três de um ticket de três partes seriam três idas ao Trílogo para
+	//	responder a mesma pergunta.
+	Orcamento  string   `json:"orcamento"`
 	Loja       string   `json:"loja"`
 	Conta      string   `json:"conta"`
 	Status     string   `json:"ticket_status"`
@@ -79,6 +91,18 @@ type Pendencia struct {
 	Valor      float64  `json:"valor"`
 	DesdeEm    string   `json:"desde_em"`
 	AvisadoEm  string   `json:"avisado_em"`
+	// A ÚLTIMA TENTATIVA, QUANDO HOUVE UMA
+	//
+	//	Ela mudou de lugar: até 27/08/2026 morava numa frente própria em
+	//	Correções, que mostrava o motivo e não oferecia conserto nenhum — e ainda
+	//	contava de novo orçamentos que já estavam contados aqui. O motivo passa a
+	//	aparecer ONDE o trabalho é feito, ao lado do botão que o desfaz.
+	//
+	//	É do ticket, e não de um orçamento: se três partes foram tentadas, a
+	//	recusa é a mesma. Vale a mais recente.
+	Recusa     string `json:"recusa"`
+	RecusaEm   string `json:"recusa_em"`
+	Tentativas int    `json:"tentativas"`
 }
 
 // GET /orcamentos/pendencias?destino=cliente|encarregados
@@ -140,6 +164,7 @@ func agruparPorTicket(linhas []linhaDePendencia) []Pendencia {
 		if !existe {
 			t = &Pendencia{
 				Ticket:    l.Ticket,
+				Orcamento: l.ID,
 				Loja:      texto(l.Loja),
 				Conta:     contaPorExtenso(texto(l.Conta)),
 				Status:    texto(l.TicketStatus),
@@ -150,6 +175,18 @@ func agruparPorTicket(linhas []linhaDePendencia) []Pendencia {
 				AvisadoEm: texto(l.AvisadoEm),
 			}
 			porTicket[l.Ticket] = t
+		}
+		// A recusa mais recente do ticket. As linhas vêm ordenadas por ticket, não
+		// por data, então a comparação é explícita.
+		if l.TentadoEm != nil && *l.TentadoEm > t.RecusaEm {
+			t.RecusaEm = *l.TentadoEm
+			t.Recusa = texto(l.BloqueioDetalhe)
+			if t.Recusa == "" {
+				t.Recusa = texto(l.Bloqueio)
+			}
+		}
+		if l.Tentativas > t.Tentativas {
+			t.Tentativas = l.Tentativas
 		}
 		t.Orcamentos++
 		t.Partes = append(t.Partes, strconv.Itoa(l.Parte))

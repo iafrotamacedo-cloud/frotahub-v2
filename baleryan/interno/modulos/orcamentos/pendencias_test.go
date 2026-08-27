@@ -177,3 +177,54 @@ func lerOFront(t *testing.T) string {
 	}
 	return tudo.String()
 }
+
+// A FILA DE LANÇAR SÓ MOSTRA O QUE DÁ PARA LANÇAR
+//
+//	Medido em 27/08/2026: 93 orçamentos `gerado` e 5 podendo subir. A tela
+//	mostrava os 93 e o "lançar todos" percorria os 93, para 88 levarem a mesma
+//	recusa de sempre. O dono resumiu: *"pode clicar até morrer que não adianta
+//	nada"*.
+//
+//	Uma fila em que a maioria dos itens não pode ser trabalhada não é fila: é
+//	uma lista que a pessoa aprende a ignorar — e o que se aprende a ignorar um
+//	dia esconde o que importava.
+func TestAFilaDeLancarPedeSoOQuePodeSubir(t *testing.T) {
+	fonte, err := os.ReadFile("../../../../web/src/telas/orcamentos/Lancar.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	texto := string(fonte)
+	if !strings.Contains(texto, "'destino', 'pode_lancar'") {
+		t.Error("a tela de Lançar não filtra por `destino=pode_lancar` — ela volta a " +
+			"mostrar a fila inteira, e o botão de lote volta a tentar os travados")
+	}
+	// E o motor precisa aceitar o filtro, senão a tela pede e o banco devolve tudo.
+	motor, err := os.ReadFile("gerar.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o gerar.go: %v", err)
+	}
+	if !strings.Contains(string(motor), `q.Get("destino")`) {
+		t.Error("o motor ignora o filtro `destino` — a tela pede e recebe a lista inteira")
+	}
+}
+
+// NINGUÉM É CONTADO DUAS VEZES NO PAINEL
+//
+//	O cartão de Correções somava `recusados` junto com as notas travadas. Só que
+//	orçamento recusado por status de chamado JÁ ESTÁ contado em Pendências: o
+//	mesmo registro aparecia nos dois cartões, e 88 + 36 contava vinte e um deles
+//	duas vezes. Era uma das razões de o painel parecer que não fechava.
+func TestOPainelNaoContaOMesmoOrcamentoDuasVezes(t *testing.T) {
+	fonte, err := os.ReadFile("../../../../web/src/telas/orcamentos/Orcamentos.tsx")
+	if err != nil {
+		t.Skipf("não achei o painel: %v", err)
+	}
+	texto := string(fonte)
+	// Fora os comentários, que EXPLICAM o defeito citando a soma antiga.
+	texto = regexp.MustCompile(`(?m)^\s*//[^\n]*`).ReplaceAllString(texto, "")
+	if regexp.MustCompile(`numero:\s*d\.sem_ticket[^,]*d\.recusados`).MatchString(texto) {
+		t.Error("o cartão de Correções voltou a somar `recusados` — esses orçamentos " +
+			"já estão contados em Pendências ou na fila de Lançar, e a soma passa a " +
+			"contar os mesmos registros duas vezes")
+	}
+}

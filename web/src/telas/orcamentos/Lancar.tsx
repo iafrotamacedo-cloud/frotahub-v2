@@ -43,6 +43,18 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   const [numero, setNumero] = useState(1)
   const [por, setPor] = useState(100)
   const [status, setStatus] = useState('gerado')
+  // A FILA É O QUE DÁ PARA FAZER AGORA
+  //
+  //   Medido em 27/08/2026: 93 orçamentos gerados, 5 podendo subir. A tela
+  //   mostrava os 93 e o "lançar todos" percorria os 93, para 88 levarem a mesma
+  //   recusa de sempre. O dono resumiu: "pode clicar até morrer que não adianta
+  //   nada".
+  //
+  //   Agora ela abre com os que podem subir, e os outros têm o seu lugar —
+  //   Pendências, que é a tela onde existe o que FAZER com eles. A caixinha
+  //   continua permitindo ver a fila inteira, porque esconder o total seria
+  //   trocar um problema por outro.
+  const [soOsQuePodem, setSoOsQuePodem] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [lancando, setLancando] = useState<string | null>(null)
@@ -64,12 +76,13 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   const carregar = useCallback(async () => {
     try {
       const q = new URLSearchParams({ pagina: String(numero), por: String(por), status })
+      if (soOsQuePodem && status === 'gerado') q.set('destino', 'pode_lancar')
       setPagina(await motor<Pagina<Orcamento>>('/orcamentos?' + q))
       setErro('')
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui carregar a lista.')
     }
-  }, [numero, por, status])
+  }, [numero, por, status, soOsQuePodem])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -271,7 +284,29 @@ export function Lancar({ voltar }: { voltar: () => void }) {
             <option value="lancado">lançados</option>
             <option value="removido">apagados</option>
           </select>
+          {/* A CAIXINHA EXISTE PARA O TOTAL NÃO SUMIR
+              Esconder os travados resolve a fila e cria outra pergunta sem
+              resposta: "e os outros?". Aqui ela é respondida em uma linha, com
+              o caminho de quem quer ir atrás. */}
+          {status === 'gerado' && (
+            <label className="orc-so-podem">
+              <input
+                type="checkbox"
+                checked={soOsQuePodem}
+                onChange={e => { setNumero(1); setSoOsQuePodem(e.target.checked) }}
+              />
+              só os que podem subir
+            </label>
+          )}
         </div>
+
+        {status === 'gerado' && soOsQuePodem && (
+          <p className="orc-aviso-fila">
+            Esta lista mostra só o que dá para lançar agora. O que está travado
+            pelo status do chamado mora em <strong>Pendências</strong> — lá dá para
+            extrair a lista para cobrar, e reconferir no Trílogo quem já liberou.
+          </p>
+        )}
 
         {!pagina ? <Carregando /> : (
           <div className="orc-rolagem">

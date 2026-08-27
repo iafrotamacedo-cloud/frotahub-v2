@@ -42,7 +42,7 @@
 //	em que dia — é o que separa "já cobrei e não veio" de "nunca cobrei". Um
 //	registro de envio que mente é pior do que nenhum, então o botão só marca o
 //	que a pessoa escolheu, uma escolha por vez.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, arquivoDoMotor, salvarArquivo } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { useFocado } from '../../componentes/Foco'
@@ -76,6 +76,13 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
   //   Os números marcados são de tickets daquela lista. Carregá-los para a outra
   //   faria o botão dizer "marcar 6" com nenhum dos 6 na tela.
   const [escolhidos, setEscolhidos] = useState<Set<number>>(new Set())
+  // A RECONFERÊNCIA EM LOTE
+  //   Sem ela, uma pendência é um beco: a nota fica ali até alguém lembrar de
+  //   abrir cada orçamento e apertar "reconferir". Medimos que 7 de 26 chamados
+  //   destravam sozinhos em seis dias — o trabalho existe, e ninguém o faz um
+  //   por um.
+  const [lote, setLote] = useState<Lote | null>(null)
+  const parar = useRef(false)
   const focado = useFocado()
 
   const carregar = useCallback(async () => {
@@ -116,6 +123,54 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui montar a planilha.')
     }
+  }
+
+  // RECONFERIR É LER, NÃO LANÇAR
+  //
+  //   Ela pergunta ao Trílogo o status de agora e grava o que viu. Se o chamado
+  //   andou, o orçamento sai desta lista e volta para a fila de lançar — quem
+  //   manda subir continua sendo a pessoa. Um botão que diz "conferir" e lança
+  //   seria um botão que mente sobre o que faz.
+  //
+  //   É UM POR TICKET, e não um por orçamento: o status é do chamado, e um
+  //   ticket de três partes destrava as três de uma vez. Reconferir uma a uma
+  //   seriam três idas ao Trílogo para a mesma resposta.
+  //
+  //   O laço é da tela, como o de lançar, e pelo mesmo motivo: sessenta idas ao
+  //   Trílogo numa requisição só estouram qualquer tempo limite e não mostram
+  //   nada enquanto rodam.
+  async function reconferirTodos() {
+    const fila = tickets.filter(t => t.orcamento)
+    if (fila.length === 0) return
+    parar.current = false
+    setAviso('')
+    setErro('')
+    setLote({ total: fila.length, feito: 0, liberaram: 0, rodando: true, liberados: [] })
+
+    for (const t of fila) {
+      if (parar.current) break
+      setLote(l => (l ? { ...l, agora: t.ticket } : l))
+      try {
+        const r = await motor<{ liberou: boolean; ticket: number; ticket_status: string }>(
+          `/orcamentos/ficha/${t.orcamento}/reconferir`, { metodo: 'POST' })
+        setLote(l => l && ({
+          ...l,
+          feito: l.feito + 1,
+          liberaram: l.liberaram + (r.liberou ? 1 : 0),
+          liberados: r.liberou ? [...l.liberados, r.ticket] : l.liberados,
+        }))
+      } catch {
+        // Um chamado que não respondeu não derruba a rodada: ele continua na
+        // lista e a próxima passada tenta de novo.
+        setLote(l => l && ({ ...l, feito: l.feito + 1 }))
+      }
+      // O Trílogo é o sistema DO CLIENTE: sessenta chamadas coladas parecem
+      // ataque, mesmo sendo trabalho.
+      await new Promise(r => setTimeout(r, 400))
+    }
+
+    setLote(l => (l ? { ...l, rodando: false, agora: undefined } : l))
+    await carregar()
   }
 
   async function marcarCobrados() {
@@ -172,6 +227,7 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
 
       {erro && <p className="erro">{erro}</p>}
       {aviso && <p className="orc-aviso-fila">{aviso}</p>}
+      {lote && <PainelDoLote dados={lote} fechar={() => setLote(null)} />}
 
       {!dados ? <Carregando /> : (
         <div className="orc-lista">
@@ -192,6 +248,18 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
                 disabled={tickets.length === 0}>ver a lista</button>
               <button type="button" className="orc-bt" onClick={() => void baixarPlanilha()}
                 disabled={tickets.length === 0}>baixar planilha</button>
+              {lote?.rodando ? (
+                <button type="button" className="orc-bt" onClick={() => { parar.current = true }}>
+                  parar depois deste
+                </button>
+              ) : (
+                <button type="button" className="orc-bt forte"
+                  disabled={tickets.length === 0}
+                  title="Pergunta ao Trílogo o status de cada chamado desta lista. Quem já liberou volta para a fila de lançar."
+                  onClick={() => void reconferirTodos()}>
+                  reconferir no Trílogo ({tickets.length})
+                </button>
+              )}
               <button type="button" className="orc-bt forte"
                 disabled={escolhidos.size === 0 || marcando}
                 onClick={() => void marcarCobrados()}>
@@ -250,6 +318,55 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
   )
 }
 
+interface Lote {
+  total: number
+  feito: number
+  liberaram: number
+  liberados: number[]
+  rodando: boolean
+  agora?: number
+}
+
+/** O andamento da reconferência, e o resultado dela.
+ *
+ *  O PAINEL NÃO SOME SOZINHO
+ *    Sessenta chamados levam minutos. Quem sai da frente da tela e volta
+ *    precisa encontrar o resultado ainda ali — um aviso que se apaga transforma
+ *    "quantos liberaram?" numa pergunta sem resposta. */
+function PainelDoLote({ dados, fechar }: { dados: Lote; fechar: () => void }) {
+  const pct = dados.total === 0 ? 0 : Math.round((dados.feito / dados.total) * 100)
+  return (
+    <div className="orc-lote">
+      <div className="orc-lote-topo">
+        <span>
+          {dados.rodando
+            ? <>conferindo no Trílogo{dados.agora ? ` — chamado ${dados.agora}` : ''}…</>
+            : <>conferência terminada</>}
+        </span>
+        <strong>{dados.feito} de {dados.total}</strong>
+      </div>
+      <div className="orc-lote-barra"><span style={{ width: `${pct}%` }} /></div>
+      {!dados.rodando && (
+        <div className="orc-lote-fim">
+          {dados.liberaram === 0 ? (
+            <p>
+              Nenhum chamado liberou. Eles continuam parados pelo mesmo motivo —
+              e isso não é erro: é a resposta de hoje.
+            </p>
+          ) : (
+            <p>
+              <strong>{dados.liberaram}</strong>{' '}
+              {dados.liberaram === 1 ? 'chamado liberou e voltou' : 'chamados liberaram e voltaram'}{' '}
+              para a fila de lançar: {dados.liberados.join(', ')}.
+            </p>
+          )}
+          <button type="button" className="orc-bt" onClick={fechar}>Entendi</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Linha({ t, qual, marcado, alternar }: {
   t: Pendencia
   qual: Qual
@@ -275,6 +392,16 @@ function Linha({ t, qual, marcado, alternar }: {
       <td>
         {t.ticket_status || '–'}
         {t.reaberto && <div className="orc-sub aviso">reaberto</div>}
+        {/* A ÚLTIMA RECUSA, ONDE O TRABALHO É FEITO
+            Antes ela morava numa lista separada, que dizia o motivo e não
+            oferecia conserto. Aqui ela fica a um botão de distância do
+            "reconferir no Trílogo", que é o que a desfaz. */}
+        {t.recusa && (
+          <div className="orc-sub">
+            já tentado{t.tentativas > 1 ? ` ${t.tentativas}×` : ''}
+            {t.recusa_em ? ` em ${emDataHora(t.recusa_em)}` : ''}
+          </div>
+        )}
       </td>
       <td className="orc-pend-texto">
         {/* Ao cliente, a frase DELE ao reabrir: muda a conversa de "reabriram"

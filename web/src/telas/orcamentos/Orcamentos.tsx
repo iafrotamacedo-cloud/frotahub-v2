@@ -124,13 +124,21 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       titulo: 'Lançar orçamentos',
       descricao: 'Gera, confere o teto e lança no Trílogo.',
       icone: <IconeRobo />,
-      numero: d.a_lancar,
-      rotulo: 'na fila',
-      // A fila inteira não é o que dá para fazer hoje: parte dela espera o
-      // chamado andar. O subtítulo diz quanto sai agora.
-      previaTitulo: `próximos da fila — ${d.prontos_para_lancar} podem subir agora`,
+      // O NÚMERO É O QUE DÁ PARA FAZER, NÃO O TAMANHO DA PILHA
+      //
+      //	Ele mostrava a fila inteira — 93 — e só 5 podiam subir. Um contador que
+      //	promete 93 e entrega 5 ensina a pessoa a desconfiar do painel, e um
+      //	painel de que se desconfia não serve para decidir nada (P-29).
+      //
+      //	Os outros 88 não sumiram: têm cartão próprio, do lado, onde existe o
+      //	que fazer com eles.
+      numero: d.prontos_para_lancar,
+      rotulo: 'podem subir',
+      previaTitulo: d.a_lancar > d.prontos_para_lancar
+        ? `${d.a_lancar - d.prontos_para_lancar} estão parados — veja em Pendências`
+        : 'próximos da fila',
       previa: fila(d.previa?.lancar),
-      previaVazia: 'nada esperando lançamento',
+      previaVazia: 'nada pronto para subir agora',
     },
     {
       // ESTA ETAPA NÃO É UM CONSERTO — É UMA COBRANÇA
@@ -177,18 +185,22 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       titulo: 'Correções',
       descricao: 'O que travou antes de virar orçamento.',
       icone: <IconeAviso />,
-      // O número da coluna é a SOMA das quatro frentes: é o que o usuário
-      // precisa saber antes de passar o mouse.
-      // A soma das quatro frentes. `recusados` entrou no lugar de `a_lancar`:
-      // orçamento que ainda não foi tentado não é correção, é fila.
-      numero: d.sem_ticket + d.sem_associacao + d.recusados + d.apagados,
+      // O QUE ESTE NÚMERO CONTA — e o que ele parou de contar
+      //
+      //	Ele somava `recusados` junto. Só que orçamento recusado por status de
+      //	chamado JÁ ESTÁ contado em Pendências: o mesmo registro aparecia nos
+      //	dois cartões, e 88 + 36 contava vinte e um deles duas vezes. Foi uma
+      //	das razões de o painel parecer que não fechava.
+      //
+      //	Aqui ficam as NOTAS que travaram antes de virar orçamento, mais a
+      //	lixeira. O que travou depois é pendência, e pendência tem tela própria.
+      numero: d.sem_ticket + d.sem_associacao + d.apagados,
       rotulo: 'pendências',
       faixa: '#B8801F',
       previaTitulo: 'o que travou',
       previa: [
         { texto: 'Sem ticket', fim: String(d.sem_ticket) },
         { texto: 'Sem associação', fim: String(d.sem_associacao) },
-        { texto: 'Recusados', fim: String(d.recusados) },
         { texto: 'Apagados', fim: String(d.apagados) },
       ],
       filhos: [

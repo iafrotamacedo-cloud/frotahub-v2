@@ -874,3 +874,15 @@
 /* Verde e vermelho, e nada no meio: ou fecha, ou não fecha. */
 .orc-conta-fecha td { color: #1E7A48; font-weight: 700; }
 .orc-conta-furo td { color: var(--red); font-weight: 700; background: var(--red-050); }
+
+/* A caixinha "só os que podem subir", ao lado do filtro de situação. */
+.orc-so-podem {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--txt); cursor: pointer; user-select: none;
+}
+.orc-so-podem input { cursor: pointer; }
+
+/* O fim da reconferência: o resultado fica na tela até alguém fechar. */
+.orc-lote-fim { margin-top: 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.orc-lote-fim p { margin: 0; font-size: 12.5px; color: var(--txt); line-height: 1.5; }
+.orc-lote-fim strong { color: var(--ink); }
