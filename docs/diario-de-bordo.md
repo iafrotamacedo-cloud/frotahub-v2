@@ -3040,6 +3040,12 @@ Casar o NOME de uma constante ou função passa com o uso sabotado — o coment�
 que a explica já satisfaz a busca. O teste olha a linha que decide. *Origem: duas
 sabotagens seguidas passaram no mesmo dia, pelo mesmo vício.*
 
+**P-44 — Coluna lida pela negativa não pode ser nula.**
+Em SQL, `NULL = ANY(...)` é NULL, `NOT NULL` é NULL, e NULL não passa em `WHERE`
+nem casa com `is.false`. Toda expressão booleana de view que compare coluna
+anulável leva `COALESCE`. *Origem: 39 orçamentos prontos para lançar ficaram
+invisíveis no painel e na fila ao mesmo tempo, sem erro nenhum.*
+
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
 
@@ -3514,6 +3520,121 @@ ela não depende de alguém lembrar de rodar.
 
 A 038 também **carimba as notas que já estavam paradas**: sem isso o conserto só
 valeria da próxima tentativa em diante, e as quatro da tela dele continuariam ali.
+
+---
+
+## FASE 4 · Step 15 — o orçamento novo que não aparecia na fila de lançar
+
+> *"eu acabei de gerar mais de 40 orcamentos...e eles nao estao na fila de
+> lancamento...que houve?"*
+
+O cartão continuava dizendo **1 PODEM SUBIR · 150 estão parados**. Os 39 recém
+gerados não apareciam nem no cartão nem na fila. **Nenhum estava travado: eles não
+eram vistos.**
+
+### A causa é uma linha, e é lógica de três valores
+
+`precisa_decisao` nasceu na migração 035 assim:
+
+```sql
+o.status = 'gerado' AND (o.lancamento_bloqueio = ANY (ARRAY['teto', 'possivel_duplicata']))
+```
+
+Em SQL, comparar com NULL **não devolve `false` — devolve NULL**.
+`NULL = ANY (ARRAY[...])` é NULL, e `true AND NULL` é NULL.
+
+Todo orçamento **recém-gerado** tem `lancamento_bloqueio` nulo. Ele recebia
+`precisa_decisao = NULL`.
+
+E quem lê essa coluna pergunta **pela negativa**:
+
+- o painel: `WHERE destino = 'pode_lancar' AND NOT precisa_decisao`
+- a tela: `&precisa_decisao=is.false`
+
+`NOT NULL` é NULL, e NULL não passa em `WHERE`. `is.false` também não casa com
+NULL. **A linha sumia dos dois ao mesmo tempo** — sem erro, sem log, sem nada na
+tela. É a espécie de falha mais difícil de notar que existe: a que não deixa
+rastro em lugar nenhum.
+
+### Por que demorou um dia inteiro para aparecer
+
+`lancamento_bloqueio` deixa de ser nulo na **primeira tentativa de lançamento**.
+Todos os orçamentos que existiam quando a 035 subiu já tinham sido tentados —
+medido: 88 `ticket_status`, 3 `possivel_duplicata`, 2 `teto`, **nenhum nulo**.
+
+O defeito exigia alguém **gerar e olhar o painel antes de tentar lançar**. Foi
+exatamente o que ele fez hoje: 58 orçamentos com bloqueio nulo, todos os 58 de
+hoje, e nos 58 a expressão devolvendo NULL.
+
+### O conserto, e a varredura pelos irmãos
+
+`COALESCE(o.lancamento_bloqueio, '')`. Bloqueio ausente vira string vazia, que não
+está na lista, e a expressão devolve `false` — que é a verdade: este orçamento não
+precisa de decisão nenhuma.
+
+Fui atrás dos irmãos, porque um defeito destes raramente é filho único. Todas as
+outras colunas booleanas que o motor lê pela negativa foram medidas no banco:
+
+| coluna | nulos |
+|---|---|
+| `orcamentos.faturamento_direto` | 0 |
+| `unidades.no_escopo` | 0 |
+| `documentos_lista.na_fila` | 0 |
+| `documentos_lista.pronto_para_gerar` | 0 |
+| `documentos_lista.conta_fecha` | 0 |
+| **`orcamentos_lista.precisa_decisao`** | **58** |
+
+Filho único, e isolado.
+
+### A prova, num Postgres de verdade
+
+Quatro orçamentos no mesmo ticket, um por tipo de bloqueio:
+
+| bloqueio | `precisa_decisao` | entra na fila de lançar |
+|---|---|---|
+| **nulo (recém-gerado)** | **false** | **sim** — era NULL, e sumia |
+| `teto` | true | não |
+| `possivel_duplicata` | true | não |
+| `ticket_status` | false | sim |
+
+As 40 colunas saíram idênticas, na mesma ordem e com os mesmos tipos —
+`create or replace view` só permite mudar expressão — e o `{security_invoker=true}`
+continuou de pé (P-35).
+
+### Os testes
+
+| Teste | O que ele pega | Sabotagem |
+|---|---|---|
+| `PrecisaDecisaoNuncaPodeSerNulo` | o COALESCE removido da expressão | tirei |
+| `AFilaDeLancarContinuaPerguntandoPelaNegativa` | "consertar" trocando a pergunta em vez da coluna | troquei `is.false` por `not.is.true` |
+| `MigracaoNovaNaoComparaColunaNulavelComANY` | o padrão se repetindo numa migração futura | escrevi uma |
+
+O segundo merece explicação. O conserto fácil seria trocar `is.false` por
+`not.is.true` na consulta: a tela voltaria a mostrar os 39 e ninguém perceberia
+nada. Mas a coluna continuaria mentindo, e a próxima tela que a lesse repetiria a
+história. **Perguntar pela negativa está certo** — quem pode subir é quem NÃO
+precisa de decisão. Errado era a coluna responder NULL.
+
+O terceiro varre da 039 em diante procurando `coluna = ANY (ARRAY[...])` sem
+COALESCE — a forma exata do defeito. A linha de corte é a mesma de
+`TodaMigracaoSeRegistra`: reescrever migração já aplicada faz o repositório mentir
+sobre o que foi executado.
+
+### Prática que nasceu deste Step
+
+**P-44 — Coluna lida pela negativa não pode ser nula.**
+Em SQL, `NULL = ANY(...)` é NULL, `NOT NULL` é NULL, e NULL não passa em `WHERE`
+nem casa com `is.false`. Toda expressão booleana de view que compare coluna
+anulável leva `COALESCE`. *Origem: 39 orçamentos prontos para lançar ficaram
+invisíveis no painel e na fila ao mesmo tempo, sem erro nenhum, porque
+`lancamento_bloqueio` é nulo até a primeira tentativa.*
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `db/migrations/039_precisa_decisao_nunca_e_nulo.sql` | **novo** |
+| `baleryan/interno/modulos/orcamentos/precisa_decisao_test.go` | **novo** — três guardas |
 
 ---
 
