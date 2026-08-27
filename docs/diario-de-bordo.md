@@ -3162,6 +3162,8 @@ Roda quando alguém manda: **Actions › Leitor de notas › Run workflow**.
 | `OFrontDizDeQueFilaAsRotasDeLeituraSao` | chamada de leitura sem a fila no endereço | tirei `?fila=` do POST |
 | `FalhaDoServidorNaoMarcaANota` | nota acusada por defeito de configuração | tirei a conferência do tipo |
 | `FalhaDaPropriaNotaContinuaMarcando` | a saída fácil: nunca marcar nada | fiz nunca marcar |
+| `OFrontRecebeONomeDeQuemJaEstavaAqui` | recusa de repetido sem dizer qual | fiz a tela ignorar o campo |
+| `OuOutroNomeNuncaDevolveVazio` | repetida contada como nova por falta de nome | tirei o caso do `<nil>` |
 
 ### O defeito que chegou à tela, e o guarda que o pegou
 
@@ -3208,6 +3210,28 @@ E as frases de `EmPortugues` mandavam a pessoa para "o workflow". Desde que o
 motor lê também, a variável pode estar nos dois lugares — e mandar quem está na
 tela procurar no lugar errado é pior que não dizer nada: ele troca a linha, clica
 de novo e recebe o mesmo erro, achando que não adiantou.
+
+### O terceiro: a recusa que estava certa e calada
+
+Ele mandou **10 arquivos e viu 9 na fila.** Contou na mão.
+
+Dois deles eram o MESMO arquivo, byte a byte — `…4b1.jpg` e `…4b1 (1).jpg`, a
+cópia que o navegador cria ao baixar duas vezes. A trava do sha256 recusou o
+segundo, que é exatamente o que ela existe para fazer.
+
+A tela dizia **"1 já estava na lista"**, em vermelho, numa linha de erro. Com dez
+arquivos de nome UUID, isso não identifica nada — e nem era erro. Ele foi procurar
+defeito num sistema que estava certo.
+
+A recusa não mudou. O que mudou é que ela **diz qual, e de quem é cópia**: o
+motor devolve `ja_existia_como` (o nome com que a nota entrou da primeira vez) e a
+tela mostra os dois nomes num aviso que fica até a pessoa dizer "entendi".
+
+Dois testes, e o primeiro me pegou: ele procurava `ja_existia_como` no front
+INTEIRO e passava mesmo com a tela ignorando o campo, porque a declaração
+continua em `tipos.ts`. Sabotei tirando o uso, o teste não reclamou — reescrevi
+para olhar `Arquivos.tsx` e o uso real. **Teste que não falha na sabotagem não é
+teste; é decoração.**
 
 ### O botão
 

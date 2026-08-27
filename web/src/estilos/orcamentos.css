@@ -906,3 +906,20 @@
   color: var(--mut); font-weight: 700; line-height: 1;
 }
 .orc-tk s:hover, .orc-tk s:focus-visible { color: var(--red); }
+
+/* O ARQUIVO QUE JÁ ESTAVA AQUI
+   Não é erro — é informação, e por isso não é vermelho. Mas fica até a pessoa
+   dizer "entendi": a versão anterior escrevia "1 já estava na lista" numa linha
+   de erro que passou despercebida, e o usuário foi contar 10 contra 9 na mão. */
+.orc-repetidos {
+  margin: 0 0 14px; padding: 12px 16px;
+  border-radius: var(--r-m); border: 1px solid var(--line);
+  background: var(--card); text-align: left;
+}
+.orc-repetidos p { margin: 0 0 8px; font-size: 12.5px; color: var(--txt); line-height: 1.5; }
+.orc-repetidos ul {
+  margin: 0 0 10px; padding-left: 20px;
+  font-size: 12.5px; color: var(--txt); line-height: 1.6;
+  max-height: 150px; overflow-y: auto;
+}
+.orc-repetidos b { color: var(--ink); word-break: break-all; }

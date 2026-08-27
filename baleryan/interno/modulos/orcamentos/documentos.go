@@ -201,6 +201,18 @@ type resultadoDaInsercao struct {
 	ID    string `json:"id,omitempty"`
 	Erro  string `json:"erro,omitempty"`
 	Igual bool   `json:"ja_existia,omitempty"`
+	// Como a nota se chamava da primeira vez que entrou.
+	//
+	// SEM ISTO, A RECUSA É UM NÚMERO
+	//
+	//	A tela dizia "1 já estava na lista" e parava aí. Com dez arquivos de
+	//	nome UUID, isso não identifica nada: o usuário conta 10 enviados, vê 9
+	//	na fila, e vai procurar defeito no sistema — foi o que aconteceu em
+	//	27/08/2026.
+	//
+	//	Dizer o nome dos DOIS transforma a mesma recusa em resposta: "este
+	//	arquivo é byte a byte igual àquele, e por isso entrou uma vez só".
+	IgualA string `json:"ja_existia_como,omitempty"`
 }
 
 // inserirDocumentos recebe os arquivos da barra de inserção.
@@ -236,37 +248,57 @@ func (m *Modulo) inserirDocumentos(w http.ResponseWriter, r *http.Request) {
 	saida := make([]resultadoDaInsercao, 0, len(arquivos))
 	for _, cabecalho := range arquivos {
 		res := resultadoDaInsercao{Nome: cabecalho.Filename}
-		id, jaExistia, err := m.guardarUm(r.Context(), p, fila, cabecalho.Filename, cabecalho)
+		id, igualA, err := m.guardarUm(r.Context(), p, fila, cabecalho.Filename, cabecalho)
 		switch {
 		case err != nil:
 			res.Erro = err.Error()
 		default:
 			res.ID = id
-			res.Igual = jaExistia
+			res.Igual = igualA != ""
+			res.IgualA = igualA
 		}
 		saida = append(saida, res)
 	}
 	web.Responder(w, http.StatusOK, map[string]any{"arquivos": saida})
 }
 
+// ouOutroNome devolve o nome de quem já estava, ou o do próprio arquivo quando a
+// linha antiga não tem nome. Nunca devolve vazio: vazio aqui significaria "não é
+// repetida", e a nota seria contada como nova.
+func ouOutroNome(antigo, meu string) string {
+	if a := strings.TrimSpace(antigo); a != "" && a != "<nil>" {
+		return a
+	}
+	return meu
+}
+
 // guardarUm põe um arquivo no armazém e cria a linha do documento.
+//
+// O SEGUNDO RETORNO É UM NOME, E NÃO UM SIM/NÃO
+//
+//	Ele era `bool`: "já existia". A tela recebia isso e escrevia "1 já estava na
+//	lista" — com dez arquivos de nome UUID, um número que não identifica nada.
+//	Em 27/08/2026 o usuário mandou 10, viu 9 na fila e foi procurar defeito no
+//	sistema; o sistema estava certo e calado.
+//
+//	Vazio quer dizer "é nota nova". Preenchido é o nome de quem já estava.
 func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, nome string,
-	cabecalho *multipart.FileHeader) (string, bool, error) {
+	cabecalho *multipart.FileHeader) (string, string, error) {
 	f, err := cabecalho.Open()
 	if err != nil {
-		return "", false, fmt.Errorf("não consegui abrir: %w", err)
+		return "", "", fmt.Errorf("não consegui abrir: %w", err)
 	}
 	defer f.Close()
 
 	conteudo, err := io.ReadAll(io.LimitReader(f, TamanhoMaximo+1))
 	if err != nil {
-		return "", false, fmt.Errorf("não consegui ler: %w", err)
+		return "", "", fmt.Errorf("não consegui ler: %w", err)
 	}
 	if len(conteudo) == 0 {
-		return "", false, fmt.Errorf("o arquivo está vazio")
+		return "", "", fmt.Errorf("o arquivo está vazio")
 	}
 	if len(conteudo) > TamanhoMaximo {
-		return "", false, fmt.Errorf("passa de %d MB", TamanhoMaximo>>20)
+		return "", "", fmt.Errorf("passa de %d MB", TamanhoMaximo>>20)
 	}
 
 	soma := sha256.Sum256(conteudo)
@@ -280,7 +312,7 @@ func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, no
 	//   envio é idempotente por construção (P-04).
 	chave := armazem.Caminho(p.ClienteID, sha, ext)
 	if err := m.arm.Enviar(ctx, chave, bytes.NewReader(conteudo), int64(len(conteudo)), sha, tipoMIME); err != nil {
-		return "", false, fmt.Errorf("não consegui guardar no armazém: %w", err)
+		return "", "", fmt.Errorf("não consegui guardar no armazém: %w", err)
 	}
 
 	if err := m.bd.Upsert(ctx, "arquivos?on_conflict=sha256", []map[string]any{{
@@ -290,7 +322,7 @@ func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, no
 		"tipo":       tipoMIME,
 		"chave_r2":   chave,
 	}}, nil); err != nil {
-		return "", false, fmt.Errorf("guardei o arquivo mas não consegui registrá-lo: %w", err)
+		return "", "", fmt.Errorf("guardei o arquivo mas não consegui registrá-lo: %w", err)
 	}
 
 	// A MESMA NOTA JÁ ESTÁ NA FILA?
@@ -299,9 +331,14 @@ func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, no
 	//   é melhor do que descobrir na geração.
 	var iguais []map[string]any
 	_ = m.bd.Buscar(ctx, "documentos?cliente_id=eq."+banco.Escapar(p.ClienteID)+
-		"&arquivo_sha256=eq."+sha+"&oculto_em=is.null&select=id&limit=1", &iguais)
+		"&arquivo_sha256=eq."+sha+"&oculto_em=is.null&select=id,nome_arquivo&limit=1", &iguais)
 	if len(iguais) > 0 {
-		return fmt.Sprint(iguais[0]["id"]), true, nil
+		// O NOME DE QUEM JÁ ESTAVA É A RESPOSTA, NÃO UM ENFEITE
+		//   É por ele que a pessoa entende que não perdeu nota nenhuma — só
+		//   mandou a mesma duas vezes. `vazioVira` cobre a linha antiga sem
+		//   nome, para a tela nunca dizer "igual a ".
+		return fmt.Sprint(iguais[0]["id"]),
+			ouOutroNome(fmt.Sprint(iguais[0]["nome_arquivo"]), nome), nil
 	}
 
 	linha := map[string]any{
@@ -330,10 +367,10 @@ func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, no
 
 	var criados []map[string]any
 	if err := m.bd.Inserir(ctx, "documentos", []map[string]any{linha}, &criados); err != nil {
-		return "", false, fmt.Errorf("não consegui registrar o documento: %w", err)
+		return "", "", fmt.Errorf("não consegui registrar o documento: %w", err)
 	}
 	if len(criados) == 0 {
-		return "", false, fmt.Errorf("registrei o documento mas o banco não devolveu o id")
+		return "", "", fmt.Errorf("registrei o documento mas o banco não devolveu o id")
 	}
 	id := fmt.Sprint(criados[0]["id"])
 
@@ -354,7 +391,7 @@ func (m *Modulo) guardarUm(ctx context.Context, p *seguranca.Principal, fila, no
 	}
 
 	_ = m.hist.Registrar(ctx, p, "orcamentos", id, "inserir_documento", nil)
-	return id, false, nil
+	return id, "", nil
 }
 
 // aplicarLeitura despeja a leitura nos campos da linha do documento.

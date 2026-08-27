@@ -508,6 +508,9 @@ export function Insercao({ fila, aoTerminar, aoFalhar }: {
   const [escolhidos, setEscolhidos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const [sobre, setSobre] = useState(false)
+  // Os arquivos que já estavam aqui. Fica até a pessoa responder: sumir sozinho
+  // é como a recusa passou despercebida da primeira vez.
+  const [repetidos, setRepetidos] = useState<{ nome: string; como: string }[]>([])
   const campo = useRef<HTMLInputElement>(null)
 
   async function inserir() {
@@ -518,10 +521,24 @@ export function Insercao({ fila, aoTerminar, aoFalhar }: {
         '/orcamentos/documentos?fila=' + fila, escolhidos)
       const ruins = r.arquivos.filter(a => a.erro)
       const repetidos = r.arquivos.filter(a => a.ja_existia)
-      const partes: string[] = []
-      if (ruins.length) partes.push(ruins.map(a => `${a.nome}: ${a.erro}`).join(' · '))
-      if (repetidos.length) partes.push(`${repetidos.length} já estava${repetidos.length > 1 ? 'm' : ''} na lista`)
-      aoFalhar(partes.join(' — '))
+      if (ruins.length) {
+        aoFalhar(ruins.map(a => `${a.nome}: ${a.erro}`).join(' · '))
+      } else {
+        aoFalhar('')
+      }
+      // ARQUIVO REPETIDO NÃO É ERRO, E DIZER QUANTOS NÃO É DIZER QUAIS
+      //
+      //	A tela escrevia "1 já estava na lista", em vermelho, e parava aí. Com
+      //	dez arquivos de nome UUID isso não identifica nada: em 27/08/2026 o
+      //	usuário mandou 10, contou 9 na fila e foi procurar defeito no sistema.
+      //	O sistema estava certo — os dois arquivos eram byte a byte iguais — e
+      //	calado.
+      //
+      //	Agora diz os DOIS nomes. A mesma recusa vira resposta.
+      setRepetidos(repetidos.map(a => ({
+        nome: a.nome,
+        como: a.ja_existia_como ?? '',
+      })))
       setEscolhidos([])
       if (campo.current) campo.current.value = ''
       await aoTerminar()
@@ -543,6 +560,26 @@ export function Insercao({ fila, aoTerminar, aoFalhar }: {
         setEscolhidos(Array.from(e.dataTransfer.files))
       }}
     >
+      {repetidos.length > 0 && (
+        <div className="orc-repetidos">
+          <p>
+            <b>{repetidos.length}</b>{' '}
+            {repetidos.length === 1 ? 'arquivo não entrou' : 'arquivos não entraram'}
+            {' '}porque {repetidos.length === 1 ? 'já estava' : 'já estavam'} aqui —
+            {' '}mesmo arquivo, byte a byte. Nenhuma nota foi perdida.
+          </p>
+          <ul>
+            {repetidos.map(x => (
+              <li key={x.nome}>
+                <b>{x.nome}</b>
+                {x.como && x.como !== x.nome && <> é o mesmo que <b>{x.como}</b></>}
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="orc-bt" onClick={() => setRepetidos([])}>Entendi</button>
+        </div>
+      )}
+
       <p>insira e gerencie os arquivos direto pelo site</p>
       <div className="linha">
         <button type="button" className="orc-bt" onClick={() => campo.current?.click()}>

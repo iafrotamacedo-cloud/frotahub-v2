@@ -311,6 +311,8 @@ export interface ResultadoDaInsercao {
   id?: string
   erro?: string
   ja_existia?: boolean
+  /** Como a nota se chamava da primeira vez que entrou. */
+  ja_existia_como?: string
 }
 
 export interface ResultadoDaGeracao {
