@@ -1,0 +1,44 @@
+# rev 1 — o que o servidor precisa saber sobre esta pasta
+#
+# O ARQUIVO QUE NÃO PODE FICAR GUARDADO
+#
+#   O front é um arquivo só. Os pedaços pesados — programa e estilo — levam um
+#   código no nome (`index-BYrLgD1G.css`), então mudança neles obriga o navegador
+#   a buscar de novo. O `index.html` tem sempre o mesmo nome, e é ele que diz
+#   QUAIS pedaços carregar.
+#
+#   Se o navegador guardar o `index.html`, a pessoa continua vendo a versão de
+#   ontem depois de uma publicação — e, pior, um `index.html` velho pode apontar
+#   para arquivos que já não existem, o que dá tela branca sem erro nenhum.
+#
+#   Isso já mordeu uma vez, na Fase 1, e resolvia-se com Ctrl+Shift+R. Pedir
+#   Ctrl+Shift+R a quem usa o sistema é transferir o defeito para o usuário.
+#
+# E POR QUE ISSO FICOU URGENTE AGORA
+#
+#   Na virada dos domínios, `frotamacedo.com.br` passa a servir o sistema NOVO.
+#   Todo mundo que já abriu o endereço tem o `index.html` do sistema ANTIGO
+#   guardado no navegador — e continuaria vendo o antigo, num endereço que já não
+#   o serve. Sem esta regra, a virada parece não ter acontecido.
+
+<IfModule mod_headers.c>
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # Os arquivos com código no nome são imutáveis por construção: se o conteúdo
+  # muda, o nome muda. Guardar por um ano é seguro e economiza a maior parte do
+  # tráfego.
+  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|svg|gif|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# O ENDEREÇO COM `#` NÃO PRECISA DE REESCRITA
+#
+#   O caminho da tela mora depois do `#`, que nunca chega ao servidor. Por isso
+#   NÃO há regra de reescrita aqui: recarregar em qualquer tela funciona sem o
+#   servidor saber nada sobre as rotas do sistema. Se um dia o `#` sair, é aqui
+#   que a regra entra.

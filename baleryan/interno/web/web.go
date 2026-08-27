@@ -59,7 +59,25 @@ func CORS(cfg *config.Config, proximo http.Handler) http.Handler {
 		// Sem esta linha o navegador ESCONDE do front o nome do arquivo que o
 		// motor mandou, e a extração chega com o nome do endereço.
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		// TODOS OS MÉTODOS QUE O MOTOR ATENDE, E NÃO OS QUE ALGUÉM LEMBROU
+		//
+		//	`PUT` faltava aqui desde o começo, e ninguém notou por um motivo
+		//	simples: a única rota `PUT` do sistema é a que grava a matriz de
+		//	permissões, e o catálogo de rotinas ficou vazio até os módulos de
+		//	negócio existirem. Em 28/08/2026 o dono abriu a matriz pela primeira
+		//	vez com nove rotinas dentro, marcou tudo, clicou em salvar — e o
+		//	navegador recusou o preflight antes de o pedido sair.
+		//
+		//	O sintoma foi cruel: a tela CARREGOU (o `GET` passa) e só o salvar
+		//	falhou, com a mesma frase de "não consegui falar com o servidor" que
+		//	um problema de rede daria. Do lado do JavaScript, preflight recusado e
+		//	cabo desligado são a mesma coisa.
+		//
+		//	A lista é conferida por teste contra as rotas de verdade
+		//	(`TestOCORSAceitaTodosOsMetodosQueOMotorAtende`): método novo no mux
+		//	sem método novo aqui quebra a compilação dos testes, e não a tela de
+		//	alguém.
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
 		if r.Method == http.MethodOptions {
