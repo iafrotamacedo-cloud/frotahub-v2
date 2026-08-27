@@ -24,6 +24,7 @@
 package orcamentos
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -76,25 +77,7 @@ func (m *Modulo) reconferir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// O ESPELHO É ATUALIZADO JUNTO
-	//
-	//	As listas e o `destino` da view saem de `chamados`, não do Trílogo. Se só
-	//	a marca do orçamento sumisse, a tela continuaria mandando aquele ticket
-	//	para a lista do cliente — dois lugares com respostas diferentes sobre a
-	//	mesma pergunta, que é o defeito que o CORE-06 existe para evitar.
-	//
-	//	Falhar aqui não interrompe: a resposta ao usuário é sobre o Trílogo, e
-	//	trocá-la por um erro de banco esconderia o diagnóstico verdadeiro.
-	espelho := map[string]any{
-		"status_codigo": d.Status,
-		"status":        rotuloDoStatus(d.Status),
-		"lido_em":       time.Now().UTC().Format(time.RFC3339),
-	}
-	if err := m.bd.Atualizar(r.Context(), "chamados",
-		"numero=eq."+strconv.Itoa(ticket)+"&cliente_id=eq."+banco.Escapar(p.ClienteID),
-		espelho); err != nil {
-		log.Printf("orcamentos: reconferir não atualizou o espelho do chamado %d: %v", ticket, err)
-	}
+	m.espelharChamado(r.Context(), p.ClienteID, ticket, d.Status)
 
 	nome, travado := statusQueRecusa[d.Status]
 	if travado {
@@ -162,4 +145,43 @@ func rotuloDoStatus(codigo int) string {
 		return "Em execução"
 	}
 	return "status " + strconv.Itoa(codigo)
+}
+
+// espelharChamado grava em `chamados` o status que ACABAMOS de ver no Trílogo.
+//
+// POR QUE ELA EXISTE, E POR QUE MORA FORA DAS DUAS ROTINAS QUE A USAM
+//
+//	As listas, o `destino` e o `estado` da view saem de `chamados` — do nosso
+//	espelho, não do Trílogo. Quem lê o Trílogo ao vivo e não escreve aqui deixa
+//	a tela contando a versão de ontem.
+//
+//	Medido em 26/08/2026: num lote de 56 lançamentos, 17 orçamentos foram
+//	recusados com "chamado Arquivado (status 3)" — e a nossa base continuou
+//	dizendo "Vistoriado (6)" para os mesmos tickets. O motor teve o status
+//	verdadeiro na mão, dezessete vezes, e jogou fora. Resultado: os 17 voltaram
+//	VERDES na tela, entraram de novo no "lançar todos" da vez seguinte, e
+//	levaram a mesma recusa. A divergência não só apareceu — ela sobreviveu.
+//
+//	O `reconferir` já fazia certo. O `lancar` não fazia. Duas rotinas com o
+//	mesmo dado na mão e comportamentos diferentes é a definição do que o
+//	CORE-06 proíbe, então a regra virou uma função só, e as duas a chamam.
+//
+// ELA ENGOLE O PRÓPRIO ERRO, DE PROPÓSITO
+//
+//	É chamada no meio de uma rotina que já vai responder alguma coisa ao
+//	usuário — sobre o Trílogo, não sobre o nosso banco. Se a gravação do espelho
+//	falhasse e virasse a resposta, a pessoa leria um erro de banco no lugar do
+//	diagnóstico verdadeiro. Falhou: vai para o log e a vida segue.
+func (m *Modulo) espelharChamado(ctx context.Context, clienteID string, ticket, status int) {
+	campos := map[string]any{
+		"status_codigo": status,
+		"status":        rotuloDoStatus(status),
+		"lido_em":       time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := m.bd.Atualizar(ctx, "chamados",
+		"numero=eq."+strconv.Itoa(ticket)+"&cliente_id=eq."+banco.Escapar(clienteID),
+		campos); err != nil {
+		log.Printf("orcamentos: não consegui espelhar o status %d do chamado %d: %v",
+			status, ticket, err)
+	}
 }

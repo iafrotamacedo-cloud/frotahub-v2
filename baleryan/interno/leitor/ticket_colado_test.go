@@ -38,7 +38,7 @@ func TestOsJeitosDeEscreverOTicketColado(t *testing.T) {
 func TestSoltarOLimiteNaoDeixaEntrarOQueNaoEhTicket(t *testing.T) {
 	for _, texto := range []string{
 		"DAV: 92080",
-		"DAV92080",            // colado também não passa
+		"DAV92080", // colado também não passa
 		"NOSSO NUMERO: 45945",
 		"NF 18452",
 		"PEDIDO 123456",

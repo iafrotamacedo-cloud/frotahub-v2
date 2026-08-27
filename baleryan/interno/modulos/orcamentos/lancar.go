@@ -242,11 +242,13 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 	//	que eu não conheço PASSA e vai tentar: se um dia eles liberarem outro, o
 	//	lançamento funciona sozinho, sem alguém precisar lembrar de mexer aqui.
 	//	Uma conferência nossa nunca deve ser mais restritiva que a deles.
-	if d, err := sessao.Detalhe(r.Context(), ticket); err != nil {
+	d, err := sessao.Detalhe(r.Context(), ticket)
+	if err != nil {
 		m.bloquear(r.Context(), p, id, orc, "trilogo_fora", err.Error())
 		m.erro(w, "não consegui ler o chamado no Trílogo", err)
 		return
-	} else if d == nil || d.ID != ticket {
+	}
+	if d == nil || d.ID != ticket {
 		// O 200 COM CORPO VAZIO
 		//	O Trílogo responde assim quando o chamado não é da conta que perguntou.
 		//	Sem esta conferência, viraria um Detalhe zerado e o status 0 passaria.
@@ -254,7 +256,27 @@ func (m *Modulo) lancar(w http.ResponseWriter, r *http.Request) {
 		m.bloquear(r.Context(), p, id, orc, "ticket_recusado", det)
 		web.Falhar(w, http.StatusConflict, det+". Confira o número e a conta.")
 		return
-	} else if nome, travado := statusQueRecusa[d.Status]; travado {
+	}
+
+	// O QUE ACABAMOS DE VER VALE MAIS QUE O QUE ESTAVA GUARDADO
+	//
+	//	`d.Status` veio do Trílogo AGORA. As telas, porém, leem o nosso espelho
+	//	(`chamados`) — é dele que saem o `destino` e o `estado` da view. Ler a
+	//	verdade e não gravá-la é deixar a tela contando a versão de ontem.
+	//
+	//	Medido em 26/08/2026: num lote de 56, dezessete orçamentos foram
+	//	recusados com "chamado Arquivado (status 3)" enquanto a nossa base dizia
+	//	"Vistoriado (6)" para os mesmos tickets. O motor teve o status certo na
+	//	mão dezessete vezes e o descartou — então os 17 voltaram VERDES na tela
+	//	e entraram de novo no lote seguinte, para levar a mesma recusa.
+	//
+	//	Repare que isto vem ANTES de decidir travar, e vale nos dois desfechos:
+	//	descobrir que o chamado LIBEROU também é notícia que o espelho precisa
+	//	receber. E é a mesma função que o `reconferir` usa (CORE-06) — duas
+	//	rotinas com o mesmo dado na mão não podem ter comportamentos diferentes.
+	m.espelharChamado(r.Context(), p.ClienteID, ticket, d.Status)
+
+	if nome, travado := statusQueRecusa[d.Status]; travado {
 		det := fmt.Sprintf("o Trílogo não aceita custo em chamado %s (status %d)", nome, d.Status)
 		m.bloquear(r.Context(), p, id, orc, "ticket_status", det)
 		web.Responder(w, http.StatusConflict, map[string]any{

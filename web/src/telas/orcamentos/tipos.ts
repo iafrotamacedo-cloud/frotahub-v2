@@ -450,3 +450,44 @@ export interface ListaDePendencias {
   orcamentos: number
   valor: number
 }
+
+
+// ---------------------------------------------------------------------------
+// O fechamento — as duas contas
+//
+// `chave` é o valor cru da view ('sem-ticket', 'espera-cliente'…) e `rotulo` é
+// a frase. Os dois vêm do banco de propósito: a tela não traduz nada, senão
+// existiriam duas listas de nomes para o mesmo estado, e um dia elas divergem.
+// ---------------------------------------------------------------------------
+
+export interface LinhaDoFechamento {
+  /** A posição na leitura. 99 é o balde do desconhecido, e ele grita na tela. */
+  ordem: number
+  chave: string
+  rotulo: string
+  quantos: number
+  valor: number
+}
+
+export interface ContaDoFechamento {
+  linhas: LinhaDoFechamento[]
+  /** A soma das linhas. */
+  total: number
+  valor: number
+  /** Quantos existem na tabela, contados POR FORA da soma — é o que permite
+   *  a diferença ser diferente de zero. */
+  universo: number
+  diferenca: number
+}
+
+export interface Fechamento {
+  notas: ContaDoFechamento
+  orcamentos: ContaDoFechamento
+  ponte: {
+    notas_usadas: number
+    vinculos_vivos: number
+    usadas_sem_vinculo: number
+    vinculo_sem_nota_usada: number
+    vinculo_de_orcamento_apagado: number
+  }
+}

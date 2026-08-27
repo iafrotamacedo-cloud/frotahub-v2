@@ -336,3 +336,70 @@ func TestOLoteNaoMandaConfirmacao(t *testing.T) {
 		t.Error("o lote manda a confirmação de duplicidade — a trava não valeria no lote")
 	}
 }
+
+// QUEM LÊ O TRÍLOGO AO VIVO GRAVA O QUE VIU
+//
+//	As telas leem o nosso espelho (`chamados`), não o Trílogo. Uma rotina que
+//	pergunta o status ao vivo e não o grava deixa a tela contando a versão de
+//	ontem — e a divergência sobrevive ao próprio incidente.
+//
+//	Medido em 26/08/2026: dezessete orçamentos recusados com "chamado Arquivado
+//	(status 3)" enquanto a nossa base dizia "Vistoriado (6)" para os mesmos
+//	tickets. O motor teve o status certo na mão dezessete vezes e o descartou.
+//	Os 17 voltaram verdes na tela e entraram de novo no lote seguinte.
+//
+//	O `reconferir` já fazia certo; o `lancar` não. Este teste cobra as duas.
+func TestQuemLeOStatusAoVivoEspelhaNoBanco(t *testing.T) {
+	for _, arquivo := range []string{"lancar.go", "reconferir.go"} {
+		fonte, err := os.ReadFile(arquivo)
+		if err != nil {
+			t.Fatalf("não consegui ler %s: %v", arquivo, err)
+		}
+		texto := string(fonte)
+		if !strings.Contains(texto, "sessao.Detalhe(") {
+			continue // não lê status ao vivo: nada a cobrar
+		}
+		if !strings.Contains(texto, "m.espelharChamado(") {
+			t.Errorf("%s lê o status do chamado ao vivo (`sessao.Detalhe`) e não chama "+
+				"`espelharChamado` — a tela vai continuar mostrando o status de ontem, "+
+				"e o orçamento volta verde para levar a mesma recusa", arquivo)
+		}
+	}
+}
+
+// E A GRAVAÇÃO DO ESPELHO EXISTE UMA VEZ SÓ (CORE-06)
+//
+//	Duas rotinas escrevendo `chamados.status_codigo` por conta própria é como
+//	elas passaram a discordar. O `UPDATE` mora dentro de `espelharChamado`, e
+//	só ali.
+func TestOEspelhoDoChamadoTemUmDonoSo(t *testing.T) {
+	arquivos, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("não consegui listar o pacote: %v", err)
+	}
+	quantos := 0
+	for _, a := range arquivos {
+		if strings.HasSuffix(a, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(a)
+		if err != nil {
+			continue
+		}
+		texto := string(b)
+		// Cada trecho que grava em `chamados` mandando `status_codigo` junto.
+		for _, pedaco := range strings.Split(texto, `"chamados"`)[1:] {
+			_ = pedaco
+		}
+		if strings.Contains(texto, `"status_codigo":`) {
+			quantos++
+			if a != "reconferir.go" {
+				t.Errorf("%s grava `status_codigo` por conta própria — o espelho do "+
+					"chamado tem um dono só, `espelharChamado` em reconferir.go", a)
+			}
+		}
+	}
+	if quantos == 0 {
+		t.Error("ninguém grava o espelho do chamado — `espelharChamado` sumiu")
+	}
+}

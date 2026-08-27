@@ -13,9 +13,9 @@ func TestPorExtenso(t *testing.T) {
 		0.01:    "um centavo",
 		0.02:    "dois centavos",
 		0:       "zero real",
-		100:     "cem reais",  // "cem", e não "cento"
+		100:     "cem reais", // "cem", e não "cento"
 		101:     "cento e um reais",
-		1000:    "mil reais",  // "mil", e não "um mil"
+		1000:    "mil reais", // "mil", e não "um mil"
 		1020:    "mil e vinte reais",
 		1120:    "mil, cento e vinte reais", // vírgula, e não "e"
 		1454.22: "mil, quatrocentos e cinquenta e quatro reais e vinte e dois centavos",

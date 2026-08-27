@@ -19,11 +19,11 @@ import (
 
 func TestDataLimpaAceitaOsFormatosQueOModeloDevolve(t *testing.T) {
 	casos := map[string]string{
-		"28/07/2026": "2026-07-28", // o caso da LEDS NF 19650
-		"27-07-2026": "2026-07-27", // o caso da NF RATEIO SV 659629
-		"2026-07-28": "2026-07-28", // o formato certo passa intacto
-		"2026-7-8":   "2026-07-08", // ISO sem o zero à esquerda
-		"27.07.2026": "2026-07-27",
+		"28/07/2026":   "2026-07-28", // o caso da LEDS NF 19650
+		"27-07-2026":   "2026-07-27", // o caso da NF RATEIO SV 659629
+		"2026-07-28":   "2026-07-28", // o formato certo passa intacto
+		"2026-7-8":     "2026-07-08", // ISO sem o zero à esquerda
+		"27.07.2026":   "2026-07-27",
 		" 28/07/2026 ": "2026-07-28",
 	}
 	for bruto, esperado := range casos {

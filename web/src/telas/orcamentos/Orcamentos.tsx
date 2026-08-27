@@ -17,6 +17,7 @@ import { Correcoes } from './Correcoes'
 import { Planilhas } from './Planilhas'
 import { Direto } from './Direto'
 import { Pendencias } from './Pendencias'
+import { Fechamento } from './Fechamento'
 import { emReais, emDataHora, type Painel as DadosDoPainel } from './tipos'
 
 interface Props {
@@ -51,6 +52,7 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
   if (onde && onde.startsWith('pendencias')) {
     return <Pendencias lista={onde.split(':')[1]} voltar={voltar} />
   }
+  if (onde === 'fechamento') return <Fechamento voltar={voltar} />
   if (onde === 'planilhas') return <Planilhas voltar={voltar} />
 
   if (erro) return <p className="erro">{erro}</p>
@@ -238,6 +240,26 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
         { texto: 'Apagados', fim: String(d.apagados) },
       ],
     },
+    {
+      // O FECHAMENTO É A ÚLTIMA ETAPA PORQUE ELE OLHA TODAS AS OUTRAS
+      //
+      //	Ele não é mais uma fila: é a conferência de que nenhuma das filas
+      //	perdeu nada. Por isso o número dele não é uma pendência — é o total de
+      //	notas que já entraram no sistema, desde sempre.
+      chave: 'fechamento',
+      titulo: 'Fechamento',
+      descricao: 'Toda nota em um destino, todo orçamento em um estado. A conta que prova que nada se perdeu.',
+      icone: <IconeBalanca />,
+      numero: d.notas_arquivos,
+      rotulo: 'notas na base',
+      previaTitulo: 'as duas contas',
+      previa: [
+        { texto: 'Notas que entraram', fim: String(d.notas_arquivos) },
+        { texto: 'Orçamentos que existem', fim: String(d.no_total) },
+      ],
+      previaVazia: 'nada para conferir ainda',
+      rodape: 'clique para conferir',
+    },
   ]
 }
 
@@ -298,6 +320,15 @@ function IconeRobo() {
 
 /** Um relógio: o que trava aqui é TEMPO, não defeito. O triângulo de aviso, que
  *  é o ícone de Correções, diria "alguém errou" — e ninguém errou. */
+/** Uma balança: aqui não se trabalha, se confere. */
+function IconeBalanca() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v16M7 20h10M3 8l4-4 4 4M3 8a4 4 0 0 0 8 0M13 8l4-4 4 4M13 8a4 4 0 0 0 8 0" />
+    </svg>
+  )
+}
+
 function IconeEspera() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">

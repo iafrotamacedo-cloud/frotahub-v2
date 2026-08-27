@@ -129,15 +129,18 @@ func perto(a, b float64) bool {
 //	existem para integração. Uma regra geral aqui viraria uma lista de exceções
 //	que alguém mantém à mão, e lista de exceção mantida à mão é onde o próximo
 //	buraco se esconde. Estas quatro têm dona: a tela de Pendências.
-func TestATelaDePendenciasChamaAsRotasQueOMotorServe(t *testing.T) {
+func TestAsTelasChamamAsRotasQueOMotorServe(t *testing.T) {
 	rotas, err := os.ReadFile("rotas.go")
 	if err != nil {
 		t.Fatalf("não consegui ler o rotas.go: %v", err)
 	}
-	registradas := regexp.MustCompile(`"(?:GET|POST) (/orcamentos/pendencias[a-z./]*)"`).
+	// Pendências e Fechamento: as duas frentes que nasceram de uma regra que já
+	// existia no motor e não tinha porta na tela.
+	registradas := regexp.MustCompile(`"(?:GET|POST) (/orcamentos/(?:pendencias|fechamento)[a-z./]*)"`).
 		FindAllStringSubmatch(string(rotas), -1)
-	if len(registradas) == 0 {
-		t.Fatal("o motor não registra nenhuma rota de pendências — o teste deixou de olhar o que devia")
+	if len(registradas) < 5 {
+		t.Fatalf("achei só %d rotas de pendências/fechamento — o teste deixou de olhar o que devia",
+			len(registradas))
 	}
 
 	front := lerOFront(t)

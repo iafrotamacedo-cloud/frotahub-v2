@@ -4,7 +4,7 @@
 > Cada step lista o que foi definido, feito e criado — plataforma por plataforma.
 > Quem ler só este arquivo sabe onde estamos, o que existe e qual é o próximo passo.
 >
-> Última atualização: **24/08/2026** · Rodada 30 · **Fases 0, 1 e 2 concluídas · Fase 3 em andamento**
+> Última atualização: **27/08/2026** · Rodada 31 · **Fases 0, 1, 2 e 3 concluídas · Fase 4 em operação**
 
 ---
 
@@ -2260,6 +2260,437 @@ dizer a base, senão o teste acusa um defeito que não existe.)*
 ---
 ---
 
+# FASE 4 — Orçamentos
+
+**O que é.** A rotina que dá nome à empresa: a nota do fornecedor entra, vira
+orçamento com a nossa margem, sobe no Trílogo como custo do chamado, e depois é
+faturada ao cliente. É o primeiro módulo do FrotaHub que mexe em **dinheiro que
+sai e entra**, e por isso é o mais conferido de todos.
+
+**O caminho, em uma linha.**
+
+```
+nota entra → é lida → ganha ticket → vira orçamento → é lançada no Trílogo → é faturada
+                ↓            ↓              ↓                  ↓
+            falhou      sem ticket      repetida         chamado não aceita
+                       sem associação   (barrada)         (pendência)
+```
+
+**Situação: CONSTRUÍDA E EM OPERAÇÃO.** 91 notas processadas, 703 orçamentos na
+base (67 nossos, 636 herdados do sistema antigo), 609 lançados no Trílogo.
+
+> **Nota de honestidade sobre este registro.** Os Steps 1 a 7 abaixo foram
+> escritos **depois**, reconstruídos a partir das migrações e do código. As
+> migrações deste módulo são longas e explicam a decisão de cada mudança — elas
+> são o registro de verdade, e este resumo aponta para elas. O Step 8 foi escrito
+> no dia, com as medições na mão.
+>
+> O diário ficou três dias sem ser atualizado, do dia 24 ao 27. Ele é a regra 5
+> da nossa colaboração e não deveria ter parado; parou. Fica registrado assim,
+> em vez de a lacuna ser preenchida com memória.
+
+---
+
+## Step 1 — O modelo (migrações 010 e 011)
+
+| Migração | O que trouxe |
+|---|---|
+| **010** | `documentos`, `documento_itens`, `documento_tickets`, `orcamentos`, `orcamento_itens`, `orcamento_documentos`, `parametros` |
+| **011** | a nota rateada não passa com ticket solto |
+
+**As duas decisões estruturais**, herdadas do desenho da Fase 0:
+
+**Documento e orçamento são coisas separadas**, ligadas por `orcamento_documentos`.
+É o que faz o **rateio** — uma nota atendendo vários tickets — ser caso normal do
+modelo, e não exceção remendada.
+
+**Item é linha, não texto** (P-06). É o que permite a auditoria perguntar "quem
+comprou ferramenta este mês" com uma consulta, e é o que permite a conferência
+aritmética que aparece no Step 8.
+
+**Parâmetro de negócio no banco, com vigência** (P-08): margem 20%, teto de
+lançamento R$ 600, folga do teto 5%. Mudar o teto é um `insert`, não um deploy.
+
+---
+
+## Step 2 — A leitura da nota, em camadas (CORE-01)
+
+A nota chega como PDF ou foto e precisa virar número, fornecedor, data e itens.
+A ordem das tentativas **é** o CORE-01:
+
+| Camada | O que é | Custo |
+|---|---|---|
+| `xml` | a chave de acesso, quando existe | zero |
+| `texto` | o PDF que já traz texto dentro | zero |
+| `ocr` | a imagem lida por reconhecimento | zero |
+| `ia` | o que sobrou, no menor modelo que resolva | conta |
+| `manual` / `legado` | digitado por gente, ou vindo da carga antiga | — |
+
+**A conferência aritmética.** Depois de ler, o sistema soma os itens e compara
+com o total da nota, com 1% de tolerância. É a única conferência que não depende
+de confiar no leitor — e é dela que sai a pergunta da tela no Step 8.
+
+---
+
+## Step 3 — A carga do legado (013 e 014)
+
+636 orçamentos do sistema antigo entraram na base, com `legado_id` e
+`legado_caminho` apontando para o de onde vieram.
+
+**A migração 014 criou `legado_alerta`** — `sem_itens` e `itens_nao_somam` — em
+vez de recusar as linhas tortas. Recusar teria escondido o problema; marcar
+deixa a torção visível e conferível depois.
+
+**O que a carga trouxe de herança, e que ainda incomoda:** os 636 orçamentos do
+legado convivem com os nossos na mesma tabela, e a maioria dos casos de
+duplicidade encontrados desde então tem um pé lá. Ver Step 8.
+
+---
+
+## Step 4 — Gerar: onde a margem, o teto e o encaixe acontecem
+
+Tudo em `baleryan/interno/regras/`, código puro, sem banco e sem internet — é o
+CORE-06 em forma de pasta.
+
+**A margem entra no UNITÁRIO, não no total.** Três unidades de R$ 10,00 com 20%
+dão 3 × R$ 12,00. É assim desde o sistema antigo, e trocar mudaria centavos em
+notas com muitos itens.
+
+**O teto é do ticket, não do orçamento.** R$ 600 por chamado, somando **todos** os
+custos que já estão lá — inclusive os que não são nossos. Passando em até 5%, o
+valor é REDUZIDO para caber; acima disso, para e vai para aprovação do cliente.
+
+**O `Encaixar` garante que a soma dos itens é exatamente o valor do orçamento.**
+Documento que não fecha é documento que não passa em auditoria.
+
+**A regra da entrega, dada pelo dono em 26/08:** o fornecedor lança a entrega como
+12 unidades de R$ 1,00; no nosso orçamento isso vira 1 unidade de R$ 12,00.
+Conferido contra os orçamentos do legado: **o sistema antigo NÃO invertia** — a
+regra é nova, e a migração 027 corrigiu os que já tinham sido gerados.
+
+---
+
+## Step 5 — Lançar no Trílogo (015, e o módulo `trilogo`)
+
+O contrato da API foi levantado por **captura de rede na tela real**, não deduzido.
+Está em `docs/api-trilogo.md`.
+
+**A ordem do lançamento importa, e é esta:**
+
+1. lê os custos que o ticket JÁ TEM, ao vivo
+2. confere duplicidade (Step 8)
+3. confere o teto contra esses custos
+4. confere o status do chamado — e **grava o que viu** (Step 8)
+5. monta o PDF e guarda no nosso armazém
+6. sobe o PDF no Trílogo
+7. cria o custo carregando o permalink
+8. **relê para confirmar** e guarda o id que o Trílogo deu
+
+**O passo 8 não é zelo excessivo.** O `CreateTicketCost` responde 200 sem dizer o
+id do que criou; sem a releitura, "lancei" seria suposição. No sistema antigo um
+erro de gravação virava um `print()` e a rotina seguia — era assim que orçamento
+sumia sem ninguém notar.
+
+**Por que a conferência de status vem ANTES de subir o arquivo:** na ordem antiga
+o PDF já tinha subido quando o custo era recusado, e ficava órfão no S3 do
+cliente, sem dono e sem endpoint para apagar. Medido: o `TESTE_FROTAHUB_126211.pdf`
+que o teste deixou lá.
+
+**Os status que o Trílogo recusa, medidos e não deduzidos:** Aberto (1),
+Arquivado (3), Em execução (7). A mensagem deles MENTE — cita só Aberto e Em
+execução, e recusa Arquivado do mesmo jeito. A decisão é pelo **código**.
+
+---
+
+## Step 6 — Faturamento (017, 023, 024)
+
+| Migração | O que resolve |
+|---|---|
+| **017** | o que já foi faturado ao cliente, e o que já voltou dele |
+| **023** | faturamento direto: a nota que o fornecedor cobra do cliente, e que **nunca** entra em cobrança nossa |
+| **024** | o pedido de faturamento ao fornecedor: a Rodrigues emite DAV e acumula; de tempos em tempos mandamos a relação e ela emite UMA nota cobrindo todas |
+
+**A fila do faturamento é uma coluna VAZIA (`fatura_id is null`), não um mês.** Em
+julho a planilha fechou no dia 29 e a leva do dia 31 rolou para agosto: pelo mês,
+aqueles 39 orçamentos teriam sumido da cobrança para sempre.
+
+---
+
+## Step 7 — As telas, e o padrão que virou regra da casa
+
+**O orçamento virou documento de verdade** (026). O PDF é montado à mão, objeto
+por objeto — capa com logo do emitente, faixa do número, quadros das partes,
+discriminação com cabeçalho repetido a cada página, valor por extenso,
+observações, assinaturas e rodapé.
+
+**A regra dita pelo dono em 26/08, e que vale para o sistema inteiro:**
+
+> *"Toda vez que houver visualização de documento, tem que ser nesse padrão:
+> abre na tela. Dentro da visualização, a opção de download, mas com escolha de
+> pasta sempre."*
+
+Antes, ver um orçamento era **baixar** o orçamento: conferir cinco deixava cinco
+cópias na pasta de Downloads que ninguém queria guardar. O padrão está em
+`web/src/componentes/VisorDeDocumento.tsx` e em `claude/padroes-de-tela.md`.
+
+**As filas foram separadas por quem resolve o quê** (029, 030):
+
+- nota **sem ticket** e **sem associação** saem da fila e vão para Correções
+- nota que precisa de **conferência** fica na fila, e abre na tela com o motivo
+  escrito acima do papel e os botões de reparo ali mesmo
+- nota de **rateio** fica na fila de rateio até virar orçamento — ali, não ter
+  ticket é o estado normal
+
+*A 029 aplicou à fila de rateio uma regra desenhada para a outra, e a nota da SV
+sumiu da lista. A 030 consertou. Lição registrada: quando uma coluna vale para a
+tabela inteira, simular UMA fila não é simular.*
+
+---
+
+## Step 8 — A auditoria de ponta a ponta (27/08/2026)
+
+**Pedido do dono, com estas palavras:** *"pega o sistema de ponta a ponta e
+refatora e confere tudo… revise o BD com todas as informações de migração… faça
+essas contas fecharem."*
+
+O que segue foi todo **medido**, com as consultas no rodapé de cada migração.
+
+### 8.1 As views estavam entregando tudo a quem não fez login
+
+O achado mais grave, e ele estava aberto naquele momento. Rodando como `anon` —
+o papel de quem **não** fez login — dentro do próprio banco:
+
+| | tabela | view |
+|---|---|---|
+| `documentos` | **0** ✅ | `documentos_lista` → **91** ❌ |
+| `orcamentos` | **0** ✅ | `orcamentos_lista` → **703** ❌ |
+| — | — | `orcamentos_painel` → o painel inteiro ❌ |
+
+As tabelas estavam trancadas. As views não. E a chave `publishable` do Supabase
+viaja dentro do JavaScript do site — ela é pública por natureza.
+
+**A causa, e ela não foi descuido de uma pessoa só.** As views nasceram com
+`with (security_invoker = true)`, que manda a consulta rodar com os privilégios de
+**quem pergunta**. A armadilha: **`create or replace view` não preserva essa
+cláusula** — ele substitui as opções pelo que vier no `with`, e sem `with` elas
+voltam ao padrão, que é `false`.
+
+Da **019** à **031**, oito migrações reescreveram essas views sem a cláusula. Cada
+uma estava mexendo noutra coisa — uma coluna nova, uma expressão — e a tranca caiu
+junto, calada. Nenhum erro, nenhum aviso: a view continuou respondendo
+normalmente, só que para todo mundo.
+
+`chamados_lista` e `faturas_lista` escaparam — não porque alguém as protegeu, mas
+porque ninguém precisou reescrevê-las depois.
+
+**Consertado pela 033**, com `alter view … set`, que mexe só na opção e não toca no
+corpo. E **P-35** nasceu daí.
+
+### 8.2 A 019 rodou e nunca se registrou
+
+`schema_migrations` pulava do 018 para o 020. A coluna `duplicada_de` e os três
+índices da 019 estão no banco — ela rodou. O que faltou foi o `insert` do rodapé,
+que o arquivo dela não tem.
+
+A tabela que existe para responder *"o que já rodou?"* respondia errado, e a única
+forma de descobrir era conferir objeto por objeto. **P-36** nasceu daí, e a 033
+escreve a linha que faltava.
+
+### 8.3 Por que o Trílogo diverge do nosso banco, mesmo com o cron rodando
+
+O cron existe e roda 8 vezes por dia desde 24/08. Ainda assim, em 26/08, 17
+orçamentos foram recusados com *"chamado Arquivado (status 3)"* enquanto a nossa
+base dizia *"Vistoriado (6)"* para os mesmos tickets.
+
+**A causa provada, e é nossa.** A trava do lançamento lê o status **ao vivo** do
+Trílogo para decidir se pode lançar. Ela leu `status = 3` dezessete vezes — e
+**jogou fora**. Só gravava a marca no orçamento, nunca no espelho do chamado.
+Resultado: `chamados.status_codigo` continuava 6, o `destino` da view continuava
+`pode_lancar`, e os 17 voltavam **verdes** na tela, para entrar de novo no lote
+seguinte e levar a mesma recusa. *A divergência não só aparecia — ela sobrevivia.*
+
+O `reconferir` já fazia certo. O `lancar` não. Duas rotinas com o mesmo dado na
+mão e comportamentos diferentes é a definição do que o CORE-06 proíbe: a gravação
+virou uma função só, `espelharChamado`, e as duas a chamam. **P-37**.
+
+**A causa não provada, e que continua de pé.** A marca d'água da atualização
+compara o campo `dateOfLastChange` da lista do Trílogo. Se eles **não** mexerem
+nesse campo ao arquivar um chamado, o robô nunca mais relê aquele chamado — e o
+tempo não resolve. A migração 007 afirma, num comentário, que o Trílogo mexe no
+campo "a cada evento do chamado". **Essa afirmação nunca foi medida**, e é a única
+do repositório sobre o Trílogo que não tem data e medição ao lado. Está nas
+pendências.
+
+### 8.4 As contas — e por que elas pareciam não fechar
+
+Os três números que o dono viu:
+
+| | | |
+|---|---|---|
+| **93** | a fila inteira | tudo que está `gerado` |
+| **68** | travados pelo status do chamado | 27 do cliente + 41 nossos |
+| **23** | já tentados e recusados | e **22 deles já podiam subir de novo** |
+
+**93 = 68 + 22 + 3.** Os três estavam certos. Eram respostas para três perguntas
+diferentes, e **nenhuma tela mostrava as três juntas** — então a única conclusão
+possível, olhando de fora, era que o sistema não fechava.
+
+E os 22 são o pior detalhe: a lista de "Recusados" estava mostrando **história**, e
+quem a lia procurava **problema**.
+
+**A conta escrita pelo dono não fecharia como está escrita**, e vale dizer por quê:
+
+> notas que entram = orçamentos lançados + não lançados por pendência do cliente
+> + … + não gerados por não ter ticket + … + exclusões
+
+Ela mistura duas unidades. Uma nota vira **vários** orçamentos (as partes de um
+mesmo ticket) e um orçamento de rateio nasce de **várias** notas. O que fecha — e
+é o que ele quer de verdade — são **duas contas ligadas por uma ponte**:
+
+**1) Toda nota que entrou está em exatamente um destino.**
+
+| destino | notas |
+|---|---|
+| ainda não lida · a leitura falhou | 0 · 2 |
+| esperando confirmar o valor | 0 |
+| sem ticket · sem associação | 4 · 5 |
+| bloqueada · repetida | 0 · 0 |
+| esperando o cliente | 0 |
+| rateio · faturamento direto | 1 · 0 |
+| pronta, ainda não gerada | 0 |
+| **virou orçamento** | **66** |
+| excluída | 13 |
+| **TOTAL** | **91** ✓ |
+
+**2) Todo orçamento está em exatamente um estado.**
+
+| estado | orçamentos | valor |
+|---|---|---|
+| pode lançar agora | 3 | R$ 410,40 |
+| recusado antes, mas o chamado já andou | 22 | R$ 2.764,44 |
+| parado: pendência nossa | 41 | R$ 8.838,76 |
+| parado: pendência do cliente | 27 | R$ 4.537,89 |
+| lançado no Trílogo | 609 | R$ 90.748,99 |
+| apagado | 1 | R$ 317,88 |
+| **TOTAL** | **703** ✓ | **R$ 107.618,36** |
+
+**3) E a ponte: 66 notas usadas ↔ 66 vínculos vivos, zero órfãos dos dois lados.**
+
+As três fecham. A migração **034** publica as três como views, e a tela
+**Fechamento** as mostra somadas.
+
+**O detalhe de desenho que faz esta tela valer alguma coisa:** o total de cada
+conta é comparado com o universo **contado direto na tabela, por fora da soma**.
+Se viesse da soma das linhas, fecharia sempre — inclusive quando alguma nota
+escapasse da classificação. E o `CASE` de cada view termina num `else` que rotula
+o desconhecido como **NÃO CLASSIFICADO**, em vermelho na tela, em vez de deixá-lo
+sumir dentro de outra linha. *É a mesma escolha do `codigo N` do robô: o
+desconhecido tem que ser visível.*
+
+### 8.5 Como tudo isto foi conferido
+
+**As 34 migrações rodaram do zero, na ordem, num PostgreSQL de verdade** (P-24) —
+e o Postgres pegou um defeito meu antes de ele sair daqui: eu tinha escrito
+`status in ('novo','lendo')` e o status de entrada se chama **`inserido`**. Uma
+nota recém-inserida seria classificada como "sem ticket". Corrigido para a
+condição negativa (`status <> 'lido'`), que cobre também o status que alguém
+inventar amanhã.
+
+Depois, uma semente com **uma nota de cada destino e um orçamento de cada
+estado** — inclusive um chamado com status desconhecido, para provar que ele
+aparece como NÃO CLASSIFICADO em vez de sumir. As duas contas fecharam 13 = 13 e
+10 = 10, e o balde do desconhecido apareceu.
+
+E a prova do vazamento, nos dois sentidos: com a tranca, `anon` vê 0; sem a
+tranca, `anon` vê tudo.
+
+**Os testes novos, e cada um foi sabotado para provar que pega:**
+
+| Teste | O que ele pega | Sabotagem que o fez falhar |
+|---|---|---|
+| `TodaMigracaoSeRegistra` | migração sem o `insert` do rodapé | migração nova sem registro |
+| `ReescreverViewNaoDerrubaOSecurityInvoker` | o defeito da 019 se repetindo | tirei a cláusula da 034 |
+| `A033ConsertaAsViewsQueFicaramAbertas` | alguém apagar a 033 achando que é redundante | apaguei a 033 |
+| `ViewReescritaNuncaPerdeColuna` | coluna nova no meio, que o Postgres recusa | — |
+| `QuemLeOStatusAoVivoEspelhaNoBanco` | ler a verdade e não gravá-la | tirei a chamada do `lancar` |
+| `OEspelhoDoChamadoTemUmDonoSo` | um segundo gravador do espelho | escrevi um |
+| `AsTelasChamamAsRotasQueOMotorServe` | rota sem porta na tela | apaguei a tela |
+
+**A linha de corte dos testes de migração é a 033**, e o motivo está escrito no
+código: as migrações até a 032 já rodaram no banco de verdade, e reescrever o
+arquivo de uma migração aplicada faz o repositório mentir sobre o que foi
+executado. Um número com motivo é honesto; uma lista de arquivos perdoados,
+mantida à mão, seria a mesma armadilha que estes testes existem para fechar.
+
+---
+
+## Práticas que nasceram desta fase
+
+**P-35 — `create or replace view` apaga as opções da view.**
+Toda reescrita repete o `with (security_invoker = true)`. *Origem: oito migrações
+seguidas derrubaram a tranca sem um aviso, e as views passaram a entregar 91
+notas e 703 orçamentos a quem não tinha feito login.*
+
+**P-36 — Toda migração escreve a própria linha em `schema_migrations`.**
+E escreve o número DELA. *Origem: a 019 rodou, criou coluna e índices, e nunca se
+registrou — a tabela que responde "o que já rodou?" passou a responder errado, e
+só um inventário objeto por objeto revelava isso.*
+
+**P-37 — Quem lê a verdade ao vivo grava o espelho.**
+Rotina que consulta um sistema de fora e não guarda o que viu deixa a tela
+contando a versão de ontem. *Origem: o lançamento leu "chamado Arquivado" 17
+vezes no Trílogo e descartou; os 17 voltaram verdes na tela e levaram a mesma
+recusa no lote seguinte.*
+
+**P-38 — Conta que fecha sozinha não prova nada.**
+O total conferido vem de fora da soma que ele confere, e o `else` de toda
+classificação tem nome e aparece. *Origem: um balanço cujo universo é a soma das
+próprias linhas fecha até quando perde registro.*
+
+---
+
+## Inventário da Fase 4
+
+| Arquivo | Hospedado | Rev |
+|---|---|---|
+| `db/migrations/010` a `032` | repo · **Supabase** | 1–3 |
+| `db/migrations/033_as_views_voltam_a_respeitar_o_login.sql` | repo | 1 |
+| `db/migrations/034_a_conta_fecha.sql` | repo | 1 |
+| `baleryan/interno/regras/` (dinheiro, orcamento, entrega, extenso) | repo · Render | 1–2 |
+| `baleryan/interno/leitor/` | repo · Render | 1–2 |
+| `baleryan/interno/relatorio/` (folha, pdf, planilha) | repo · Render | 1 |
+| `baleryan/interno/modulos/orcamentos/` (24 arquivos) | repo · Render | 1–2 |
+| `baleryan/interno/modulos/orcamentos/fechamento.go` | repo | 1 |
+| `baleryan/interno/modulos/orcamentos/migracoes_test.go` | repo | 1 |
+| `web/src/telas/orcamentos/` (16 telas) | repo · no ar | 1–2 |
+| `web/src/telas/orcamentos/Pendencias.tsx` | repo | 1 |
+| `web/src/telas/orcamentos/Fechamento.tsx` | repo | 1 |
+| `web/src/componentes/VisorDeDocumento.tsx` · `Foco.tsx` | repo · no ar | 1 |
+| `claude/padroes-de-tela.md` | Projeto | 2 |
+
+---
+
+## Pendências da Fase 4
+
+| O quê | Situação |
+|---|---|
+| **Aplicar a 033** | ⚠ **urgente** — o vazamento está aberto até ela rodar |
+| **Aplicar a 034** | depois da 033 |
+| **Medir se o Trílogo mexe no `dateOfLastChange` ao arquivar** | é a premissa em que todo o modo `atualizacao` se apoia, e ela nunca foi medida |
+| Uma rodada de reconciliação de status | hoje, chamado que o robô não relê fica errado para sempre |
+| A ordem do lote de lançamento | hoje é por data de criação, do mais novo para o mais velho — e isso faz a parte GRANDE ser barrada pelo teto. Decisão do dono: mais antigo primeiro ou maior primeiro |
+| A faixa dos R$ 600–630 no lançamento | a regra manda reduzir e o lançamento ignora, subindo o valor cheio. Reduzir na hora de lançar não é opção (o PDF já foi feito): o certo é barrar |
+| Dinheiro em `float64` fora das `regras` | faturamento, pedido, pendências e dois pontos do front somam e comparam em ponto flutuante (P-11) |
+| Erro cru do PostgREST chegando à tela | `banco respondeu 409 … duplicate key value violates…` em inglês, com o caminho da consulta (P-18) |
+| `limit=500` fixo nas quatro frentes de Correções | com 501 notas, a 501ª é invisível e nada avisa (CORE-10) |
+| `pedidos_faturamento` é apagado de verdade | `CORE-05` diz que a garantia é do banco; hoje é disciplina do código |
+| Os 3 CNPJ com emitente/destinatário trocados | o modelo inverteu; oferecido, não aceito ainda |
+| Lista de CNPJ das 38 unidades | o dono vai mandar |
+| Os 5 tickets que não existem no Trílogo | `100429, 125691, 126264, 126965, 131131` — trocar à mão em Correções |
+
+---
+---
+
 # ANEXO A — Tenets
 
 > **O que são.** As regras de ouro do FrotaHub. Cada uma tem um código permanente, e sempre
@@ -2560,6 +2991,25 @@ página 7 filtrando por loja e por data, a cada chamado aberto. A lista ficou mo
 escondida; o preço foi lembrar que elemento escondido mede zero, e recalcular ao voltar.*
 
 ## Operação
+
+**P-35 — `create or replace view` apaga as opções da view.**
+Toda reescrita repete o `with (security_invoker = true)`. *Origem: oito migrações
+seguidas derrubaram a tranca sem um aviso, e as views passaram a entregar 91 notas
+e 703 orçamentos a quem não tinha feito login.*
+
+**P-36 — Toda migração escreve a própria linha em `schema_migrations`.**
+E escreve o número DELA. *Origem: a 019 rodou, criou coluna e índices, e nunca se
+registrou — a tabela que responde "o que já rodou?" passou a responder errado.*
+
+**P-37 — Quem lê a verdade ao vivo grava o espelho.**
+Rotina que consulta um sistema de fora e não guarda o que viu deixa a tela
+contando a versão de ontem. *Origem: o lançamento leu "chamado Arquivado" 17 vezes
+no Trílogo e descartou; os 17 voltaram verdes na tela.*
+
+**P-38 — Conta que fecha sozinha não prova nada.**
+O total conferido vem de fora da soma que ele confere, e o `else` de toda
+classificação tem nome e aparece. *Origem: um balanço cujo universo é a soma das
+próprias linhas fecha até quando perde registro.*
 
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
