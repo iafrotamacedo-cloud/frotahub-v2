@@ -1,12 +1,30 @@
 name: Leitor de notas
 
-# POR QUE ISTO RODA AQUI E NÃO NO MOTOR
+# QUEM LÊ AS NOTAS HOJE É O BOTÃO — ISTO AQUI VIROU A RESERVA
+#
+#   Até 27/08/2026 este robô era o ÚNICO que lia, de trinta em trinta minutos.
+#   Quem acabava de inserir a nota ficava olhando "na fila" sem nada para fazer,
+#   porque a nota só vira orçamento depois de lida. Agora o motor lê na hora,
+#   pelo botão "Ler notas", com a MESMA cascata (`interno/leitura`) — e por isso
+#   o relógio saiu daqui.
+#
+#   Decisão do dono em 27/08/2026: "o motor le na hora, opcao A, e tira a
+#   leitura de 30 em 30 minutos do git".
+#
+#   O robô CONTINUA existindo, e não por saudade:
+#     · ele tem `pdftotext`, e o motor não — aqui o PDF digital é lido de graça,
+#       sem gastar cota de IA;
+#     · ele é quem recolhe trabalho órfão, o que ficou "rodando" numa máquina
+#       que morreu;
+#     · ele é a saída para um lote grande sem ninguém segurando a aba aberta.
+#
+#   Roda quando alguém manda rodar: Actions › Leitor de notas › Run workflow.
+#
+# POR QUE O TRABALHO PESADO NASCEU AQUI
 #
 #   O motor roda num plano que adormece, e ler nota é trabalho de picos: fica
 #   parado o dia inteiro e depois precisa de fôlego para oitenta arquivos de
-#   uma vez. Aqui há tempo, disco e uma máquina limpa a cada corrida. O motor só
-#   enfileira o trabalho; este robô lê a fila, faz o trabalho pesado e grava o
-#   resultado. É o mesmo desenho do robô do Trílogo.
+#   uma vez. Aqui há tempo, disco e uma máquina limpa a cada corrida.
 #
 # O OCR SAIU EM 26/08/2026
 #
@@ -22,11 +40,14 @@ name: Leitor de notas
 #   Sobrou o `pdftotext`: o PDF que já traz camada de texto é lido de graça e
 #   sem chamar a IA, e ali o texto é exato porque veio do arquivo.
 
+# SÓ NA MÃO, DE PROPÓSITO
+#
+#   O `schedule` foi removido em 27/08/2026. Deixá-lo ligado com o botão da tela
+#   funcionando seria pagar duas vezes pela mesma leitura — e, pior, correr o
+#   risco de as duas pontas pegarem a mesma nota. (Não pegam: as duas TOMAM o
+#   trabalho da fila com `status=eq.na_fila` no filtro, e só uma recebe a linha
+#   de volta. Mas não se deixa uma trava dessas de plantão sem necessidade.)
 on:
-  schedule:
-    # De 30 em 30 minutos, no horário comercial de Fortaleza (UTC−3).
-    # 09:00–23:00 UTC = 06:00–20:00 aqui.
-    - cron: "5,35 9-23 * * *"
   workflow_dispatch:
 
 concurrency:
