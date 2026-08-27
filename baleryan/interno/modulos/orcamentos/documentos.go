@@ -76,7 +76,7 @@ func (m *Modulo) painel(w http.ResponseWriter, r *http.Request) {
 		//   Mesma razão do contador (migração 028): "últimos inseridos" cheio de
 		//   notas resolvidas esconde as que precisam de gente.
 		"notas": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
-			"&fila=eq.orcamento&oculto_em=is.null&onde=eq.fila"+
+			"&fila=eq.orcamento"+NaFila+
 			"&order=inserido_em.desc&limit=9"+
 			"&select=nome_arquivo,inserido_em,valor_total"),
 		"rateio": m.previa(r.Context(), "documentos_lista?cliente_id=eq."+cli(p)+
@@ -128,6 +128,40 @@ func (m *Modulo) listarDocumentos(w http.ResponseWriter, r *http.Request) {
 	web.Responder(w, http.StatusOK, montarPagina(linhas, total, pagina, por))
 }
 
+// NaFila é QUEM APARECE NA FILA, e a regra é uma frase só:
+// tudo o que entrou e ainda não virou orçamento.
+//
+// A REGRA QUE O DONO REPETIU ATÉ EU ESCUTAR — 27/08/2026
+//
+//	*"nao pode sair nada da fila quando inseri ou depois que le....nada"*.
+//
+//	Ele inseriu 9 notas, mandou ler, e a lista caiu para 8. Nenhuma sumiu: a
+//	DAV 19425 não tinha ticket escrito na observação, e a fila filtrava por
+//	`onde=eq.fila`, que manda a nota sem ticket para Correções. Do lado de cá da
+//	tela isso não é uma classificação: é uma nota que evaporou depois de uma
+//	ação que deveria só LER.
+//
+//	Uma fila que muda de tamanho sozinha ensina o usuário a desconfiar dela — e
+//	quem desconfia da fila confere tudo na mão, que é exatamente o trabalho que
+//	este sistema existe para tirar dele.
+//
+// O ESTADO VIRA TAG, NÃO ENDEREÇO
+//
+//	A nota continua sendo classificada (`destino`, `onde`) — Correções, o
+//	Fechamento e as contas dependem disso e não mudaram. O que mudou é que a
+//	classificação passou a ser lida como SELO na linha ("sem ticket", "ticket
+//	não achado", "repetida", "bloqueada") em vez de decidir se a linha existe.
+//	A nota aparece nos dois lugares: na fila, para ninguém achar que sumiu, e em
+//	Correções, que é onde estão as ferramentas de conserto.
+//
+//	Só o clique em "Gerar orçamentos" tira uma nota daqui — e aí ela vira
+//	`status = 'usado'`, que é a única saída desta constante.
+//
+// É constante, e não texto solto em dois handlers, porque a lista e a prévia do
+// painel PRECISAM concordar. Foi contando diferente que a tela e o botão já
+// discordaram antes.
+const NaFila = "&oculto_em=is.null&status=neq.usado"
+
 // filtroDosDocumentos é o ÚNICO lugar onde a vista vira consulta.
 //
 //	Mesma disciplina de `filtroDaPlanilha`: se a montagem estivesse solta dentro
@@ -159,16 +193,7 @@ func filtroDosDocumentos(clienteID, fila string, q url.Values) string {
 	case "processadas":
 		filtro += "&oculto_em=is.null&onde=eq.usada&order=inserido_em.desc"
 	default:
-		// A FILA É O QUE SE RESOLVE AQUI
-		//   Nota sem ticket e nota com ticket que não existe na base vivem em
-		//   Correções — lá é que se conserta ticket. Aqui fica o que ainda não
-		//   foi lido, o que falhou, o que está repetido ou bloqueado, e o que
-		//   está pronto para gerar.
-		//
-		//   Quem decide é a coluna `onde` da visão (migração 029), e não um
-		//   punhado de condições repetidas aqui. Era assim que a lista e o
-		//   contador conseguiam discordar.
-		filtro += "&oculto_em=is.null&onde=eq.fila&order=inserido_em.desc"
+		filtro += NaFila + "&order=inserido_em.desc"
 	}
 	if busca := strings.TrimSpace(q.Get("busca")); busca != "" {
 		filtro += "&or=(nome_arquivo.ilike.*" + banco.Escapar(busca) +

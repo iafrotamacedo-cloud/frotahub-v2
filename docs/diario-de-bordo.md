@@ -3023,6 +3023,17 @@ marca o registro, culpa do registro marca. *Origem: eu perguntei pela chave da I
 e achei que tinha resolvido; o modelo aposentado passou pela pergunta e as três
 notas voltaram `falhou` por causa de uma linha de configuração.*
 
+**P-41 — Fila não muda de tamanho sozinha.**
+Ação que só LÊ não tira linha de lista nenhuma. Classificação vira selo, não
+endereço; só a ação explícita do usuário move o registro — e o que fica tem que
+ter um botão que resolva. *Origem: 9 notas inseridas viraram 8 depois de "ler", e
+o dono foi contar na mão para descobrir que o sistema estava certo.*
+
+**P-42 — Teste procura uso, não menção.**
+Casar o NOME de uma constante ou função passa com o uso sabotado — o comentário
+que a explica já satisfaz a busca. O teste olha a linha que decide. *Origem: duas
+sabotagens seguidas passaram no mesmo dia, pelo mesmo vício.*
+
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
 
@@ -3278,6 +3289,122 @@ notas voltaram `falhou` por causa de uma linha de configuração.*
 
 **Some da máquina:** `baleryan/cmd/leitor/rateio_test.go` e
 `baleryan/cmd/leitor/repetida_test.go` (P-28).
+
+---
+
+## FASE 4 · Step 13 — nada sai da fila antes de gerar
+
+**A regra, dita pelo dono em 27/08/2026, depois de eu errar três vezes seguidas:**
+
+> *"nao pode sair nada da fila quando inseri ou depois que le....nadaaaaaaa"*
+>
+> insere → **tudo** vai para a fila (repetidas e tudo); a repetida ganha apenas a TAG
+> manda ler → **tudo continua** na fila, com a tag do estado
+> gera orçamento → **só aí** o registro muda de fila
+
+### O que acontecia
+
+Ele inseriu 9 notas, mandou ler, e a lista caiu para **8**. Contou na mão.
+
+Nenhuma sumiu do sistema. A DAV 19425 não tem ticket escrito na observação — a
+observação dela diz só `MANTUENÇAO PREVENTIVA MSL RIO MAR PAPICU` — e a fila
+filtrava por `onde = 'fila'`, que manda a nota sem ticket para Correções.
+
+Do lado de dentro é uma classificação correta. Do lado de fora é **uma nota que
+evaporou depois de uma ação que deveria apenas LER**. Uma fila que muda de
+tamanho sozinha ensina o usuário a desconfiar dela — e quem desconfia da fila
+confere tudo na mão, que é exatamente o trabalho que este sistema existe para
+tirar dele.
+
+### O que muda, e o que não muda
+
+**Não muda a classificação.** `destino` e `onde` continuam iguais; Correções, o
+Fechamento e as contas da 034 continuam iguais. A nota passa a aparecer nos
+**dois** lugares: na fila, para ninguém achar que sumiu, e em Correções, que é
+onde estão as ferramentas de conserto em lote.
+
+**Muda quem está na fila**, e a regra virou uma frase só —
+`NaFila = "&oculto_em=is.null&status=neq.usado"` — usada pela lista e pela prévia
+do painel. O estado virou **selo na linha** (`sem ticket`, `ticket não achado`,
+`repetida`, `bloqueada`, `leitura boa`) em vez de decidir se a linha existe. Os
+selos já existiam; nunca tinham sido vistos, porque as notas que os mereciam eram
+retiradas antes.
+
+E a outra metade da regra: **a nota que fica tem que ter o que fazer.** O botão
+principal da linha passou a ser "conferir" para toda nota lida que ainda não gera
+— antes era só para as que tinham `motivo_conferencia`, e a nota sem ticket ficava
+ali oferecendo apenas "ver". Linha que fica sem nada para fazer nela some da vista
+do mesmo jeito, e ainda ocupa espaço.
+
+### A migração 037, e por que ela era necessária
+
+`orcamentos_painel.notas_arquivos` tinha a **própria régua** (`d.onde = 'fila'`).
+Sem tocá-la, a lista mostraria 12 e o cartão diria 8 — o mesmo defeito de sempre,
+com números novos. A 037 reescreve a view corrigindo dois contadores:
+
+| contador | antes | depois | medido no banco |
+|---|---|---|---|
+| `notas_arquivos` | `onde = 'fila'` | `status <> 'usado'` | 8 → **12** |
+| `rateio_sem_ticket` | não tem nenhum ticket | `status <> 'usado'` | 0 → **2** |
+
+O segundo era pior do que parecia: a nota de rateio **sumia do contador no
+instante em que alguém amarrava o primeiro ticket** — bem no meio do trabalho que
+aquela tela existe para fazer.
+
+**Rodada num Postgres de verdade antes de sair daqui (P-24)**, no banco de prova
+com as 36 migrações aplicadas: as 21 colunas saíram idênticas e na mesma ordem, o
+`{security_invoker=true}` continuou de pé, e a 037 se registrou. Com quatro notas
+semeadas — uma pronta, uma sem ticket, uma não associada e uma já usada — a régua
+antiga contava **1** e a nova conta **3**, com a usada corretamente de fora. E
+painel = lista, 3 = 3.
+
+### Os testes, e as duas sabotagens que me pegaram
+
+| Teste | O que ele pega | Sabotagem |
+|---|---|---|
+| `AFilaNaoMostraOQueJaVirouOrcamento` (rev 2) | fila virando arquivo morto **e** voltando a filtrar por classificação | as duas |
+| `AFilaNaoFiltraPorOnde` | o `onde=eq.fila` voltando | reintroduzi |
+| `AsOutrasVistasContinuamSendoOQueEram` | a constante vazando para "processadas"/"fora" | — |
+| `AListaSaiDeUmaRegraSo` (rev 2) | a lista repetindo condições à mão | reintroduzi |
+| `OPainelContaAMesmaFilaQueAListaMostra` | prévia com régua própria; 037 sem `security_invoker` | as duas |
+| `AFilaOfereceConsertoParaQuemPrecisa` | nota que fica sem como consertar | tirei o `precisaDeGente` do botão |
+
+**Duas passaram na primeira sabotagem, e as duas pelo mesmo vício:** eu tinha
+escrito o teste para procurar uma MENÇÃO em vez de um USO. Um contava quantas
+vezes `NaFila` aparecia no arquivo — e o comentário que explica a constante já
+bastava para o mínimo. O outro procurava o nome `precisaDeGente`, que também
+aparece no contador do cabeçalho. Reescrevi os dois para olhar a linha exata que
+decide; aí falharam.
+
+**Contar menção não é conferir uso.** É o mesmo vício do teste de `ja_existia_como`
+que me pegou uma hora antes, e por isso virou prática.
+
+### Dois testes antigos que estavam guardando o defeito
+
+`AFilaNaoMostraOQueJaVirouOrcamento` e `AListaPerguntaOndeAoInvesDeAdivinhar`
+exigiam `onde=eq.fila`. O nome do primeiro promete uma coisa — a nota usada sai —
+e a condição garantia muito mais: tirava também a sem ticket e a não associada.
+Um teste cujo nome é mais estreito que o que ele exige é um teste que vai defender
+um defeito no dia em que ele nascer. Os dois foram reescritos para guardar o que o
+título diz, e o segundo virou `AListaSaiDeUmaRegraSo`.
+
+### Prática que nasceu deste Step
+
+**P-41 — Fila não muda de tamanho sozinha.**
+Ação que só LÊ não tira linha de lista nenhuma. Classificação vira selo na linha,
+não endereço; só a ação explícita do usuário move o registro — e o que fica tem
+que ter um botão que resolva. *Origem: 9 notas inseridas viraram 8 na lista depois
+de "ler", e o dono foi contar na mão para descobrir que o sistema estava certo.*
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `db/migrations/037_a_fila_nao_perde_nota.sql` | **novo** — os dois contadores do painel |
+| `baleryan/interno/modulos/orcamentos/documentos.go` | a constante `NaFila` |
+| `baleryan/interno/modulos/orcamentos/fila_nao_perde_test.go` | **novo** |
+| `baleryan/interno/modulos/orcamentos/fila_da_tela_test.go` | rev 2 — dois guardas reescritos |
+| `web/src/telas/orcamentos/Arquivos.tsx` | selo em vez de sumiço; "conferir" para quem precisa; cabeçalho que explica |
 
 ---
 

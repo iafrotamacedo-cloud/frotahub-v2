@@ -339,7 +339,7 @@ export function Arquivos({ fila, voltar }: Props) {
             <button
               type="button"
               className="orc-bt forte"
-              disabled={gerando || lote?.rodando || contarProntas(pagina) === '' }
+              disabled={gerando || lote?.rodando || !temProntas(pagina)}
               onClick={() => void gerar()}
             >
               {gerando ? 'Gerando…' : 'Gerar orçamentos'}
@@ -443,7 +443,7 @@ export function Arquivos({ fila, voltar }: Props) {
                     <td className="orc-acoes">
                       {/* Ver é ver; conferir é resolver. Quando a nota tem um
                           motivo, o botão principal leva para o reparo. */}
-                      {d.motivo_conferencia
+                      {(d.motivo_conferencia || (fila === 'orcamento' && precisaDeGente(d)))
                         ? <button type="button" className="forte" onClick={() => setConferindo(d)}>conferir</button>
                         : <button type="button" onClick={() => void abrirArquivo(d)}>ver</button>}
                       {fila === 'rateio' && vista === 'fila' && (
@@ -853,14 +853,42 @@ function PainelDaLeitura({ dados, fechar }: { dados: LoteDeLeitura; fechar: () =
   )
 }
 
+// PRECISA DE GENTE — a nota que foi lida e mesmo assim não gera
+//
+//	Sem ticket, ticket que a base não conhece, valor a confirmar, repetida,
+//	bloqueada. Todas continuam na fila (é a regra: nada sai daqui antes de
+//	gerar), e todas precisam de um botão que RESOLVA, não só de um que mostre.
+//
+//	Uma linha que fica na lista sem nada para fazer nela é pior que a linha
+//	sumida: some da vista do mesmo jeito, e ainda ocupa espaço.
+/** Há pelo menos uma nota que o botão de gerar consegue trabalhar. */
+function temProntas(pagina: Pagina<Documento> | null): boolean {
+  return !!pagina?.linhas.some(d => d.pronto_para_gerar)
+}
+
+function precisaDeGente(d: Documento): boolean {
+  if (d.status === 'falhou') return true
+  if (d.status !== 'lido') return false
+  return !d.pronto_para_gerar
+}
+
+// O CABEÇALHO TEM QUE EXPLICAR A DIFERENÇA ENTRE A LISTA E O BOTÃO
+//
+//	A fila mostra tudo o que entrou e não virou orçamento — 12 linhas, digamos.
+//	O botão gera 8. Sem uma palavra sobre as outras 4, a pessoa faz a conta na
+//	cabeça e conclui que o sistema perdeu alguma coisa. Foi assim que "9 viraram
+//	8" virou caça a um defeito, em 27/08/2026.
 function contarProntas(pagina: Pagina<Documento> | null): string {
   if (!pagina) return ''
-  const prontas = pagina.linhas.filter(d => d.pronto_para_gerar).length
-  const travadas = pagina.linhas.filter(d => (d.ticket_soltos?.length ?? 0) > 0).length
-  if (prontas === 0 && travadas === 0) return ''
+  const linhas = pagina.linhas
+  const prontas = linhas.filter(d => d.pronto_para_gerar).length
+  const porLer = linhas.filter(d => d.status === 'inserido' || d.status === 'lendo').length
+  const precisam = linhas.filter(d => precisaDeGente(d)).length
+  if (prontas === 0 && porLer === 0 && precisam === 0) return ''
   const partes: string[] = []
   if (prontas) partes.push(`${prontas} pronta${prontas > 1 ? 's' : ''}`)
-  if (travadas) partes.push(`${travadas} travada${travadas > 1 ? 's' : ''}`)
+  if (porLer) partes.push(`${porLer} por ler`)
+  if (precisam) partes.push(`${precisam} precisa${precisam > 1 ? 'm' : ''} de você`)
   return partes.join(' · ')
 }
 
