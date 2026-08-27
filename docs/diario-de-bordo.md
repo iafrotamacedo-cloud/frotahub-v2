@@ -3029,6 +3029,12 @@ endereço; só a ação explícita do usuário move o registro — e o que fica 
 ter um botão que resolva. *Origem: 9 notas inseridas viraram 8 depois de "ler", e
 o dono foi contar na mão para descobrir que o sistema estava certo.*
 
+**P-43 — Onde o registro mora depende do MOMENTO, não só do estado.**
+Quando a mesma linha tem destinos opostos antes e depois de uma ação, o que falta
+não é condição melhor: é a data da ação, guardada. *Origem: a nota sem ticket
+tinha que ficar na fila antes de "gerar" e sair depois — e eu tentei escrever
+isso duas vezes olhando só o estado dela, errando para os dois lados.*
+
 **P-42 — Teste procura uso, não menção.**
 Casar o NOME de uma constante ou função passa com o uso sabotado — o comentário
 que a explica já satisfaz a busca. O teste olha a linha que decide. *Origem: duas
@@ -3405,6 +3411,109 @@ de "ler", e o dono foi contar na mão para descobrir que o sistema estava certo.
 | `baleryan/interno/modulos/orcamentos/fila_nao_perde_test.go` | **novo** |
 | `baleryan/interno/modulos/orcamentos/fila_da_tela_test.go` | rev 2 — dois guardas reescritos |
 | `web/src/telas/orcamentos/Arquivos.tsx` | selo em vez de sumiço; "conferir" para quem precisa; cabeçalho que explica |
+
+---
+
+## FASE 4 · Step 14 — a fila esvazia quando VOCÊ gera
+
+No Step 13 eu tinha travado a nota na fila **para sempre**. Ele gerou, oito
+viraram orçamento, e as quatro que não passaram continuaram ali — misturadas com
+as que ainda nem tinham sido tentadas.
+
+> *"blz...mas eu nao quero eles nessa fila...eu quero eles apenas nas filas de
+> pendencia...entendeu?"*
+
+E ele estava só cobrando o terceiro momento da regra que já tinha escrito:
+
+> gera orçamento → **o registro muda de fila**: vai para orçamentos gerados, vai
+> para **pendências**, ou **permanece na fila** se for caso de duplicidade ou
+> falta de confiança na leitura
+
+### O que eu não tinha entendido
+
+Achei que a regra era sobre o **estado** da nota. Não é: é sobre **se ela já foi
+tentada**. A mesma nota sem ticket tem dois destinos opostos conforme o momento —
+antes de você clicar em gerar ela FICA (senão evapora ao ser lida, o defeito da
+manhã); depois de clicar ela SAI (senão a fila vira depósito, o defeito da tarde).
+
+E isso o banco não sabia dizer. Daí `documentos.geracao_tentada_em`.
+
+### Quem sai e quem fica, depois de uma tentativa
+
+| | |
+|---|---|
+| **Sai** para Correções | `sem-ticket`, `sem-associacao`, `bloqueada` — os três que têm frente própria lá, com ferramenta de conserto em lote |
+| **Fica** na fila | `repetida` e `a-conferir` — duplicidade e falta de confiança, os dois que ele nomeou — mais o que ainda não terminou de acontecer (`lendo`, `falhou`, `pronta`, `espera-cliente`) |
+
+A `repetida` nem chega a ser tentada: `documentosProntos` filtra
+`duplicada_de is null`. Ela nunca ganha o carimbo, e por construção nunca sai da
+fila por este caminho — que é exatamente o pedido.
+
+**O carimbo vai em TODAS as notas do lote, inclusive nas que falharam.** Marcar só
+as que deram certo seria não marcar nada de útil: essas já saem por
+`status = 'usado'`. Quem precisa do carimbo é quem falhou.
+
+### O ciclo inteiro, medido num Postgres de verdade
+
+Uma nota sem ticket, passo a passo, no banco de prova com as 37 aplicadas:
+
+| Momento | `na_fila` |
+|---|---|
+| inserida e lida, nunca tentada | **true** — não some ao ser lida |
+| você clicou em gerar e ela não passou | **false** — foi para Correções |
+| você consertou o ticket lá | **true**, destino `pronta` — **voltou sozinha** |
+
+O terceiro passo era o que mais me preocupava, e sai de graça: conserta o ticket,
+o `destino` deixa de ser um dos três de saída, e a nota reaparece na fila sem
+ninguém precisar mandá-la de volta.
+
+A tabela-verdade das seis situações, também medida:
+
+| Nota | destino | já tentada | na fila |
+|---|---|---|---|
+| sem ticket, nova | `sem-ticket` | não | **sim** |
+| sem ticket, tentada | `sem-ticket` | sim | não |
+| repetida, tentada | `repetida` | sim | **sim** |
+| conta não fecha, tentada | `a-conferir` | sim | **sim** |
+| virou orçamento | `usada` | sim | não |
+| pronta, nova | `pronta` | não | **sim** |
+
+E painel = lista, 4 = 4. As duas views saíram com as colunas antigas idênticas e
+na mesma ordem, `na_fila` no fim, e `{security_invoker=true}` de pé nas duas
+(P-35).
+
+### Correções não mudou
+
+Ela nunca filtrou por `onde` nem por `na_fila` — filtra por `tickets=eq.0`,
+`chamado_id is null` e `bloqueio_motivo`. Continua enxergando a nota antes e
+depois da tentativa. Deixei assim de propósito: corrigir em lote **antes** de
+gerar é uma capacidade que já existia, e tirá-la sem ele pedir seria inventar
+requisito.
+
+### Os testes
+
+| Teste | O que ele pega | Sabotagem |
+|---|---|---|
+| `ARegraDaFilaSeparaOsTresMomentos` | `na_fila` sem o "já tentada"; sem o `usado`; ou mandando duplicidade embora | as três |
+| `GerarCarimbaATentativaEmTodasAsNotasDoLote` | carimbo removido, ou aplicado só a quem gerou | as duas |
+| `AFilaNaoFiltraPorOnde` / `AFilaNaoMostraOQueJaVirouOrcamento` | a fila deixando de perguntar `na_fila` | as duas |
+
+A sabotagem "carimba só quem gerou" nem chegou ao teste: **o compilador recusou**,
+porque `saida` e `docs` são tipos diferentes. Trava de tipo é melhor que teste —
+ela não depende de alguém lembrar de rodar.
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `db/migrations/038_a_fila_esvazia_quando_voce_gera.sql` | **novo** — `geracao_tentada_em`, `na_fila`, e o painel lendo a mesma régua |
+| `baleryan/interno/modulos/orcamentos/gerar.go` | `marcarTentativa` |
+| `baleryan/interno/modulos/orcamentos/documentos.go` | `NaFila` passa a perguntar `na_fila` |
+| `baleryan/interno/modulos/orcamentos/fila_nao_perde_test.go` | dois testes novos |
+| `baleryan/interno/modulos/orcamentos/fila_da_tela_test.go` | a garantia mudou de casa |
+
+A 038 também **carimba as notas que já estavam paradas**: sem isso o conserto só
+valeria da próxima tentativa em diante, e as quatro da tela dele continuariam ali.
 
 ---
 

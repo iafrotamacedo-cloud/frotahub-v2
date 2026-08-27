@@ -45,9 +45,13 @@ func filtroDaVista(vista string) string {
 
 func TestAFilaNaoMostraOQueJaVirouOrcamento(t *testing.T) {
 	f := filtroDaVista("")
-	if !strings.Contains(f, "status=neq.usado") {
-		t.Errorf("a vista padrão virou arquivo morto — a nota que já virou "+
-			"orçamento continua ali: %q", f)
+	// A garantia mudou de casa na 038: quem responde "esta nota ainda espera
+	// uma decisão?" é a coluna `na_fila` da view, porque a resposta cruza
+	// `geracao_tentada_em` com `destino` — conta de banco, não de filtro de URL.
+	// O que este teste guarda aqui é a consulta CONTINUAR perguntando a ela.
+	if !strings.Contains(f, "na_fila=is.true") {
+		t.Errorf("a vista padrão parou de perguntar `na_fila` — ou vira arquivo "+
+			"morto, ou volta a decidir por conta própria: %q", f)
 	}
 	if !strings.Contains(f, "oculto_em=is.null") {
 		t.Errorf("a vista padrão perdeu o filtro das tiradas da fila: %q", f)

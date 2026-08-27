@@ -28,11 +28,90 @@ func TestAFilaNaoFiltraPorOnde(t *testing.T) {
 		t.Fatal("a fila voltou a filtrar por `onde` — a nota sem ticket e a não " +
 			"associada somem da lista depois de lidas, que é o defeito de 27/08")
 	}
-	if !strings.Contains(f, "status=neq.usado") {
-		t.Error("a fila não exclui o que já virou orçamento — ela vira arquivo morto")
+	if !strings.Contains(f, "na_fila=is.true") {
+		t.Error("a fila não pergunta `na_fila` — a regra dos três momentos " +
+			"(inserir, ler, gerar) deixou de valer")
 	}
 	if !strings.Contains(f, "oculto_em=is.null") {
 		t.Error("a fila passou a mostrar o que foi tirado dela")
+	}
+}
+
+// OS TRÊS MOMENTOS, ESCRITOS NA REGRA DO BANCO
+//
+//	A regra do dono tem três momentos, e a diferença entre eles não é o ESTADO
+//	da nota — é se ela já foi TENTADA:
+//
+//	  insere  -> tudo na fila
+//	  lê      -> tudo continua na fila
+//	  gera    -> vira orçamento, vai para Correções, ou FICA (duplicidade e
+//	             falta de confiança)
+//
+//	Sem `geracao_tentada_em` na condição, a coluna `na_fila` só sabe olhar o
+//	estado — e aí ou a nota sem ticket some ao ser lida (o defeito de manhã), ou
+//	fica presa para sempre (o defeito da tarde). Este teste guarda as duas
+//	pontas ao mesmo tempo.
+func TestARegraDaFilaSeparaOsTresMomentos(t *testing.T) {
+	sql, err := os.ReadFile("../../../../db/migrations/038_a_fila_esvazia_quando_voce_gera.sql")
+	if err != nil {
+		t.Fatalf("não achei a 038: %v", err)
+	}
+	regra := semComentarios(string(sql))
+
+	i := strings.Index(regra, ") AS na_fila")
+	if i < 0 {
+		t.Fatal("a 038 não define a coluna `na_fila`")
+	}
+	// A condição inteira: do último `(d.oculto_em` até o `) AS na_fila`.
+	j := strings.LastIndex(regra[:i], "(d.oculto_em IS NULL")
+	if j < 0 {
+		t.Fatal("não achei a condição de `na_fila`")
+	}
+	cond := regra[j:i]
+
+	for _, exigido := range []struct{ trecho, porque string }{
+		{"d.status <> 'usado'", "a nota que virou orçamento continuaria na fila — arquivo morto"},
+		{"d.geracao_tentada_em IS NULL", "sem isto a nota sem ticket some ao ser LIDA, que foi o defeito da manhã"},
+		{"'sem-ticket'", "a nota sem ticket não iria para Correções depois de tentada"},
+		{"'sem-associacao'", "a nota com ticket fora da base não iria para Correções depois de tentada"},
+	} {
+		if !strings.Contains(cond, exigido.trecho) {
+			t.Errorf("`na_fila` perdeu %s: %s\ncondição: %s", exigido.trecho, exigido.porque, cond)
+		}
+	}
+
+	// E o contrário, que é o pedido literal do dono: duplicidade e falta de
+	// confiança FICAM. Se alguém as puser na lista de saída, elas somem da
+	// única tela onde a decisão é tomada.
+	for _, proibido := range []string{"'repetida'", "'a-conferir'"} {
+		if strings.Contains(cond, proibido) {
+			t.Errorf("`na_fila` manda %s embora da fila — o dono pediu o oposto: "+
+				"duplicidade e falta de confiança PERMANECEM", proibido)
+		}
+	}
+}
+
+// A TENTATIVA É CARIMBADA EM TODAS, INCLUSIVE NAS QUE FALHARAM
+//
+//	Marcar só as que deram certo seria não marcar nada de útil: essas já saem
+//	por `status = 'usado'`. Quem precisa do carimbo é exatamente quem falhou —
+//	é ele que manda a nota para Correções em vez de deixá-la na fila para
+//	sempre.
+func TestGerarCarimbaATentativaEmTodasAsNotasDoLote(t *testing.T) {
+	fonte, err := os.ReadFile("gerar.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o gerar.go: %v", err)
+	}
+	texto := string(fonte)
+	if !strings.Contains(texto, "m.marcarTentativa(r.Context(), docs)") {
+		t.Fatal("`gerar` não carimba a tentativa — a fila nunca esvazia, e as " +
+			"notas que não passaram ficam ali para sempre")
+	}
+	// `docs` é o lote inteiro; `saida` é o resultado. Carimbar a saída marcaria
+	// só quem gerou.
+	if strings.Contains(texto, "m.marcarTentativa(r.Context(), saida)") {
+		t.Error("o carimbo foi para o resultado em vez do lote — quem falhou " +
+			"ficaria sem marca, que é justamente quem precisa dela")
 	}
 }
 

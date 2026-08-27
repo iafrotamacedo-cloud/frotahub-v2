@@ -171,7 +171,43 @@ func (m *Modulo) gerar(w http.ResponseWriter, r *http.Request) {
 	for _, d := range docs {
 		saida = append(saida, m.gerarDeUmDocumento(r.Context(), p, d, par)...)
 	}
+
+	// O CARIMBO DA TENTATIVA VAI EM TODAS, INCLUSIVE NAS QUE NÃO PASSARAM
+	//
+	//	É ele que faz a fila esvaziar sem nada sumir antes da hora. Enquanto a
+	//	nota nunca foi tentada, ela FICA — mesmo sem ticket, mesmo com o ticket
+	//	que a base não conhece. Depois de tentada, quem tem tela de conserto
+	//	própria vai para Correções, e quem é caso de duplicidade ou de falta de
+	//	confiança fica aqui, esperando a decisão do usuário (migração 038).
+	//
+	//	Marcar SÓ as que deram certo seria não marcar nada de útil: as que deram
+	//	certo já saem por `status = 'usado'`. Quem precisa do carimbo é
+	//	exatamente quem falhou.
+	m.marcarTentativa(r.Context(), docs)
+
 	web.Responder(w, http.StatusOK, map[string]any{"resultados": saida})
+}
+
+// marcarTentativa registra que estas notas passaram por uma rodada de geração.
+//
+// Falhar aqui não derruba a resposta: os orçamentos que nasceram estão gravados,
+// e o pior que acontece é a nota reaparecer na fila até a próxima tentativa —
+// que é o comportamento antigo, não um estrago novo.
+func (m *Modulo) marcarTentativa(ctx context.Context, docs []documentoPronto) {
+	if len(docs) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(docs))
+	for _, d := range docs {
+		ids = append(ids, d.ID)
+	}
+	agora := time.Now().UTC().Format(time.RFC3339)
+	if err := m.bd.Atualizar(ctx, "documentos",
+		"id=in.("+strings.Join(ids, ",")+")",
+		map[string]any{"geracao_tentada_em": agora}); err != nil {
+		log.Printf("orcamentos: não consegui marcar a tentativa de geração de %d nota(s): %v",
+			len(ids), err)
+	}
 }
 
 type documentoPronto struct {

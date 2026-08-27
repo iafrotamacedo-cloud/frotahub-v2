@@ -154,13 +154,27 @@ func (m *Modulo) listarDocumentos(w http.ResponseWriter, r *http.Request) {
 //	A nota aparece nos dois lugares: na fila, para ninguém achar que sumiu, e em
 //	Correções, que é onde estão as ferramentas de conserto.
 //
-//	Só o clique em "Gerar orçamentos" tira uma nota daqui — e aí ela vira
-//	`status = 'usado'`, que é a única saída desta constante.
+//	Só o clique em "Gerar orçamentos" tira uma nota daqui, e aí ela vai para um
+//	dos três lugares que o dono nomeou: virou orçamento, foi para Correções, ou
+//	FICOU — se for caso de duplicidade ou de falta de confiança na leitura.
+//
+// A REGRA INTEIRA MORA NA VIEW, EM `na_fila` (migração 038)
+//
+//	Ela precisa de três coisas para responder: a nota não foi tirada à mão, não
+//	virou orçamento, e — a parte que só nasceu na 038 — ou nunca foi tentada, ou
+//	é de um tipo que fica mesmo depois de tentada. A terceira cruza
+//	`geracao_tentada_em` com `destino`: é conta de banco, não de filtro de URL.
+//
+//	A primeira versão desta constante era `status=neq.usado`, e travava a nota
+//	na fila para SEMPRE. Depois de gerar, as quatro que não passaram continuavam
+//	ali, misturadas com as que ainda nem tinham sido tentadas — a fila deixou de
+//	ser fila e virou depósito. *"eu nao quero eles nessa fila...eu quero eles
+//	apenas nas filas de pendencia"*, 27/08/2026.
 //
 // É constante, e não texto solto em dois handlers, porque a lista e a prévia do
 // painel PRECISAM concordar. Foi contando diferente que a tela e o botão já
 // discordaram antes.
-const NaFila = "&oculto_em=is.null&status=neq.usado"
+const NaFila = "&oculto_em=is.null&na_fila=is.true"
 
 // filtroDosDocumentos é o ÚNICO lugar onde a vista vira consulta.
 //
