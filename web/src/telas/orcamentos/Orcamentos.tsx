@@ -16,6 +16,7 @@ import { Lancar } from './Lancar'
 import { Correcoes } from './Correcoes'
 import { Planilhas } from './Planilhas'
 import { Direto } from './Direto'
+import { Pendencias } from './Pendencias'
 import { emReais, emDataHora, type Painel as DadosDoPainel } from './tipos'
 
 interface Props {
@@ -46,6 +47,9 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
   if (onde === 'direto') return <Direto voltar={voltar} />
   if (onde && onde.startsWith('correcoes')) {
     return <Correcoes frente={onde.split(':')[1]} voltar={voltar} />
+  }
+  if (onde && onde.startsWith('pendencias')) {
+    return <Pendencias lista={onde.split(':')[1]} voltar={voltar} />
   }
   if (onde === 'planilhas') return <Planilhas voltar={voltar} />
 
@@ -125,6 +129,46 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       previaTitulo: `próximos da fila — ${d.prontos_para_lancar} podem subir agora`,
       previa: fila(d.previa?.lancar),
       previaVazia: 'nada esperando lançamento',
+    },
+    {
+      // ESTA ETAPA NÃO É UM CONSERTO — É UMA COBRANÇA
+      //
+      //	Ela fica entre Lançar e Correções porque é o que sobra de Lançar: o
+      //	orçamento está certo, o valor está certo, e o que falta é alguém MOVER
+      //	o chamado. Pôr isto dentro de Correções sugeriria que há algo errado no
+      //	orçamento e mandaria a pessoa procurar defeito onde não há.
+      //
+      //	Medido em 27/08/2026: 68 orçamentos parados aqui, e nenhuma tela os
+      //	mostrava. O número de baixo é dinheiro nosso esperando o telefone tocar.
+      chave: 'pendencias',
+      titulo: 'Pendências',
+      descricao: 'Orçamentos prontos, parados pelo status do chamado. Quem move é gente.',
+      icone: <IconeEspera />,
+      numero: d.esperando_cliente + d.esperando_equipe,
+      rotulo: 'parados',
+      faixa: '#7A6A2A',
+      previaTitulo: 'quem precisa agir',
+      previa: [
+        { texto: 'Nossa equipe', fim: String(d.esperando_equipe) },
+        { texto: 'Cliente', fim: String(d.esperando_cliente) },
+      ],
+      previaVazia: 'nada parado por status de chamado',
+      filhos: [
+        {
+          chave: 'pendencias:encarregados',
+          titulo: 'Nossa equipe',
+          descricao: 'Chamado Aberto ou Em execução — serviço a concluir',
+          numero: d.esperando_equipe,
+          previaVazia: 'nenhum chamado nosso segurando orçamento',
+        },
+        {
+          chave: 'pendencias:cliente',
+          titulo: 'Cliente',
+          descricao: 'Arquivado ou reaberto — só o cliente destrava',
+          numero: d.esperando_cliente,
+          previaVazia: 'nada esperando o cliente',
+        },
+      ],
     },
     {
       chave: 'correcoes',
@@ -248,6 +292,16 @@ function IconeRobo() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3v4M5.6 5.6l2.8 2.8M3 12h4M18.4 5.6l-2.8 2.8M21 12h-4" />
       <rect x="7" y="12" width="10" height="9" rx="2" /><path d="M10 16h4" />
+    </svg>
+  )
+}
+
+/** Um relógio: o que trava aqui é TEMPO, não defeito. O triângulo de aviso, que
+ *  é o ícone de Correções, diria "alguém errou" — e ninguém errou. */
+function IconeEspera() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" />
     </svg>
   )
 }

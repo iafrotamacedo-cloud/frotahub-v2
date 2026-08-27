@@ -524,6 +524,16 @@ const SAIDAS: Record<Bloqueio, { rotulo: string; cor: string; opcoes: string[] }
     cor: 'erro',
     opcoes: ['Corrigir o ticket', 'Apagar o orçamento'],
   },
+  // A DUPLICATA NÃO OFERECE "TENTAR DE NOVO"
+  //   Tentar de novo é exatamente o que não pode ser feito aqui: a trava barrou
+  //   porque o ticket JÁ TEM um custo daquele valor. A saída é olhar o custo que
+  //   está lá e decidir — e, se forem duas notas iguais de verdade, o "lançar
+  //   assim mesmo" mora na tela de Lançar, com o custo existente na frente.
+  possivel_duplicata: {
+    rotulo: 'O ticket já tem um custo deste valor',
+    cor: 'erro',
+    opcoes: ['Conferir o custo no Trílogo', 'Apagar o orçamento', 'Lançar assim mesmo, na tela de Lançar'],
+  },
   teto: {
     rotulo: 'Passa do teto com o que já está lançado',
     cor: 'erro',

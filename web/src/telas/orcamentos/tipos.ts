@@ -193,6 +193,12 @@ export type Bloqueio =
   | 'ticket_status'
   | 'ticket_recusado'
   | 'teto'
+  // O TIPO É QUEM COBRA A TELA POR UM BLOQUEIO NOVO
+  //   `SAIDAS` em Correções é um `Record<Bloqueio, …>`: acrescentar um nome aqui
+  //   faz o TypeScript exigir a entrada lá. Foi o que faltou quando a trava de
+  //   duplicidade entrou — o bloqueio existia no motor, não existia neste tipo,
+  //   e a tela o desenhava como um "Recusado" genérico, sem cor e sem saídas.
+  | 'possivel_duplicata'
   | 'sem_empresa'
   | 'trilogo_fora'
   | 'desconhecido'
@@ -406,4 +412,41 @@ export interface Conferencia {
   pronta: boolean
   motivos?: string[]
   partes: ParteConferida[]
+}
+
+
+// ---------------------------------------------------------------------------
+// As pendências — orçamentos parados esperando o chamado ANDAR
+//
+// A linha é o TICKET, com os orçamentos dele somados dentro. O motor agrupa; a
+// tela só desenha. Os campos vêm em branco (nunca nulos) porque o motor já
+// resolveu isso na borda — assim a tela não tem que decidir o que é "vazio".
+// ---------------------------------------------------------------------------
+
+export interface Pendencia {
+  ticket: number
+  loja: string
+  conta: string
+  ticket_status: string
+  reaberto: boolean
+  /** O que o CLIENTE escreveu ao reabrir. Vazio quando não houve reabertura. */
+  motivo: string
+  /** O que o chamado pediu — a coluna larga da lista dos encarregados. */
+  descricao: string
+  orcamentos: number
+  partes: string[]
+  valor: number
+  /** O mais antigo dos orçamentos daquele ticket: há quanto tempo trava. */
+  desde_em: string
+  /** Quando esta lista foi cobrada pela última vez. Vazio = nunca. */
+  avisado_em: string
+}
+
+export interface ListaDePendencias {
+  destino: 'cliente' | 'encarregados'
+  titulo: string
+  tickets: Pendencia[]
+  /** A soma dos orçamentos de todos os tickets — não o número de linhas. */
+  orcamentos: number
+  valor: number
 }

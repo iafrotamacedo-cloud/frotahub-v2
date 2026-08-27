@@ -8,6 +8,10 @@
 package orcamentos
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -105,4 +109,68 @@ func TestValorNuloNaoQuebraASoma(t *testing.T) {
 func perto(a, b float64) bool {
 	d := a - b
 	return d < 0.005 && d > -0.005
+}
+
+// A REGRA QUE NINGUÉM CHAMA NÃO EXISTE PARA QUEM TRABALHA
+//
+//	Estas quatro rotas foram escritas na 015, com PDF, planilha e registro de
+//	cobrança — e ficaram um ano e meio sem uma tela que as chamasse. O efeito,
+//	medido em 27/08/2026: 68 orçamentos parados por status de chamado, invisíveis
+//	no sistema inteiro, enquanto a tela de Correções mostrava 23 e o usuário
+//	perguntava por que os números não fechavam.
+//
+//	Nada quebrou. Os testes passavam, o motor respondia, a rota estava lá. Só não
+//	havia porta. Este teste é a porta: se a tela sumir ou parar de chamar uma
+//	destas rotas, ele fala antes de o buraco voltar.
+//
+// POR QUE SÓ AS DE PENDÊNCIAS
+//
+//	Nem toda rota do motor precisa de tela — há as que o robô chama e as que
+//	existem para integração. Uma regra geral aqui viraria uma lista de exceções
+//	que alguém mantém à mão, e lista de exceção mantida à mão é onde o próximo
+//	buraco se esconde. Estas quatro têm dona: a tela de Pendências.
+func TestATelaDePendenciasChamaAsRotasQueOMotorServe(t *testing.T) {
+	rotas, err := os.ReadFile("rotas.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o rotas.go: %v", err)
+	}
+	registradas := regexp.MustCompile(`"(?:GET|POST) (/orcamentos/pendencias[a-z./]*)"`).
+		FindAllStringSubmatch(string(rotas), -1)
+	if len(registradas) == 0 {
+		t.Fatal("o motor não registra nenhuma rota de pendências — o teste deixou de olhar o que devia")
+	}
+
+	front := lerOFront(t)
+	for _, r := range registradas {
+		if !strings.Contains(front, r[1]) {
+			t.Errorf("o motor serve %s e nenhuma tela chama — a regra existe, roda, "+
+				"e não tem porta. Foi assim que 68 orçamentos parados ficaram invisíveis.", r[1])
+		}
+	}
+}
+
+// lerOFront junta o código das telas num texto só. É busca por texto de
+// propósito: entender import de TypeScript daqui seria construir meio compilador
+// para responder uma pergunta de uma linha.
+func lerOFront(t *testing.T) string {
+	t.Helper()
+	var tudo strings.Builder
+	raiz := "../../../../web/src"
+	err := filepath.Walk(raiz, func(caminho string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if e := filepath.Ext(caminho); e != ".ts" && e != ".tsx" {
+			return nil
+		}
+		b, err := os.ReadFile(caminho)
+		if err == nil {
+			tudo.Write(b)
+		}
+		return nil
+	})
+	if err != nil || tudo.Len() == 0 {
+		t.Skipf("não achei o código das telas em %s", raiz)
+	}
+	return tudo.String()
 }
