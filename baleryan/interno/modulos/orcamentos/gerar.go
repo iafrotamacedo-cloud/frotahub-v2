@@ -67,6 +67,23 @@ func (m *Modulo) listarOrcamentos(w http.ResponseWriter, r *http.Request) {
 	if d := q.Get("destino"); destinoConhecido(d) {
 		filtro += "&destino=eq." + d
 	}
+	// OS QUE SÓ UMA PESSOA DESTRAVA
+	//
+	//	`teto` e `possivel_duplicata` não andam sozinhos: o ticket vai continuar
+	//	com o mesmo custo lançado, e o teto vai continuar sendo o mesmo. Tentar
+	//	de novo dá o mesmo resultado, para sempre — foi como a fila mostrou 5
+	//	"podem subir" e o lote entregou 0 de 5 em 27/08/2026.
+	//
+	//	Quem decide qual bloqueio é destes é a VIEW, na coluna `precisa_decisao`
+	//	(migração 035), e não esta função: a mesma lista precisa ser respondida
+	//	aqui, na tela de Lançar e no balanço, e três cópias é como duas delas um
+	//	dia discordam (CORE-06).
+	switch q.Get("decisao") {
+	case "so":
+		filtro += "&precisa_decisao=is.true"
+	case "nao":
+		filtro += "&precisa_decisao=is.false"
+	}
 	filtro += "&order=criado_em.desc"
 
 	var linhas []map[string]any

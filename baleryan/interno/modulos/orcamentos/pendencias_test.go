@@ -294,3 +294,83 @@ func TestNinguemMandaOUsuarioParaRecusados(t *testing.T) {
 		}
 	}
 }
+
+// A REGRA DE "QUEM SÓ UMA PESSOA DESTRAVA" MORA NO BANCO
+//
+//	Ela nasceu no navegador em 27/08/2026. No mesmo dia o motor precisou dela
+//	(para filtrar no banco, CORE-10) e o balanço também (para não contar como
+//	"pode lançar" o que a tela mostra em Pendências). Três cópias da mesma lista
+//	de dois nomes é como duas delas um dia discordam.
+//
+//	A migração 035 pôs a resposta numa coluna, `precisa_decisao`. Este teste
+//	cobra que ninguém volte a escrever a lista à mão.
+func TestQuemPrecisaDeDecisaoEhDecididoNoBanco(t *testing.T) {
+	// 1) a coluna existe na migração
+	var achou bool
+	for _, caminho := range migracoes(t) {
+		b, err := os.ReadFile(caminho)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(b), "AS precisa_decisao") {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Fatal("nenhuma migração cria `precisa_decisao` — a regra voltou a viver só no código")
+	}
+
+	// 2) o motor filtra por ela, e não por uma lista própria
+	motor, err := os.ReadFile("gerar.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o gerar.go: %v", err)
+	}
+	corpo := string(motor)[strings.Index(string(motor), "func (m *Modulo) listarOrcamentos("):]
+	corpo = corpo[:strings.Index(corpo, "\nfunc ")]
+	if !strings.Contains(corpo, "precisa_decisao=is.") {
+		t.Error("o motor não filtra por `precisa_decisao` — ele vai precisar da lista " +
+			"de bloqueios escrita à mão, e vira a terceira cópia dela")
+	}
+	for _, flag := range []string{`"teto"`, `"possivel_duplicata"`} {
+		if strings.Contains(corpo, flag) {
+			t.Errorf("o `listarOrcamentos` escreve %s à mão — quem decide isso é a view", flag)
+		}
+	}
+
+	// 3) a tela lê a coluna
+	tela, err := os.ReadFile("../../../../web/src/telas/orcamentos/Lancar.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	if !strings.Contains(string(tela), "o.precisa_decisao") {
+		t.Error("a tela de Lançar não lê `precisa_decisao` — ela mantém a própria lista, " +
+			"e as duas vão divergir na primeira vez que um bloqueio novo aparecer")
+	}
+}
+
+// O CARTÃO DO FECHAMENTO NÃO MOSTRA UM CONTADOR ERRADO
+//
+//	Ele exibia `notas_arquivos` sob o rótulo "notas na base". `notas_arquivos`
+//	conta a FILA de notas, não a base: com a fila vazia, o painel anunciava
+//	"0 notas na base" tendo 91. Num cartão que existe para provar que as contas
+//	fecham, é o pior lugar possível para um número errado.
+func TestOCartaoDoFechamentoNaoInventaNumero(t *testing.T) {
+	fonte, err := os.ReadFile("../../../../web/src/telas/orcamentos/Orcamentos.tsx")
+	if err != nil {
+		t.Skipf("não achei o painel: %v", err)
+	}
+	texto := regexp.MustCompile(`(?m)^\s*//[^\n]*`).ReplaceAllString(string(fonte), "")
+	i := strings.Index(texto, "chave: 'fechamento'")
+	if i < 0 {
+		t.Fatal("o cartão de Fechamento sumiu do painel")
+	}
+	cartao := texto[i:]
+	if fim := strings.Index(cartao, "\n    },"); fim > 0 {
+		cartao = cartao[:fim]
+	}
+	if strings.Contains(cartao, "numero:") {
+		t.Error("o cartão de Fechamento voltou a mostrar um contador — os números desta " +
+			"etapa são dois balanços com total e diferença, e resumi-los a um só foi " +
+			"como ele passou a anunciar \"0 notas na base\" tendo 91")
+	}
+}

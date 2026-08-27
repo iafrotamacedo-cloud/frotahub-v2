@@ -76,7 +76,12 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   const carregar = useCallback(async () => {
     try {
       const q = new URLSearchParams({ pagina: String(numero), por: String(por), status })
-      if (soOsQuePodem && status === 'gerado') q.set('destino', 'pode_lancar')
+      if (soOsQuePodem && status === 'gerado') {
+        q.set('destino', 'pode_lancar')
+        // Os travados por teto ou duplicidade moram em Pendências › Esperando
+        // decisão. Aqui eles só apareceriam para não poder subir.
+        q.set('decisao', 'nao')
+      }
       setPagina(await motor<Pagina<Orcamento>>('/orcamentos?' + q))
       setErro('')
     } catch (e) {
@@ -617,7 +622,14 @@ function podeSubir(o: Orcamento): boolean {
  *  certo. Estes dois não andam sozinhos — o ticket vai continuar com o mesmo
  *  custo lançado, e o teto vai continuar sendo R$ 600. */
 function precisaDeDecisao(o: Orcamento): boolean {
-  return o.lancamento_bloqueio === 'possivel_duplicata' || o.lancamento_bloqueio === 'teto'
+  // A LISTA DE QUAIS BLOQUEIOS SÃO ESTES MORA NA VIEW
+  //   Ela nasceu aqui, no navegador, em 27/08. No mesmo dia o motor e o balanço
+  //   passaram a precisar da mesma resposta — e três cópias da mesma lista é
+  //   como duas delas um dia discordam (CORE-06). Agora o banco responde, e
+  //   esta função só lê. O `??` cobre a resposta de um motor antigo, em que a
+  //   coluna ainda não existe.
+  return o.precisa_decisao
+    ?? (o.lancamento_bloqueio === 'possivel_duplicata' || o.lancamento_bloqueio === 'teto')
 }
 
 /** A frase curta de por que este ficou de fora. Sai do estado de agora, não da

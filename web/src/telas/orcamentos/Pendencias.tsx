@@ -48,7 +48,7 @@ import { Carregando } from '../../componentes/Carregando'
 import { useFocado } from '../../componentes/Foco'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { BarraDeVolta } from './Arquivos'
-import { emReais, emDataHora, type ListaDePendencias, type Pendencia } from './tipos'
+import { emReais, emDataHora, type ListaDePendencias, type Pendencia, type Orcamento, type Pagina } from './tipos'
 
 const LISTAS = [
   {
@@ -61,13 +61,31 @@ const LISTAS = [
     titulo: 'Cliente',
     desc: 'Chamados Arquivados ou Reabertos — só o cliente destrava',
   },
+  // A TERCEIRA LISTA — 28/08/2026
+  //
+  //	As duas de cima esperam o MUNDO andar: o chamado ser executado, o cliente
+  //	reabrir. Esta espera VOCÊ. O ticket vai continuar com o mesmo custo
+  //	lançado e o teto vai continuar sendo R$ 600 — tentar de novo dá o mesmo
+  //	resultado, para sempre.
+  //
+  //	Ela estava na fila de Lançar, e foi de lá que veio o "0 de 5 subiram":
+  //	cinco orçamentos que a tela chamava de prontos e que nenhuma quantidade de
+  //	cliques ia subir. Aqui eles têm o que faltava — o que fazer com eles.
+  {
+    chave: 'decisao',
+    titulo: 'Esperando você',
+    desc: 'Travados por teto ou por duplicidade — nada disso destrava sozinho',
+  },
 ] as const
 
 type Qual = (typeof LISTAS)[number]['chave']
 
 export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => void }) {
-  const [qual, setQual] = useState<Qual>(lista === 'cliente' ? 'cliente' : 'encarregados')
+  const [qual, setQual] = useState<Qual>(
+    lista === 'cliente' || lista === 'decisao' ? lista : 'encarregados')
   const [dados, setDados] = useState<ListaDePendencias | null>(null)
+  const [decisoes, setDecisoes] = useState<Pagina<Orcamento> | null>(null)
+  const [tratando, setTratando] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [marcando, setMarcando] = useState(false)
@@ -87,10 +105,19 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
 
   const carregar = useCallback(async () => {
     try {
-      setDados(await motor<ListaDePendencias>('/orcamentos/pendencias?destino=' + qual))
+      if (qual === 'decisao') {
+        // Esta lista é de ORÇAMENTO, não de ticket: a decisão sobre uma
+        // duplicata é sobre aquela linha, não sobre o chamado inteiro.
+        setDecisoes(await motor<Pagina<Orcamento>>(
+          '/orcamentos?status=gerado&decisao=so&por=100'))
+        setDados(null)
+      } else {
+        setDados(await motor<ListaDePendencias>('/orcamentos/pendencias?destino=' + qual))
+        setDecisoes(null)
+      }
       setErro('')
     } catch (e) {
-      setDados(null)
+      setDados(null); setDecisoes(null)
       setErro(e instanceof Error ? e.message : 'Não consegui carregar as pendências.')
     }
   }, [qual])
@@ -173,6 +200,45 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
     await carregar()
   }
 
+  // AS TRÊS SAÍDAS, E CADA UMA DESFAZ UM DOS DOIS BLOQUEIOS
+  //
+  //	apagar          serve aos dois: a duplicata que é duplicata mesmo, e o
+  //	                orçamento que não vai ser cobrado.
+  //	lançar assim    só para duplicidade: duas notas iguais de verdade
+  //	                acontecem, e quem viu o custo que já está lá decide.
+  //	pedir aprovação só para teto: o cliente autoriza passar dos R$ 600.
+  //
+  //	Nenhuma delas roda sem confirmação: são as três coisas desta tela que
+  //	mexem em dinheiro.
+  async function tratar(o: Orcamento, acao: 'apagar' | 'lancar' | 'aprovar') {
+    const frases = {
+      apagar: `Apagar o orçamento do ticket ${o.ticket}, de ${emReais(o.valor)}? A nota volta para a fila.`,
+      lancar: `Lançar ${emReais(o.valor)} no ticket ${o.ticket} mesmo com um custo do mesmo valor já lá?`,
+      aprovar: `Registrar que o cliente autorizou ${emReais(o.valor)} acima do teto no ticket ${o.ticket}?`,
+    }
+    if (!window.confirm(frases[acao])) return
+    setTratando(o.id)
+    setErro('')
+    try {
+      if (acao === 'apagar') {
+        await motor(`/orcamentos/ficha/${o.id}`, { metodo: 'DELETE' })
+        setAviso(`Orçamento do ticket ${o.ticket} apagado. A nota voltou para a fila.`)
+      } else if (acao === 'lancar') {
+        const r = await motor<{ trilogo_custo_id: number }>(
+          `/orcamentos/ficha/${o.id}/lancar?duplicata=confirmo`, { metodo: 'POST' })
+        setAviso(`Ticket ${o.ticket}: lançado no Trílogo (custo nº ${r.trilogo_custo_id}).`)
+      } else {
+        await motor(`/orcamentos/ficha/${o.id}/aprovar`, { metodo: 'POST', corpo: {} })
+        setAviso(`Ticket ${o.ticket}: aprovação registrada. Ele volta para a fila de lançar.`)
+      }
+      await carregar()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui concluir.')
+    } finally {
+      setTratando(null)
+    }
+  }
+
   async function marcarCobrados() {
     if (escolhidos.size === 0) return
     setMarcando(true)
@@ -219,7 +285,7 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
             className={'orc-aba' + (qual === l.chave ? ' ligada' : '')}
             onClick={() => trocar(l.chave)}
           >
-            <b>{qual === l.chave ? tickets.length : '·'}</b>
+            <b>{qual !== l.chave ? '·' : l.chave === 'decisao' ? (decisoes?.total ?? 0) : tickets.length}</b>
             <span>{l.titulo}</span>
           </button>
         ))}
@@ -229,7 +295,41 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
       {aviso && <p className="orc-aviso-fila">{aviso}</p>}
       {lote && <PainelDoLote dados={lote} fechar={() => setLote(null)} />}
 
-      {!dados ? <Carregando /> : (
+      {qual === 'decisao' ? (
+        !decisoes ? <Carregando /> : (
+          <div className="orc-lista">
+            <div className="orc-lista-cab">
+              <h2>Esperando você</h2>
+              <em>{LISTAS.find(l => l.chave === 'decisao')?.desc}</em>
+            </div>
+            {decisoes.linhas.length === 0 ? (
+              <p className="orc-vazio grande">
+                Nada esperando decisão. Nenhum orçamento está travado por teto
+                ou por duplicidade.
+              </p>
+            ) : (
+              <div className="orc-rolagem">
+                <table className="orc-tabela">
+                  <thead>
+                    <tr>
+                      <th>Chamado</th><th>Loja</th>
+                      <th style={{ textAlign: 'right' }}>Valor</th>
+                      <th>Por que travou</th><th>O que dá para fazer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {decisoes.linhas.map(o => (
+                      <Decisao key={o.id} o={o}
+                        ocupado={tratando === o.id}
+                        tratar={a => void tratar(o, a)} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )
+      ) : !dados ? <Carregando /> : (
         <div className="orc-lista">
           <div className="orc-lista-cab">
             <h2>{LISTAS.find(l => l.chave === qual)?.titulo}</h2>
@@ -248,6 +348,10 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
                 disabled={tickets.length === 0}>ver a lista</button>
               <button type="button" className="orc-bt" onClick={() => void baixarPlanilha()}
                 disabled={tickets.length === 0}>baixar planilha</button>
+              {/* Reconferir pergunta o status do CHAMADO, e por isso ele não
+                  aparece na lista "Esperando você" — lá o chamado está
+                  liberado, e o que trava é outra coisa. O TypeScript já sabe
+                  disso aqui: este ramo só existe para as outras duas listas. */}
               {lote?.rodando ? (
                 <button type="button" className="orc-bt" onClick={() => { parar.current = true }}>
                   parar depois deste
@@ -315,6 +419,54 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
         </div>
       )}
     </div>
+  )
+}
+
+/** Uma linha da lista "Esperando você".
+ *
+ *  AS SAÍDAS MUDAM COM O MOTIVO, E ISSO NÃO É DETALHE
+ *    Oferecer "lançar assim mesmo" a quem passou do teto seria oferecer o
+ *    caminho que não resolve — o Trílogo aceita, e o cliente recebe uma
+ *    cobrança acima do que autorizou. E oferecer "pedir aprovação" a uma
+ *    duplicata seria pedir ao cliente que autorize pagar duas vezes. */
+function Decisao({ o, ocupado, tratar }: {
+  o: Orcamento
+  ocupado: boolean
+  tratar: (acao: 'apagar' | 'lancar' | 'aprovar') => void
+}) {
+  const duplicata = o.lancamento_bloqueio === 'possivel_duplicata'
+  return (
+    <tr>
+      <td>
+        <span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span>
+      </td>
+      <td>{o.loja ?? '–'}</td>
+      <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
+      <td className="orc-pend-texto">
+        <span className={`orc-marca ${duplicata ? 'erro' : 'espera'}`}>
+          {duplicata ? 'já tem custo deste valor' : 'passa do teto'}
+        </span>
+        {o.lancamento_bloqueio_detalhe && (
+          <div className="orc-sub">{o.lancamento_bloqueio_detalhe}</div>
+        )}
+      </td>
+      <td>
+        <div className="orc-pend-bts">
+          {duplicata ? (
+            <button type="button" className="orc-bt" disabled={ocupado}
+              title="Se forem duas notas iguais de verdade, sobe assim mesmo."
+              onClick={() => tratar('lancar')}>lançar assim mesmo</button>
+          ) : (
+            <button type="button" className="orc-bt" disabled={ocupado}
+              title="Registra que o cliente autorizou passar do teto."
+              onClick={() => tratar('aprovar')}>pedir aprovação</button>
+          )}
+          <button type="button" className="orc-bt forte" disabled={ocupado}
+            title="O orçamento sai, e a nota volta para a fila."
+            onClick={() => tratar('apagar')}>apagar</button>
+        </div>
+      </td>
+    </tr>
   )
 }
 

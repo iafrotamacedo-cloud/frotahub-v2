@@ -154,13 +154,14 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       titulo: 'Pendências',
       descricao: 'Orçamentos prontos, parados pelo status do chamado. Quem move é gente.',
       icone: <IconeEspera />,
-      numero: d.esperando_cliente + d.esperando_equipe,
+      numero: d.esperando_cliente + d.esperando_equipe + (d.esperando_decisao ?? 0),
       rotulo: 'parados',
       faixa: '#7A6A2A',
       previaTitulo: 'quem precisa agir',
       previa: [
         { texto: 'Nossa equipe', fim: String(d.esperando_equipe) },
         { texto: 'Cliente', fim: String(d.esperando_cliente) },
+        { texto: 'Você', fim: String(d.esperando_decisao ?? 0) },
       ],
       previaVazia: 'nada parado por status de chamado',
       filhos: [
@@ -177,6 +178,16 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
           descricao: 'Arquivado ou reaberto — só o cliente destrava',
           numero: d.esperando_cliente,
           previaVazia: 'nada esperando o cliente',
+        },
+        {
+          // As duas de cima esperam o mundo andar. Esta espera uma pessoa —
+          // e era ela que estava na fila de Lançar, fazendo o botão prometer
+          // cinco e entregar zero.
+          chave: 'pendencias:decisao',
+          titulo: 'Você',
+          descricao: 'Teto ou duplicidade — nada disso destrava sozinho',
+          numero: d.esperando_decisao ?? 0,
+          previaVazia: 'nada esperando decisão',
         },
       ],
     },
@@ -262,14 +273,17 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       titulo: 'Fechamento',
       descricao: 'Toda nota em um destino, todo orçamento em um estado. A conta que prova que nada se perdeu.',
       icone: <IconeBalanca />,
-      numero: d.notas_arquivos,
-      rotulo: 'notas na base',
-      previaTitulo: 'as duas contas',
-      previa: [
-        { texto: 'Notas que entraram', fim: String(d.notas_arquivos) },
-        { texto: 'Orçamentos que existem', fim: String(d.no_total) },
-      ],
-      previaVazia: 'nada para conferir ainda',
+      // ESTE CARTÃO NÃO TEM NÚMERO, E É DE PROPÓSITO
+      //
+      //	Ele mostrava `notas_arquivos` sob o rótulo "notas na base" — e
+      //	`notas_arquivos` conta a FILA de notas, não a base. Com a fila vazia,
+      //	o painel anunciava "0 notas na base" tendo 91. Um contador errado num
+      //	cartão que existe para provar que as contas fecham é o pior lugar
+      //	possível para um número errado.
+      //
+      //	Os números desta etapa são DOIS balanços de treze e nove linhas, com
+      //	total e diferença. Não cabem num contador, e resumi-los a um seria
+      //	repetir o erro. Aqui fica o convite; a conta mora lá dentro.
       rodape: 'clique para conferir',
     },
   ]

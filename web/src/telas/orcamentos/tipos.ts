@@ -20,9 +20,12 @@ export interface Painel {
   // `recusados` conta só os que já foram tentados e o Trílogo negou. A diferença
   // entre os dois é a diferença entre "trabalho a fazer" e "problema".
   recusados: number
+  /** Conta só o que o botão de lote CONSEGUE subir. */
   prontos_para_lancar: number
   esperando_cliente: number
   esperando_equipe: number
+  /** A terceira lista de Pendências: teto e duplicidade. */
+  esperando_decisao?: number
 
   // ---- a 017 ----
   // A fila do faturamento é uma coluna VAZIA (`fatura_id is null`), não um mês.
@@ -173,6 +176,10 @@ export interface Orcamento {
   // É esta coluna que separa "está na fila" de "deu problema": quem nunca foi
   // tentado não é uma correção, é trabalho a fazer.
   lancamento_bloqueio: Bloqueio | null
+  /** Travado por algo que só uma pessoa desfaz — teto ou duplicidade. A regra
+   *  de QUAIS bloqueios são estes mora na view (migração 035), e não aqui: a
+   *  mesma pergunta é feita pelo motor, por esta tela e pelo balanço. */
+  precisa_decisao?: boolean
   // A frase do Trílogo, palavra por palavra. Nunca traduzir na tela: é ela que
   // explica o caso que a categoria não cobre.
   lancamento_bloqueio_detalhe: string | null
