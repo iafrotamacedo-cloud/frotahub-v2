@@ -177,6 +177,13 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /orcamentos/pedido.xlsx", m.pedidoExcel)
 	mux.HandleFunc("GET /orcamentos/pedido.pdf", m.pedidoPDF)
 	mux.HandleFunc("POST /orcamentos/pedido/fechar", m.fecharPedido)
+
+	// O RELATÓRIO MENSAL QUE VAI AO CLIENTE
+	//   Só extração, e só em Excel: o arquivo É o produto desta tela. A rota sem
+	//   extensão devolve os dois números com que a decisão se toma — quantos e
+	//   quanto — e não a lista, que ninguém lê com quatrocentas linhas.
+	mux.HandleFunc("GET /orcamentos/relatorio-mensal", m.relatorioMensal)
+	mux.HandleFunc("GET /orcamentos/relatorio-mensal.xlsx", m.relatorioMensalExcel)
 	mux.HandleFunc("POST /orcamentos/pedido/{id}/enviado", m.marcarPedidoEnviado)
 	mux.HandleFunc("POST /orcamentos/pedido/{id}/reabrir", m.reabrirPedido)
 	mux.HandleFunc("PATCH /orcamentos/documentos/{id}/tickets", m.corrigirTicket)

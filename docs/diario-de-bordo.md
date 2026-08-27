@@ -3058,6 +3058,11 @@ alimenta não pode filtrar pelo mesmo critério — senão vira uma segunda regr
 escondida, que decide antes e discorda. *Origem: `MesmaNota` aceita número quando
 falta a chave; a busca procurava só por chave. R$ 854,40 cobrados duas vezes.*
 
+**P-47 — Arquivo que vai para fora se abre antes de sair.**
+Compilar, testar e conferir os números não mostra o que o programa do outro lado
+vai ver. Gera-se um de verdade e abre-se com o leitor de lá. *Origem: a coluna
+DATA saía um dia atrasada em todas as linhas, e nenhum teste reclamava.*
+
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
 
@@ -3858,6 +3863,141 @@ o par. R$ 854,40 cobrados duas vezes.*
 | `baleryan/interno/modulos/orcamentos/gerar.go` | `mesmaNotaJaOrcou`, a segunda barreira |
 | `baleryan/interno/modulos/orcamentos/mesma_nota_test.go` | **novo** — cinco guardas |
 | `db/consertos/2026-08-27_nota_repetida_em_dois_arquivos.sql` | **novo** — os R$ 854,40 |
+
+---
+
+## FASE 4 · Step 18 — o relatório mensal que vai ao cliente
+
+> *"precisamos criar um meio de extrair a lista de orçamentos pendentes de
+> cobrança para mandar para o cliente."*
+
+Cinco instruções dele: card **Relatório mensal** em A receber; entram todos os
+lançados no Trílogo ainda não cobrados; **só extração em Excel**, no modelo dele;
+a regra é *"todo orçamento inserido e não colocado em planilhas anteriores"*; e a
+coluna PCO fica para depois.
+
+### O que eu medi antes de escrever uma linha
+
+A planilha de julho que ele enviou tem **247 tickets, R$ 35.334,37**. Cruzada com
+o banco:
+
+| | |
+|---|---|
+| já com `fatura_id` no sistema | **245 dos 247** |
+| na planilha e sem fatura aqui | 6 |
+| na planilha e sem existir no banco | 2 |
+| lançados fora da planilha | **408, R$ 63.808,80** |
+
+Os **6** não eram buraco: são **partes 2 e 3** de tickets cuja parte 1 fora
+cobrada (93523, 120586, 124822, 126400, 126474). Conferi um a um — a planilha
+lista o valor da **parte**, não a soma do ticket. A régua já estava certa parte a
+parte, e essas seis entram agora, corretamente.
+
+Os **2** (120530 e 126119) são exatamente os que ficaram de fora da carga do
+legado por não terem custo no Trílogo — já registrados como exceção desde 25/08.
+
+**A régua, então, já existia:** `status = 'lancado' and fatura_id is null`. Não é
+janela de mês — um orçamento de julho que ninguém cobrou entra no relatório de
+dezembro, porque a alternativa é ele nunca ser cobrado.
+
+### O que o modelo dele revelou
+
+| Coluna | De onde vem | Como decidi |
+|---|---|---|
+| DATA | `criado_em` | testei seis tickets: bate no dia exato. `lancado_em` é 15/08 em tudo — data da carga do legado |
+| VALOR **e** ORÇAMENTO | os dois com o valor **cobrado** | no modelo, ORÇAMENTO é a fórmula `=(D2)`. Pôr o valor da nota numa e o cobrado na outra **entregaria a margem de 20% ao cliente** |
+| CONTA | `civil`/`instalacoes` por extenso | mantendo o **"MANUENÇÃO" sem o T** do cadastro dele: o texto é chave de PROCV, não legenda |
+| PCO | vazia | backlog |
+
+E uma correção no modelo: a coluna DATA da planilha dele está com formato Geral,
+então mostra **46216** em vez de 13/07/2026. A nossa sai como data de verdade.
+
+### O de-para das lojas — migração 040
+
+O cliente chama `LJ-02 - 2.7(OLIVEIRA PAIVA)`; nós chamamos
+`LOJA 02 - OLIVEIRA PAIVA`. Aquele **2.7 é o centro de custo dele** e não existe
+em lugar nenhum do nosso sistema. Mandar errado joga o custo no centro de custo
+errado, e o erro só aparece quando ele contesta.
+
+Não virou tabela nova: `unidades` já tinha `cnpj` vazia, e a correspondência é
+atributo da unidade. Ganhou `nome_cliente`, e a chave do casamento é
+**`id_trilogo`** — nome muda, id não.
+
+**A prova de que o mapeamento está certo veio de graça:** a lista de CNPJ dele
+tem 33 lojas; nós temos 38 unidades. As **quatro** sem CNPJ são exatamente as
+quatro marcadas `no_escopo = false` — Crato, Juazeiro, Lagoa Seca e Novo Juazeiro,
+todas com zero orçamentos. Duas listas feitas por gente diferente concordando.
+
+Sobra **um buraco real**: o **ESCRITÓRIO** está no escopo, tinha 6 orçamentos a
+cobrar, e o cliente não mandou o CNPJ dele.
+
+A migração **confere a si mesma e derruba se não fechar**: unidade sem nome do
+cliente, CNPJ que não tem 14 dígitos limpos, dois nomes apontando para o mesmo
+centro de custo, ou um número diferente de 33. Sabotei as quatro.
+
+### O defeito que só o arquivo gerado mostrou
+
+Gerei o `.xlsx` de verdade e abri: **13/07 saiu como 12/07**. Um dia a menos em
+toda linha.
+
+Meu `emData` usava `time.Parse`, que devolve **meia-noite em UTC**. A planilha
+leva a data ao fuso da casa antes de contar os dias, e meia-noite UTC é 21h do dia
+anterior em Fortaleza.
+
+O mais incômodo: o comentário do `serieDoExcel` já descrevia essa armadilha —
+*"isso só apareceu abrindo o arquivo com um leitor de planilha de verdade; os
+testes do próprio código concordavam consigo mesmos"*. Eu li aquele comentário e
+caí na mesma armadilha do outro lado da fronteira.
+
+### As sabotagens
+
+| Teste | Sabotagem |
+|---|---|
+| `OModeloDoClienteTemAsOitoColunasNaOrdem` | troquei duas colunas de lugar; e DATA virou número cru |
+| `ValorEOrcamentoLevamOMesmoNumeroECobrado` | — |
+| `ARegraEAindaNaoCobradoENaoDesteMes` | expus `valor_nota`; troquei a régua por "deste mês"; deixei o faturamento direto entrar |
+| `AContaSaiComoOClienteAEscreve` | "corrigi" MANUENÇÃO para MANUTENÇÃO |
+| `ADataViraDataDeVerdade` | a data voltou a nascer em UTC; e o timestamp ignorou o fuso |
+| `ATelaAvisaDaLojaSemNomeDoCliente` | a tela parou de ler `lojas_sem_nome` |
+| `ORelatorioMensalNaoTemPDF` | — |
+| a migração 040 | quatro travas, quatro sabotagens |
+
+Uma delas me pegou de novo pelo mesmo vício de sempre: o teste procurava
+`valor_nota` no arquivo inteiro e acusava o **próprio comentário** que explica por
+que a coluna não entra. Consertar seria apagar a explicação. Estreitei para o
+corpo da view.
+
+### A tela
+
+Virou uma **terceira aba** em A receber, não um cartão: a tela já é feita de abas
+(A faturar · Faturas), e um cartão no meio delas seria um segundo padrão. Se ele
+quiser cartão no painel de Orçamentos, é outra conversa.
+
+Ela **não lista os 408**. A decisão aqui é uma só — "mando ou não mando" — e se
+toma com dois números. E avisa, com o botão ainda na mão, se alguma loja está sem
+o nome do cliente: essa linha sairia com a coluna LOJA em branco, e ele não
+conseguiria lançar em centro de custo nenhum.
+
+### Prática que nasceu deste Step
+
+**P-47 — Arquivo que vai para fora se abre antes de sair.**
+Compilar, testar e conferir os números não mostra o que o programa que vai
+receber o arquivo vai ver. Gera-se um de verdade e abre-se com o leitor do outro
+lado. *Origem: a coluna DATA saía um dia atrasada em todas as linhas, e nenhum
+teste do código reclamava — eles concordavam consigo mesmos.*
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `db/migrations/040_a_loja_tem_o_nome_do_cliente.sql` | **novo** — 38 nomes, 33 CNPJ, quatro travas |
+| `db/migrations/041_o_que_ainda_nao_foi_cobrado.sql` | **novo** — a view `orcamentos_a_cobrar` |
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal.go` | **novo** |
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal_test.go` | **novo** — sete guardas |
+| `baleryan/interno/modulos/orcamentos/rotas.go` | as duas rotas |
+| `web/src/telas/orcamentos/Faturamento.tsx` | a aba Relatório mensal |
+| `web/src/telas/orcamentos/tipos.ts` | `RelatorioMensalDados` |
+| `docs/backlog-pco.md` | **novo** — a coluna PCO |
 
 ---
 

@@ -10,6 +10,9 @@
 //	            nota são anotados, e onde a diferença entre faturado e recebido
 //	            aparece.
 //
+//	Relatório   a relação que VAI AO CLIENTE, no modelo dele. Só extração, e só
+//	mensal      em Excel: o arquivo é o produto desta aba, não uma vista dele.
+//
 // POR QUE A FILA NÃO TEM FILTRO DE MÊS
 //
 //	Porque o mês não é o critério — o critério é "ainda não foi cobrado". Em
@@ -23,10 +26,11 @@ import { BarraDeVolta } from './Arquivos'
 import {
   emReais, emData, contaPorExtenso,
   type Faturamento as Dados, type Faturas as DadosDeFaturas, type Fatura,
+  type RelatorioMensalDados,
 } from './tipos'
 
 export function Faturamento({ voltar }: { voltar: () => void }) {
-  const [aba, setAba] = useState<'fila' | 'emitidas'>('fila')
+  const [aba, setAba] = useState<'fila' | 'emitidas' | 'relatorio'>('fila')
   return (
     <div className="orc-tela">
       <BarraDeVolta
@@ -40,11 +44,131 @@ export function Faturamento({ voltar }: { voltar: () => void }) {
             <button type="button" className={aba === 'emitidas' ? 'ativa' : ''} onClick={() => setAba('emitidas')}>
               Faturas
             </button>
+            <button type="button" className={aba === 'relatorio' ? 'ativa' : ''} onClick={() => setAba('relatorio')}>
+              Relatório mensal
+            </button>
           </span>
         }
       />
-      {aba === 'fila' ? <Fila /> : <Emitidas />}
+      {aba === 'fila' ? <Fila /> : aba === 'emitidas' ? <Emitidas /> : <RelatorioMensal />}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Relatório mensal — a relação que vai ao cliente
+// ---------------------------------------------------------------------------
+
+/**
+ * O QUE ESTA ABA É, E O QUE ELA NÃO É
+ *
+ *   Ela não lista os orçamentos. A decisão aqui é uma só — "mando ou não
+ *   mando" — e ela se toma com dois números: quantos e quanto. Quatrocentas
+ *   linhas na tela não ajudam a decidir nada, e quem quiser vê-las tem a aba
+ *   "A faturar" ao lado.
+ *
+ * SÓ EXCEL, E É DE PROPÓSITO
+ *
+ *   Decisão do dono em 27/08/2026: "nesta tela, apenas a extração por excel e
+ *   com o modelo que eu vou lhe enviar". O arquivo É o produto: ele sai daqui e
+ *   entra na planilha do cliente, provavelmente por PROCV. Um PDF seria uma
+ *   segunda versão do mesmo documento, e duas versões divergem.
+ *
+ * A REGRA DO QUE ENTRA
+ *
+ *   Tudo o que foi lançado no Trílogo e nenhuma planilha anterior levou. Não é
+ *   janela de mês: um orçamento de julho que ninguém cobrou entra no relatório
+ *   de dezembro — a alternativa é ele nunca ser cobrado.
+ */
+function RelatorioMensal() {
+  const [dados, setDados] = useState<RelatorioMensalDados | null>(null)
+  const [erro, setErro] = useState('')
+  const [baixando, setBaixando] = useState(false)
+
+  const carregar = useCallback(async () => {
+    try {
+      setDados(await motor<RelatorioMensalDados>('/orcamentos/relatorio-mensal'))
+      setErro('')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui carregar o relatório.')
+    }
+  }, [])
+
+  useEffect(() => { void carregar() }, [carregar])
+
+  async function extrair() {
+    setBaixando(true)
+    try {
+      await baixarDoMotor('/orcamentos/relatorio-mensal.xlsx')
+      setErro('')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui gerar a planilha.')
+    } finally {
+      setBaixando(false)
+    }
+  }
+
+  if (erro && !dados) return <p className="erro">{erro}</p>
+  if (!dados) return <Carregando />
+
+  const vazio = dados.quantos === 0
+
+  return (
+    <>
+      <div className="fat-resumo">
+        <Cartao titulo="A cobrar" valor={String(dados.quantos)} rodape="orçamentos lançados e não cobrados" />
+        <Cartao titulo="Valor" valor={emReais(dados.valor)} rodape="soma do que vai na planilha" />
+        <Cartao
+          titulo="Período"
+          valor={dados.de ? `${emData(dados.de)} – ${emData(dados.ate)}` : '–'}
+          rodape="da criação do orçamento"
+        />
+      </div>
+
+      {/* A LOJA SEM O NOME DO CLIENTE APARECE ANTES DE O ARQUIVO SAIR
+          Uma linha com a coluna LOJA em branco é uma linha que o cliente não
+          consegue lançar em centro de custo nenhum. Melhor saber aqui, com o
+          botão ainda na mão, do que na devolutiva dele. */}
+      {dados.lojas_sem_nome.length > 0 && (
+        <p className="fat-aviso">
+          {dados.lojas_sem_nome.length === 1 ? 'Uma loja está' : `${dados.lojas_sem_nome.length} lojas estão`} sem
+          o nome que o cliente usa: <b>{dados.lojas_sem_nome.join(', ')}</b>. As linhas dela sairiam com a coluna
+          LOJA em branco, e o cliente não conseguiria lançar no centro de custo. Cadastre o nome antes de enviar.
+        </p>
+      )}
+
+      {dados.quantos >= dados.teto && (
+        <p className="fat-aviso">
+          Há mais orçamentos a cobrar do que cabe num arquivo ({dados.teto}). A planilha sai cortada e diz
+          isso no rodapé — feche esta e gere de novo.
+        </p>
+      )}
+
+      <div className="orc-lista">
+        <div className="orc-lista-cab">
+          <h2>Orçamentos de materiais</h2>
+          <em>no modelo do cliente</em>
+          <span style={{ flex: 1 }} />
+          <button type="button" className="orc-bt forte" disabled={vazio || baixando} onClick={() => void extrair()}>
+            {baixando ? 'gerando…' : 'Extrair Excel'}
+          </button>
+        </div>
+
+        {vazio ? (
+          <p className="orc-vazio grande">
+            Nada a cobrar. Tudo o que foi lançado no Trílogo já entrou numa planilha anterior.
+          </p>
+        ) : (
+          <p className="orc-vazio">
+            A planilha sai com <b>{dados.quantos}</b> {dados.quantos === 1 ? 'linha' : 'linhas'} e as oito colunas
+            do modelo — Nº, TICKET, LOJA, VALOR, DATA, ORÇAMENTO, CONTA e PCO. A coluna PCO vai vazia por
+            enquanto, no lugar certo, esperando o passo seguinte.
+          </p>
+        )}
+      </div>
+
+      {erro && <p className="erro">{erro}</p>}
+    </>
   )
 }
 

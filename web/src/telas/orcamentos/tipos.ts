@@ -511,3 +511,22 @@ export interface Fechamento {
     vinculo_de_orcamento_apagado: number
   }
 }
+
+/**
+ * O RELATÓRIO MENSAL — só os números com que a decisão se toma.
+ *
+ *   A tela não recebe as linhas: recebe quantos, quanto, o período e o que
+ *   impediria o cliente de lançar (loja sem o nome dele). As linhas moram na
+ *   planilha, que é o produto.
+ */
+export interface RelatorioMensalDados {
+  quantos: number
+  valor: number
+  /** Data de criação do orçamento mais antigo e do mais novo, ISO. */
+  de: string
+  ate: string
+  /** Lojas nossas sem `nome_cliente` — sairiam com a coluna LOJA em branco. */
+  lojas_sem_nome: string[]
+  /** Máximo de linhas por arquivo. Batendo nele, a planilha diz que cortou. */
+  teto: number
+}
