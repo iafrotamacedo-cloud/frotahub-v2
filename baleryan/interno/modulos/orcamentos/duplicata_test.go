@@ -403,3 +403,41 @@ func TestOEspelhoDoChamadoTemUmDonoSo(t *testing.T) {
 		t.Error("ninguém grava o espelho do chamado — `espelharChamado` sumiu")
 	}
 }
+
+// TIRAR TICKET DE NOTA JÁ USADA É RECUSADO, E A RECUSA ENSINA O CAMINHO
+//
+//	O ticket é o chamado que recebeu o custo. Se a nota já gerou orçamento,
+//	tirar o ticket dela faz os dois contarem histórias diferentes: o orçamento
+//	diz "vim da nota Y, para o ticket X" e a nota Y não conhece mais o ticket X.
+//
+//	A saída certa já existe e desfaz tudo na ordem — apagar o orçamento devolve
+//	a nota para a fila e solta o vínculo. Por isso a recusa DIZ isso: um "não"
+//	que não ensina o que fazer é o "não" que faz a pessoa procurar contorno
+//	(P-18).
+func TestNaoSeTiraTicketDeNotaQueJaVirouOrcamento(t *testing.T) {
+	fonte, err := os.ReadFile("tratamento.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o tratamento.go: %v", err)
+	}
+	corpo := string(fonte)
+	corpo = corpo[strings.Index(corpo, "func (m *Modulo) apagarTicket("):]
+	corpo = corpo[:strings.Index(corpo, "\nfunc ")]
+
+	guarda := strings.Index(corpo, `== "usado"`)
+	if guarda < 0 {
+		t.Fatal("o `apagarTicket` não confere se a nota já virou orçamento — " +
+			"tirar o ticket ali deixa o orçamento apontando para um chamado que a " +
+			"nota não conhece mais")
+	}
+	apaga := strings.Index(corpo, `m.bd.Apagar(`)
+	if apaga < 0 {
+		t.Fatal("o `apagarTicket` não apaga nada — o teste deixou de olhar o que devia")
+	}
+	if apaga < guarda {
+		t.Error("a conferência vem DEPOIS de apagar — o estrago já aconteceu quando " +
+			"alguém percebe")
+	}
+	if !strings.Contains(corpo, "Apague o orçamento primeiro") {
+		t.Error("a recusa não diz o caminho de volta; quem a lê fica sem saber o que fazer")
+	}
+}

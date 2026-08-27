@@ -886,3 +886,12 @@
 .orc-lote-fim { margin-top: 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .orc-lote-fim p { margin: 0; font-size: 12.5px; color: var(--txt); line-height: 1.5; }
 .orc-lote-fim strong { color: var(--ink); }
+
+/* O × que tira um ticket já gravado da ficha da nota.
+   Discreto até o mouse chegar: ele mexe no destino do dinheiro, e um botão
+   vermelho permanente ao lado de cada número convida ao clique distraído. */
+.orc-tk s {
+  margin-left: 6px; text-decoration: none; cursor: pointer;
+  color: var(--mut); font-weight: 700; line-height: 1;
+}
+.orc-tk s:hover, .orc-tk s:focus-visible { color: var(--red); }

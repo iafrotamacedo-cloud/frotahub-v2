@@ -425,6 +425,35 @@ func (m *Modulo) apagarTicket(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não achei este documento", err)
 		return
 	}
+
+	// NOTA QUE JÁ VIROU ORÇAMENTO NÃO TEM TICKET TIRADO POR AQUI
+	//
+	//	O ticket é o chamado que recebeu o custo. Se a nota já gerou orçamento,
+	//	tirar o ticket dela deixa os dois contando histórias diferentes: o
+	//	orçamento diz "vim da nota Y, para o ticket X" e a nota Y não conhece
+	//	mais o ticket X. A ponte entre as duas contas continua fechando — o
+	//	vínculo é carimbado a partir do orçamento — mas a resposta para "de onde
+	//	veio este custo?" deixa de existir.
+	//
+	//	E a saída certa já existe e desfaz tudo na ordem: apagar o orçamento
+	//	devolve a nota para a fila, solta o vínculo e libera a chave. Depois
+	//	disso, mexer nos tickets é seguro.
+	//
+	//	A frase diz o caminho, e não só o "não" (P-18): recusa que não ensina o
+	//	que fazer é a recusa que faz a pessoa procurar contorno.
+	doc, err := m.contarUm(r.Context(), "documentos?id=eq."+id+
+		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&select=status&limit=1")
+	if err != nil {
+		m.erro(w, "não achei este documento", err)
+		return
+	}
+	if fmt.Sprint(doc["status"]) == "usado" {
+		web.Falhar(w, http.StatusConflict,
+			"Esta nota já virou orçamento, então os tickets dela não podem mudar aqui. "+
+				"Apague o orçamento primeiro — a nota volta para a fila e os tickets ficam livres.")
+		return
+	}
+
 	if err := m.bd.Apagar(r.Context(), "documento_tickets",
 		"documento_id=eq."+id+"&ticket=eq."+strconv.Itoa(ticket)); err != nil {
 		m.erro(w, "não consegui tirar o ticket desta nota", err)

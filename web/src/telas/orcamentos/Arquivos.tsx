@@ -519,6 +519,35 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
     setErro('')
   }
 
+  // TIRAR UM TICKET JÁ GRAVADO
+  //
+  //	Até 28/08/2026 esta ficha só deixava tirar o que ainda NÃO tinha sido
+  //	salvo. Ticket gravado errado só saía pelo visor de Correções — e a nota
+  //	que já estava certa em tudo o mais não passa por lá. Quem errasse o
+  //	número aqui não tinha caminho de volta nesta tela.
+  //
+  // PEDE CONFIRMAÇÃO PORQUE MEXE NO DESTINO DO DINHEIRO
+  //
+  //	O ticket é o chamado que vai receber o custo. Tirar o errado conserta;
+  //	tirar o certo manda o orçamento para outro chamado, e ninguém percebe
+  //	até o cliente perguntar.
+  async function tirar(t: number) {
+    if (salvando) return
+    if (!window.confirm(`Tirar o ticket ${t} desta nota?`)) return
+    setSalvando(true)
+    try {
+      await motor(`/orcamentos/documentos/${documento.id}/tickets/${t}/apagar`,
+        { metodo: 'POST' })
+      setTickets(tickets.filter(x => x.ticket !== t))
+      setErro('')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não consegui tirar o ticket.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+
   async function inserir() {
     if (!novos.length || salvando) return
     setSalvando(true)
@@ -546,6 +575,9 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
             <span key={t.ticket} className={'orc-tk' + (t.chamado_id ? '' : ' solto')}
               title={t.chamado_id ? 'casou com um chamado da nossa base' : 'este número não existe na nossa base'}>
               {t.ticket}
+              <s role="button" tabIndex={0} title="tirar este ticket da nota"
+                onClick={() => void tirar(t.ticket)}
+                onKeyDown={e => { if (e.key === 'Enter') void tirar(t.ticket) }}>×</s>
             </span>
           ))}
           {novos.map(n => (
