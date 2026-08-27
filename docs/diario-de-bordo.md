@@ -3017,10 +3017,11 @@ nasce em pacote importável. *Origem: a leitura inteira estava no `main` do rob�
 única maneira de o motor ler uma nota seria copiar 400 linhas.*
 
 **P-40 — Falta de ferramenta do servidor não vira defeito do dado.**
-Antes de mandar o registro para o processo, pergunte se ESTA máquina tem com que
-processá-lo — e, se não tiver, recuse sem marcar o registro. *Origem: sem
-`GEMINI_API_KEY` no motor, cada clique marcaria a nota como `falhou`; noventa e uma
-notas levariam a culpa de uma variável de ambiente.*
+Perguntar antes ajuda, mas não basta: a pergunta só cobre o que você lembrou de
+perguntar. A trava que fecha é **classificar a falha** — culpa do servidor não
+marca o registro, culpa do registro marca. *Origem: eu perguntei pela chave da IA
+e achei que tinha resolvido; o modelo aposentado passou pela pergunta e as três
+notas voltaram `falhou` por causa de uma linha de configuração.*
 
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
@@ -3159,6 +3160,8 @@ Roda quando alguém manda: **Actions › Leitor de notas › Run workflow**.
 | `SemIANaoSeLeImagemNemPDF` | 91 notas marcadas `falhou` por falta de chave | deixei a foto passar; e recusei o XML |
 | `PorlerNaoCaiNoCuringaDoId` | `/documentos/porler` comido por `/documentos/{id}` | virei a rota em `{id}/porler` |
 | `OFrontDizDeQueFilaAsRotasDeLeituraSao` | chamada de leitura sem a fila no endereço | tirei `?fila=` do POST |
+| `FalhaDoServidorNaoMarcaANota` | nota acusada por defeito de configuração | tirei a conferência do tipo |
+| `FalhaDaPropriaNotaContinuaMarcando` | a saída fácil: nunca marcar nada | fiz nunca marcar |
 
 ### O defeito que chegou à tela, e o guarda que o pegou
 
@@ -3174,6 +3177,37 @@ com a chave da porta ao lado. Faltou o **chamador dizer de onde veio** — e é 
 que `OFrontDizDeQueFilaAsRotasDeLeituraSao` passa a cobrar, lendo o endereço que o
 front monta, literal, e exigindo `fila=` nele. Sabotado tirando o parâmetro: falha
 com a frase do defeito.
+
+### O segundo defeito, e ele é o mais grave dos dois
+
+Segunda subida: **"0 notas lidas · 3 não deu para ler"** de novo, agora com
+*"o modelo de IA configurado foi aposentado pelo Google"*. E as três notas
+**marcadas `falhou`**, em vermelho, com um recado sobre variável de ambiente
+escrito por cima do nome do arquivo.
+
+O modelo morto é configuração do motor (`GEMINI_MODELO` no painel do Render), e
+isso é conserto de um minuto. O defeito é o outro: **nenhuma daquelas notas tinha
+problema, e as três levaram a culpa.**
+
+É exatamente o que `FaltaOLeitor` foi escrito para impedir — só que ele enxerga a
+falta da **chave**, e nada mais. Modelo morto, cota estourada, armazém fora do
+ar: tudo isso passa por ele e chegava no `leituraFalhou`, que marcava a nota sem
+perguntar de quem era a culpa.
+
+A regra agora é o **tipo do erro** — o mesmo que a fila já usava.
+`FalhaTemporaria` quer dizer *"a nota está boa, tente de novo"*: o trabalho volta
+para a fila, o motivo aparece no painel de andamento onde a pessoa está olhando, e
+**a nota fica como está** — `inserido`, "na fila", que é a verdade. Quem condena
+uma nota depois de três tentativas é o robô, em lote, onde ninguém está olhando e
+uma nota ruim viraria laço infinito. Aqui o freio é a pessoa.
+
+Dois testes, um em cada sentido, porque a saída fácil do primeiro é nunca marcar
+nada: `FalhaDoServidorNaoMarcaANota` e `FalhaDaPropriaNotaContinuaMarcando`.
+
+E as frases de `EmPortugues` mandavam a pessoa para "o workflow". Desde que o
+motor lê também, a variável pode estar nos dois lugares — e mandar quem está na
+tela procurar no lugar errado é pior que não dizer nada: ele troca a linha, clica
+de novo e recebe o mesmo erro, achando que não adiantou.
 
 ### O botão
 
@@ -3196,10 +3230,11 @@ robô, e a única maneira de o motor ler uma nota seria copiar 400 linhas — du
 leituras para a mesma nota, e a tela dizendo uma coisa e o robô outra.*
 
 **P-40 — Falta de ferramenta do servidor não vira defeito do dado.**
-Antes de mandar o registro para o processo, pergunte se ESTA máquina tem com que
-processá-lo — e, se não tiver, recuse sem marcar o registro. *Origem: sem
-`GEMINI_API_KEY` no motor, cada clique marcaria a nota como `falhou`; noventa e uma
-notas levariam a culpa de uma variável de ambiente.*
+Perguntar antes ajuda, mas não basta: a pergunta só cobre o que você lembrou de
+perguntar. A trava que fecha é **classificar a falha** — culpa do servidor não
+marca o registro, culpa do registro marca. *Origem: eu perguntei pela chave da IA
+e achei que tinha resolvido; o modelo aposentado passou pela pergunta e as três
+notas voltaram `falhou` por causa de uma linha de configuração.*
 
 ### Inventário deste Step
 

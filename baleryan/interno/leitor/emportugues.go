@@ -29,14 +29,21 @@ var pistas = []struct {
 	contem   string
 	explicar string
 }{
+	// ONDE FICA A CONFIGURAÇÃO DEPENDE DE QUEM ESTÁ LENDO
+	//
+	//	Estas frases nasceram quando só o robô do GitHub lia, e mandavam a pessoa
+	//	para "o workflow". Desde 27/08/2026 o motor lê também, e ali a variável
+	//	mora no painel do serviço. Mandar quem está na tela procurar no lugar
+	//	errado é pior do que não dizer nada — ele troca a linha, clica de novo e
+	//	recebe o mesmo erro, achando que não adiantou.
 	{"no longer available",
-		"o modelo de IA configurado foi aposentado pelo Google. Troque o GEMINI_MODELO no workflow por um modelo vivo e mande ler de novo"},
+		"o modelo de IA configurado foi aposentado pelo Google. Troque o GEMINI_MODELO por um modelo vivo (no painel do motor e no workflow do robô) e mande ler de novo"},
 	{"is not found",
-		"o modelo de IA configurado não existe. Confira o GEMINI_MODELO no workflow"},
+		"o modelo de IA configurado não existe. Confira o GEMINI_MODELO no painel do motor e no workflow do robô"},
 	{"api key not valid",
-		"a chave da IA foi recusada. Confira o GEMINI_API_KEY nos segredos do repositório"},
+		"a chave da IA foi recusada. Confira o GEMINI_API_KEY no painel do motor e nos segredos do repositório"},
 	{"api_key_invalid",
-		"a chave da IA foi recusada. Confira o GEMINI_API_KEY nos segredos do repositório"},
+		"a chave da IA foi recusada. Confira o GEMINI_API_KEY no painel do motor e nos segredos do repositório"},
 	{"permission",
 		"a chave da IA não tem permissão para este modelo"},
 	{"quota",

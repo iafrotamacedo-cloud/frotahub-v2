@@ -230,17 +230,35 @@ func (m *Modulo) fecharALeitura(ctx context.Context, trabalho string) {
 	})
 }
 
-// leituraFalhou devolve o trabalho para a fila e conta o motivo na tela.
+// leituraFalhou devolve o trabalho para a fila — e, quando a culpa é do
+// servidor, NÃO deixa a nota levar a culpa.
+//
+// O DEFEITO QUE ISTO CONSERTA, VISTO NA TELA EM 27/08/2026
+//
+//	O modelo de IA configurado no motor estava aposentado. As três notas da fila
+//	de rateio voltaram marcadas **`falhou`**, em vermelho, com um recado sobre
+//	variável de ambiente escrito por cima do nome do arquivo. Nenhuma delas tinha
+//	problema nenhum: o que estava errado era uma linha de configuração.
+//
+//	É exatamente o que o `FaltaOLeitor` existe para impedir — só que ele só
+//	enxerga a falta da chave. Modelo morto, cota estourada, armazém fora do ar:
+//	tudo isso passa por ele e chega aqui.
+//
+// A REGRA, ENTÃO, É O TIPO DO ERRO — O MESMO QUE A FILA USA
+//
+//	`FalhaTemporaria` quer dizer "a nota está boa, tente de novo". Marcar de
+//	`falhou` uma nota assim é acusá-la de um problema que não é dela. Ela fica
+//	como está — `inserido`, "na fila", que é a verdade: não foi lida — e o
+//	motivo aparece no painel de andamento, onde a pessoa que clicou está olhando.
+//
+//	Quem condena a nota depois de três tentativas é o robô, em lote, onde
+//	ninguém está olhando e uma nota ruim viraria laço infinito. Aqui o freio é a
+//	pessoa: ela conserta a configuração e clica de novo.
 //
 // POR QUE O TRABALHO VOLTA PARA A FILA EM VEZ DE MORRER
 //
-//	Porque quem clicou está ali, e vai clicar de novo. A contagem de tentativas
-//	do robô existe para o lote, onde ninguém está olhando e uma nota ruim viraria
-//	laço infinito; aqui o freio é a pessoa. Deixar o trabalho fechado como
-//	"falhou" tiraria a nota do alcance dos dois — do botão e do robô.
-//
-//	A nota fica marcada `falhou` com o motivo em português, porque é isso que a
-//	lista mostra. E `falhou` é justamente o estado que esta rota aceita de volta.
+//	Porque quem clicou está ali, e vai clicar de novo. Deixar o trabalho fechado
+//	como "falhou" tiraria a nota do alcance dos dois — do botão e do robô.
 func (m *Modulo) leituraFalhou(ctx context.Context, documentoID, trabalho string, causa error) {
 	if trabalho != "" {
 		_ = m.bd.Atualizar(ctx, "jobs", "id=eq."+trabalho, map[string]any{
@@ -250,6 +268,14 @@ func (m *Modulo) leituraFalhou(ctx context.Context, documentoID, trabalho string
 			"erro":       causa.Error(),
 		})
 	}
+	var temporaria leitura.FalhaTemporaria
+	if errors.As(causa, &temporaria) {
+		// A nota está boa. Quem falhou fomos nós.
+		return
+	}
+	// Falha que não melhora tentando de novo é problema DESTA nota — aí sim ela
+	// precisa aparecer na tela como falhada, com o motivo, senão fica de pé
+	// parecendo em ordem e ninguém procura o que parece em ordem.
 	_ = m.bd.Atualizar(ctx, "documentos", "id=eq."+documentoID, map[string]any{
 		"status":       "falhou",
 		"leitura_erro": leitor.EmPortugues(causa.Error()),

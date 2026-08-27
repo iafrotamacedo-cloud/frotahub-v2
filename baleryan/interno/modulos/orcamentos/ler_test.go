@@ -11,6 +11,7 @@ package orcamentos
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitura"
 )
 
 // NOTA LIDA NÃO SE LÊ DE NOVO
@@ -183,5 +185,75 @@ func TestOFrontDizDeQueFilaAsRotasDeLeituraSao(t *testing.T) {
 				"exige a permissão errada e depois recusa a nota — foi o "+
 				"\"0 lidas · 3 não deu para ler\" da fila de rateio.", e)
 		}
+	}
+}
+
+// bancoQueAnota guarda cada escrita, para provar o que NÃO foi escrito.
+func bancoQueAnota(t *testing.T, escritas *[]string) *Modulo {
+	t.Helper()
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		corpo := make([]byte, 512)
+		n, _ := r.Body.Read(corpo)
+		*escritas = append(*escritas, r.Method+" "+r.URL.Path+"?"+r.URL.RawQuery+" "+string(corpo[:n]))
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(s.Close)
+	return &Modulo{bd: banco.Novo(&config.Config{
+		Supabase: config.Supabase{URL: s.URL, ChaveServico: "chave-de-mentira"},
+	})}
+}
+
+// A NOTA NÃO LEVA A CULPA DO SERVIDOR
+//
+// O QUE ACONTECEU NA TELA, EM 27/08/2026
+//
+//	O modelo de IA configurado no motor estava aposentado. As três notas da fila
+//	de rateio voltaram marcadas `falhou`, em vermelho, com um recado sobre
+//	variável de ambiente escrito por cima do nome do arquivo. Nenhuma tinha
+//	problema: o errado era uma linha de configuração.
+//
+//	`FalhaTemporaria` quer dizer "a nota está boa, tente de novo". Quem condena a
+//	nota depois de três tentativas é o robô, em lote, onde ninguém está olhando.
+//	Aqui o freio é a pessoa.
+func TestFalhaDoServidorNaoMarcaANota(t *testing.T) {
+	var escritas []string
+	m := bancoQueAnota(t, &escritas)
+
+	m.leituraFalhou(context.Background(), "d1", "j1",
+		leitura.FalhaTemporaria{Causa: errors.New("This model models/gemini-2.5-flash is no longer available")})
+
+	for _, e := range escritas {
+		if strings.Contains(e, "/documentos") {
+			t.Fatalf("a nota foi marcada por uma falha do servidor: %s", e)
+		}
+	}
+	if len(escritas) == 0 || !strings.Contains(escritas[0], "/jobs") {
+		t.Fatalf("o trabalho não voltou para a fila: %v", escritas)
+	}
+	if !strings.Contains(escritas[0], "na_fila") {
+		t.Errorf("o trabalho voltou, mas não para a fila: %s", escritas[0])
+	}
+}
+
+// E O CONTRÁRIO: FALHA QUE É DA NOTA TEM QUE APARECER
+//
+//	Ficar de pé parecendo em ordem esconderia a nota — ninguém procura o que
+//	parece em ordem. Se o teste acima passasse sozinho, a saída fácil seria nunca
+//	marcar nada.
+func TestFalhaDaPropriaNotaContinuaMarcando(t *testing.T) {
+	var escritas []string
+	m := bancoQueAnota(t, &escritas)
+
+	m.leituraFalhou(context.Background(), "d1", "j1", errors.New("não achei o documento d1"))
+
+	marcou := false
+	for _, e := range escritas {
+		if strings.Contains(e, "/documentos") && strings.Contains(e, "falhou") {
+			marcou = true
+		}
+	}
+	if !marcou {
+		t.Fatalf("a nota tinha problema de verdade e ficou de pé, parecendo em ordem: %v", escritas)
 	}
 }
