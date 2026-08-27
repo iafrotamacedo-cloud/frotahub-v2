@@ -218,6 +218,10 @@ export function Lancar({ voltar }: { voltar: () => void }) {
   // Quantos desta PÁGINA podem subir agora. Da página, e não do banco inteiro:
   // o botão só mexe no que está à vista, e é isso que ele promete no rótulo.
   const prontos = (pagina?.linhas ?? []).filter(podeSubir).length
+  // Os que estão na lista e o lote não vai tentar. Contá-los é o que permite a
+  // tela dizer por que o botão promete menos do que a lista mostra.
+  const precisamDeDecisao = (pagina?.linhas ?? [])
+    .filter(o => o.status === 'gerado' && o.destino === 'pode_lancar' && precisaDeDecisao(o)).length
 
   // Voltar da ficha recarrega: o orçamento pode ter sido apagado lá dentro, e
   // uma lista que mostra o que não existe mais é pior que uma lista lenta.
@@ -299,6 +303,17 @@ export function Lancar({ voltar }: { voltar: () => void }) {
             </label>
           )}
         </div>
+
+        {status === 'gerado' && soOsQuePodem && precisamDeDecisao > 0 && (
+          <p className="orc-aviso-fila">
+            <strong>{precisamDeDecisao}</strong>{' '}
+            {precisamDeDecisao === 1
+              ? 'orçamento desta lista precisa de uma decisão sua'
+              : 'orçamentos desta lista precisam de uma decisão sua'}{' '}
+            — duplicidade ou teto. O botão de lote não mexe neles: use o botão da
+            linha, com o motivo na frente.
+          </p>
+        )}
 
         {status === 'gerado' && soOsQuePodem && (
           <p className="orc-aviso-fila">
@@ -574,8 +589,35 @@ type Resultado =
   | { ok: false; motivo: string; teto?: BloqueioDoTeto; duplicata?: BloqueioDeDuplicata }
 
 /** Entra no lote quem a view diz que pode subir AGORA. */
+/** Entra no LOTE quem sobe sem perguntar nada a ninguém.
+ *
+ *  O BOTÃO NÃO PODE PROMETER O QUE NÃO VAI ENTREGAR
+ *    Medido em 27/08/2026: a fila tinha 5 "podem subir", o botão dizia
+ *    "Lançar todos que podem subir (5)", e o resultado foi **0 de 5 subiram** —
+ *    três barrados por duplicidade e dois pelo teto. Os dois travas fizeram o
+ *    que deviam; quem errou foi o botão, que contou como pronto o que precisa de
+ *    uma pessoa decidindo.
+ *
+ *    É a mesma lição de um nível acima, quando a fila mostrava 93 e só 5 davam
+ *    para trabalhar. Agora ela vale dentro da própria fila.
+ *
+ *  ELES NÃO SOMEM DA LISTA
+ *    Continuam ali, com o motivo escrito e o botão da linha — que é onde a
+ *    decisão cabe: ver o custo que já está no ticket e dizer se é duplicata,
+ *    ou aprovar o que passou do teto. O que o lote não faz é decidir por
+ *    ninguém. */
 function podeSubir(o: Orcamento): boolean {
-  return o.status === 'gerado' && o.destino === 'pode_lancar'
+  return o.status === 'gerado' && o.destino === 'pode_lancar' && !precisaDeDecisao(o)
+}
+
+/** Os bloqueios que só uma pessoa desfaz, olhando o caso.
+ *
+ *  `ticket_status` e `trilogo_fora` NÃO entram aqui de propósito: aqueles
+ *  destravam sozinhos quando o mundo anda, e tentar de novo é exatamente o
+ *  certo. Estes dois não andam sozinhos — o ticket vai continuar com o mesmo
+ *  custo lançado, e o teto vai continuar sendo R$ 600. */
+function precisaDeDecisao(o: Orcamento): boolean {
+  return o.lancamento_bloqueio === 'possivel_duplicata' || o.lancamento_bloqueio === 'teto'
 }
 
 /** A frase curta de por que este ficou de fora. Sai do estado de agora, não da
@@ -627,7 +669,8 @@ function Lote({ dados, fechar }: { dados: Lote; fechar: () => void }) {
             ))}
           </ul>
           <p className="orc-lote-rodape">
-            Cada um destes ficou com o motivo gravado e aparece em Correções ▸ Recusados.
+            Cada um destes ficou com o motivo gravado, e continua nesta lista com o
+            botão da linha — é ali que a decisão cabe.
           </p>
         </>
       )}

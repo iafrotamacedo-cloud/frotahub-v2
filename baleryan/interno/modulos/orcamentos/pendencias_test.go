@@ -228,3 +228,69 @@ func TestOPainelNaoContaOMesmoOrcamentoDuasVezes(t *testing.T) {
 			"contar os mesmos registros duas vezes")
 	}
 }
+
+// O LOTE NÃO PROMETE O QUE NÃO VAI ENTREGAR
+//
+//	Medido em 27/08/2026: a fila mostrava 5 "podem subir", o botão dizia
+//	"Lançar todos que podem subir (5)", e o resultado foi **0 de 5 subiram** —
+//	três barrados por duplicidade e dois pelo teto. As duas travas fizeram o que
+//	deviam; quem errou foi o botão, que contou como pronto o que precisa de uma
+//	pessoa decidindo.
+//
+//	`ticket_status` e `trilogo_fora` continuam entrando no lote de propósito:
+//	aqueles destravam sozinhos quando o mundo anda, e tentar de novo é o certo.
+//	Duplicidade e teto não andam sozinhos.
+func TestOLoteNaoContaOQuePrecisaDeDecisao(t *testing.T) {
+	fonte, err := os.ReadFile("../../../../web/src/telas/orcamentos/Lancar.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	texto := string(fonte)
+
+	corpo := texto[strings.Index(texto, "function podeSubir("):]
+	corpo = corpo[:strings.Index(corpo, "\n}")]
+	if !strings.Contains(corpo, "precisaDeDecisao(o)") {
+		t.Error("o lote voltou a contar os orçamentos travados por duplicidade ou teto — " +
+			"o botão vai prometer um número e entregar zero, como em 27/08/2026")
+	}
+
+	decide := texto[strings.Index(texto, "function precisaDeDecisao("):]
+	decide = decide[:strings.Index(decide, "\n}")]
+	for _, flag := range []string{"possivel_duplicata", "teto"} {
+		if !strings.Contains(decide, flag) {
+			t.Errorf("`precisaDeDecisao` não cobre %q — o lote vai tentar e falhar sempre", flag)
+		}
+	}
+	// E os que destravam sozinhos NÃO podem entrar aqui: tirá-los do lote os
+	// deixaria parados para sempre esperando um clique manual.
+	for _, flag := range []string{"ticket_status", "trilogo_fora"} {
+		if strings.Contains(decide, flag) {
+			t.Errorf("`precisaDeDecisao` inclui %q — esse bloqueio destrava sozinho quando "+
+				"o chamado anda, e tirá-lo do lote é condená-lo a um clique manual eterno", flag)
+		}
+	}
+}
+
+// A TELA NÃO APONTA PARA UMA FRENTE QUE NÃO EXISTE MAIS
+//
+//	"Correções ▸ Recusados" saiu em 27/08/2026. Uma mensagem que manda a pessoa
+//	a uma tela inexistente é pior que nenhuma mensagem: ela gasta a ida.
+func TestNinguemMandaOUsuarioParaRecusados(t *testing.T) {
+	arquivos, err := filepath.Glob("../../../../web/src/telas/orcamentos/*.tsx")
+	if err != nil {
+		t.Skipf("não achei as telas: %v", err)
+	}
+	for _, a := range arquivos {
+		b, err := os.ReadFile(a)
+		if err != nil {
+			continue
+		}
+		// Fora os comentários, que REGISTRAM a remoção.
+		texto := regexp.MustCompile(`(?m)^\s*//[^\n]*`).ReplaceAllString(string(b), "")
+		texto = regexp.MustCompile(`(?s)/\*.*?\*/`).ReplaceAllString(texto, "")
+		if strings.Contains(texto, "Correções ▸ Recusados") || strings.Contains(texto, "Correções › Recusados") {
+			t.Errorf("%s manda a pessoa para Correções ▸ Recusados, que não existe mais",
+				filepath.Base(a))
+		}
+	}
+}
