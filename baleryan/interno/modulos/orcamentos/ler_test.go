@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -139,5 +140,48 @@ func TestPorlerNaoCaiNoCuringaDoId(t *testing.T) {
 	_, padrao := mux.Handler(httptest.NewRequest(http.MethodGet, "/orcamentos/documentos/porler", nil))
 	if !strings.Contains(padrao, "porler") {
 		t.Fatalf("quem atendeu /documentos/porler foi %q", padrao)
+	}
+}
+
+// A FILA TEM QUE VIAJAR NO ENDEREÇO
+//
+// O DEFEITO QUE ESTE TESTE GUARDA, E QUE CHEGOU À TELA
+//
+//	Na primeira subida, 27/08/2026, o botão "Ler notas" da fila de rateio deu
+//	"0 notas lidas · 3 não deu para ler — Esta nota não é desta fila." A lista
+//	do que ler vinha certa (`porler?fila=rateio`), mas a leitura de cada nota
+//	ia sem o parâmetro. Sem ele o motor assume `orcamento`, exige a permissão
+//	de "Notas e DAVs" e, logo depois, recusa a nota por ser de outra fila.
+//
+//	O guarda funcionou — foi ele que recusou, em vez de deixar alguém ler uma
+//	nota de rateio com a chave da porta ao lado. Faltou o chamador dizer de onde
+//	veio, e é isso que este teste passa a cobrar.
+//
+// POR QUE É BUSCA POR TEXTO
+//
+//	Entender TypeScript daqui seria construir meio compilador para responder uma
+//	pergunta de uma linha (é o mesmo motivo do `lerOFront`). O que importa é o
+//	endereço montado, e ele está escrito ali, literal.
+func TestOFrontDizDeQueFilaAsRotasDeLeituraSao(t *testing.T) {
+	front := lerOFront(t)
+
+	// Todo endereço de leitura montado no front, com o que vier depois do `/ler`
+	// ou do `/porler` até fechar a crase.
+	// Todo endereço de leitura montado no front, do começo até fechar a aspa (ou
+	// a crase) que o delimita.
+	enderecos := regexp.MustCompile(
+		"/orcamentos/documentos/[^'\"`\n]*?(?:porler|/ler)[^'\"`\n]*").
+		FindAllString(front, -1)
+	if len(enderecos) < 2 {
+		t.Fatalf("achei %d chamada(s) às rotas de leitura no front — as duas telas "+
+			"deveriam chamar as duas rotas; o teste deixou de olhar o que devia: %v",
+			len(enderecos), enderecos)
+	}
+	for _, e := range enderecos {
+		if !strings.Contains(e, "fila=") {
+			t.Errorf("a chamada %q vai sem a fila. O motor assume `orcamento`, "+
+				"exige a permissão errada e depois recusa a nota — foi o "+
+				"\"0 lidas · 3 não deu para ler\" da fila de rateio.", e)
+		}
 	}
 }

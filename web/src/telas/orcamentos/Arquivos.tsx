@@ -185,7 +185,16 @@ export function Arquivos({ fila, voltar }: Props) {
       if (pararLeitura.current) break
       setLote(l => (l ? { ...l, agora: n.nome_arquivo } : l))
       try {
-        await motor(`/orcamentos/documentos/${n.id}/ler`, { metodo: 'POST' })
+        // A FILA VAI NO ENDEREÇO, E NÃO É DETALHE
+        //
+        //	É por ela que o motor escolhe a permissão a exigir — "Notas e DAVs"
+        //	ou "Notas para rateio" — e depois confere se a nota é mesmo daquela
+        //	fila, para ninguém entrar por uma porta com a chave da outra.
+        //
+        //	Sem este parâmetro o motor assume `orcamento`, e toda leitura na fila
+        //	de rateio morria em "Esta nota não é desta fila." Foi o que aconteceu
+        //	na primeira subida, 27/08/2026: 0 lidas, 3 recusadas.
+        await motor(`/orcamentos/documentos/${n.id}/ler?fila=${fila}`, { metodo: 'POST' })
         setLote(l => l && ({ ...l, feito: l.feito + 1, lidas: l.lidas + 1 }))
       } catch (e) {
         // Uma nota que não leu não derruba as outras: ela fica marcada como

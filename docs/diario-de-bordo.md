@@ -3158,6 +3158,22 @@ Roda quando alguém manda: **Actions › Leitor de notas › Run workflow**.
 | `FalhaAoBaixarEhTemporaria` | acusar a nota por um minuto ruim da rede | tirei a marca |
 | `SemIANaoSeLeImagemNemPDF` | 91 notas marcadas `falhou` por falta de chave | deixei a foto passar; e recusei o XML |
 | `PorlerNaoCaiNoCuringaDoId` | `/documentos/porler` comido por `/documentos/{id}` | virei a rota em `{id}/porler` |
+| `OFrontDizDeQueFilaAsRotasDeLeituraSao` | chamada de leitura sem a fila no endereço | tirei `?fila=` do POST |
+
+### O defeito que chegou à tela, e o guarda que o pegou
+
+Primeira subida, na fila de rateio: **"0 notas lidas · 3 não deu para ler —
+*Esta nota não é desta fila.*"**
+
+A lista do que ler vinha certa (`porler?fila=rateio`), mas a leitura de **cada
+nota** ia sem o parâmetro. Sem ele o motor assume `orcamento`, exige a permissão
+de "Notas e DAVs" e, logo depois, recusa a nota por ser de outra fila.
+
+O guarda funcionou: ele recusou em vez de deixar alguém ler uma nota de rateio
+com a chave da porta ao lado. Faltou o **chamador dizer de onde veio** — e é isso
+que `OFrontDizDeQueFilaAsRotasDeLeituraSao` passa a cobrar, lendo o endereço que o
+front monta, literal, e exigindo `fila=` nele. Sabotado tirando o parâmetro: falha
+com a frase do defeito.
 
 ### O botão
 
