@@ -215,7 +215,6 @@ func TestCadaEnderecoCaiNoSeuLugar(t *testing.T) {
 		{"POST", "/orcamentos/ficha/" + id + "/aprovar", "POST /orcamentos/ficha/{id}/aprovar"},
 		{"POST", "/orcamentos/ficha/" + id + "/restaurar", "POST /orcamentos/ficha/{id}/restaurar"},
 		{"DELETE", "/orcamentos/ficha/" + id, "DELETE /orcamentos/ficha/{id}"},
-		{"GET", "/orcamentos/fechamento", "GET /orcamentos/fechamento"},
 		{"GET", "/orcamentos/pendencias", "GET /orcamentos/pendencias"},
 		{"GET", "/orcamentos/correcoes", "GET /orcamentos/correcoes"},
 		{"GET", "/orcamentos/correcoes/candidatos", "GET /orcamentos/correcoes/candidatos"},

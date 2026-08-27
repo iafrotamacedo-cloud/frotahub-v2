@@ -24,8 +24,11 @@ export interface Painel {
   prontos_para_lancar: number
   esperando_cliente: number
   esperando_equipe: number
-  /** A terceira lista de Pendências: teto e duplicidade. */
+  /** A terceira lista de orçamentos parados: teto e duplicidade. */
   esperando_decisao?: number
+  /** Notas que não cabem no teto do ticket. A frente existia desde a 020 e nunca
+   *  teve número — entrou no painel com a migração 036. */
+  extrapoladas?: number
 
   // ---- a 017 ----
   // A fila do faturamento é uma coluna VAZIA (`fatura_id is null`), não um mês.

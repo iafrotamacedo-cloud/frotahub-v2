@@ -149,10 +149,6 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /orcamentos/pendencias.pdf", m.pendenciasPDF)
 	mux.HandleFunc("POST /orcamentos/pendencias/avisar", m.avisarPendencias)
 
-	// O FECHAMENTO — as duas contas, e a prova de que elas fecham.
-	//   Ele não calcula: as views `fechamento_*` fazem a conta, e esta rota lê.
-	mux.HandleFunc("GET /orcamentos/fechamento", m.fechamento)
-
 	mux.HandleFunc("GET /orcamentos/correcoes", m.correcoes)
 	mux.HandleFunc("GET /orcamentos/correcoes/candidatos", m.candidatos)
 	mux.HandleFunc("POST /orcamentos/correcoes/conferir", m.conferirVarios)

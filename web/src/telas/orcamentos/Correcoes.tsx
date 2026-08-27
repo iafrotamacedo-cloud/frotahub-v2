@@ -15,11 +15,12 @@ import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { useFocado } from '../../componentes/Foco'
 import { BarraDeVolta } from './Arquivos'
+import { Pendencias } from './Pendencias'
 import { VisorDaNota, type Acoes } from './VisorDaNota'
 import { ConfirmarComSenha } from './ConfirmarComSenha'
 import {
   emReais, emDataHora,
-  type Correcoes as Dados,
+  type Correcoes as Dados, type Painel,
   type Documento, type Conferencia, type Desconto,
 } from './tipos'
 
@@ -42,11 +43,27 @@ const FRENTES = [
   //	As frentes que ficam aqui são de NOTA: o que travou antes de virar
   //	orçamento. Mais a lixeira.
   { chave: 'extrapoladas', titulo: 'Passam do teto', desc: 'Notas que não cabem no limite do ticket — e o que dá para fazer' },
+  // OS PARADOS VIERAM PARA CÁ — 28/08/2026
+  //
+  //	Eles tinham cartão próprio no painel, e o dono cortou: é tudo a mesma
+  //	pergunta — "o que travou?" — e responder em dois lugares obriga quem
+  //	trabalha a lembrar de olhar os dois. As três de cima são NOTAS que travaram
+  //	antes de virar orçamento; estas três são ORÇAMENTOS que travaram depois.
+  //	A separação continua existindo na tela, e deixou de existir no caminho.
+  { chave: 'equipe', titulo: 'Espera a equipe', desc: 'Orçamento pronto, chamado Aberto ou Em execução — o Trílogo não aceita custo antes de concluir' },
+  { chave: 'cliente', titulo: 'Espera o cliente', desc: 'Orçamento pronto, chamado Arquivado ou Reaberto — só o cliente destrava' },
+  { chave: 'decisao', titulo: 'Espera você', desc: 'Travados por teto ou por duplicidade — nada disso destrava sozinho' },
   { chave: 'apagados', titulo: 'Apagados', desc: 'O que foi excluído — e pode voltar' },
 ]
 
+const PARADAS = ['equipe', 'cliente', 'decisao']
+
 export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => void }) {
   const [dados, setDados] = useState<Dados | null>(null)
+  // Os contadores das três frentes de orçamento parado. Vêm do painel — a mesma
+  // consulta que alimenta o cartão — para o número da aba e o do menu não
+  // poderem discordar.
+  const [paradas, setParadas] = useState<Record<string, number>>({})
   const [qual, setQual] = useState(frente ?? 'sem-ticket')
   // COM A NOTA ABERTA, A CASCA DESTA TELA SAI TAMBÉM
   //   Abas de contagem e cabeçalho da lista são para ESCOLHER o que tratar.
@@ -66,12 +83,32 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 
   useEffect(() => { void carregar() }, [carregar])
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const p = await motor<Painel>('/orcamentos/painel')
+        setParadas({
+          equipe: p.esperando_equipe,
+          cliente: p.esperando_cliente,
+          decisao: p.esperando_decisao ?? 0,
+        })
+      } catch {
+        // Sem os contadores a tela continua servindo: as abas mostram zero e as
+        // listas, que se buscam sozinhas, mostram o que existe.
+      }
+    })()
+  }, [])
+
   const conta = (c: string) => {
     if (!dados) return 0
     switch (c) {
       case 'sem-ticket': return dados.sem_ticket.length
       case 'sem-associacao': return dados.sem_associacao.length
       case 'extrapoladas': return dados.extrapoladas?.length ?? 0
+      // Estas três não vêm de `/orcamentos/correcoes`: a tela de Pendências as
+      // busca sozinha, e é ela quem sabe quantas são. Aqui o número vem do
+      // painel, que é a mesma consulta do cartão.
+      case 'equipe': case 'cliente': case 'decisao': return paradas[c] ?? 0
       default: return dados.apagados.length
     }
   }
@@ -100,13 +137,14 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
           {/* O cabeçalho da lista explica QUAL fila é esta. Com a nota aberta a
               pergunta já foi respondida — e ele vira mais uma faixa entre a
               pessoa e o papel. */}
-          {!focado && (
+          {!focado && !PARADAS.includes(qual) && (
             <div className="orc-lista-cab">
               <h2>{FRENTES.find(f => f.chave === qual)?.titulo}</h2>
               <em>{FRENTES.find(f => f.chave === qual)?.desc}</em>
             </div>
           )}
 
+          {PARADAS.includes(qual) && <Pendencias lista={qual} embutido />}
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
           {qual === 'extrapoladas' && <Extrapoladas dados={dados} recarregar={carregar} />}

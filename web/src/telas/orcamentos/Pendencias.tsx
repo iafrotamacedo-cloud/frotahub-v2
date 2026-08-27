@@ -80,9 +80,32 @@ const LISTAS = [
 
 type Qual = (typeof LISTAS)[number]['chave']
 
-export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => void }) {
+export function Pendencias({ lista, voltar, embutido }: {
+  lista?: string
+  /** Só quando ela é a tela inteira. Embutida em Correções, quem tem o voltar
+   *  é a casca de fora. */
+  voltar?: () => void
+  /** EMBUTIDA EM CORREÇÕES — 28/08/2026
+   *
+   *  Os orçamentos parados passaram a morar dentro de Correções, junto das
+   *  notas que travaram antes de virar orçamento: é a mesma pergunta, e
+   *  respondê-la em dois lugares obriga quem trabalha a lembrar dos dois.
+   *
+   *  Embutida, ela abre mão da própria barra de voltar e das próprias abas —
+   *  quem manda nas duas é a casca de fora. O miolo é o mesmo, e é por isso que
+   *  esta tela é um componente e não uma página: a lista, o lote de
+   *  reconferência e as três saídas continuam existindo UMA vez (CORE-06). */
+  embutido?: boolean
+}) {
+  // Correções chama a lista da equipe de 'equipe'; aqui ela sempre se chamou
+  // 'encarregados', que é o nome que o motor usa no `destino`. A tradução é uma
+  // linha, e trocar o nome no motor seria mexer numa palavra que a view, o PDF e
+  // o registro de cobrança já usam.
   const [qual, setQual] = useState<Qual>(
     lista === 'cliente' || lista === 'decisao' ? lista : 'encarregados')
+  useEffect(() => {
+    setQual(lista === 'cliente' || lista === 'decisao' ? lista : 'encarregados')
+  }, [lista])
   const [dados, setDados] = useState<ListaDePendencias | null>(null)
   const [decisoes, setDecisoes] = useState<Pagina<Orcamento> | null>(null)
   const [tratando, setTratando] = useState<string | null>(null)
@@ -275,9 +298,9 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
 
   return (
     <div className="orc-tela">
-      <BarraDeVolta voltar={voltar} titulo="Pendências" />
+      {!embutido && voltar && <BarraDeVolta voltar={voltar} titulo="Pendências" />}
 
-      {!focado && <div className="orc-abas">
+      {!embutido && !focado && <div className="orc-abas">
         {LISTAS.map(l => (
           <button
             key={l.chave}
@@ -298,10 +321,12 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
       {qual === 'decisao' ? (
         !decisoes ? <Carregando /> : (
           <div className="orc-lista">
-            <div className="orc-lista-cab">
-              <h2>Esperando você</h2>
-              <em>{LISTAS.find(l => l.chave === 'decisao')?.desc}</em>
-            </div>
+            {!embutido && (
+              <div className="orc-lista-cab">
+                <h2>Esperando você</h2>
+                <em>{LISTAS.find(l => l.chave === 'decisao')?.desc}</em>
+              </div>
+            )}
             {decisoes.linhas.length === 0 ? (
               <p className="orc-vazio grande">
                 Nada esperando decisão. Nenhum orçamento está travado por teto
@@ -331,10 +356,12 @@ export function Pendencias({ lista, voltar }: { lista?: string; voltar: () => vo
         )
       ) : !dados ? <Carregando /> : (
         <div className="orc-lista">
-          <div className="orc-lista-cab">
-            <h2>{LISTAS.find(l => l.chave === qual)?.titulo}</h2>
-            <em>{LISTAS.find(l => l.chave === qual)?.desc}</em>
-          </div>
+          {!embutido && (
+            <div className="orc-lista-cab">
+              <h2>{LISTAS.find(l => l.chave === qual)?.titulo}</h2>
+              <em>{LISTAS.find(l => l.chave === qual)?.desc}</em>
+            </div>
+          )}
 
           {/* O QUE ESTÁ PARADO, EM DINHEIRO, ANTES DA TABELA
               Trinta e quatro chamados não movem ninguém; oito mil e oitocentos

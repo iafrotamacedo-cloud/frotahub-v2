@@ -16,8 +16,6 @@ import { Lancar } from './Lancar'
 import { Correcoes } from './Correcoes'
 import { Planilhas } from './Planilhas'
 import { Direto } from './Direto'
-import { Pendencias } from './Pendencias'
-import { Fechamento } from './Fechamento'
 import { emReais, emDataHora, type Painel as DadosDoPainel } from './tipos'
 
 interface Props {
@@ -49,10 +47,6 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
   if (onde && onde.startsWith('correcoes')) {
     return <Correcoes frente={onde.split(':')[1]} voltar={voltar} />
   }
-  if (onde && onde.startsWith('pendencias')) {
-    return <Pendencias lista={onde.split(':')[1]} voltar={voltar} />
-  }
-  if (onde === 'fechamento') return <Fechamento voltar={voltar} />
   if (onde === 'planilhas') return <Planilhas voltar={voltar} />
 
   if (erro) return <p className="erro">{erro}</p>
@@ -121,7 +115,7 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
     },
     {
       chave: 'lancar',
-      titulo: 'Lançar orçamentos',
+      titulo: 'Lançar no Trílogo',
       descricao: 'Gera, confere o teto e lança no Trílogo.',
       icone: <IconeRobo />,
       // O NÚMERO É O QUE DÁ PARA FAZER, NÃO O TAMANHO DA PILHA
@@ -135,61 +129,10 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       numero: d.prontos_para_lancar,
       rotulo: 'podem subir',
       previaTitulo: d.a_lancar > d.prontos_para_lancar
-        ? `${d.a_lancar - d.prontos_para_lancar} estão parados — veja em Pendências`
+        ? `${d.a_lancar - d.prontos_para_lancar} estão parados — veja em Correções`
         : 'próximos da fila',
       previa: fila(d.previa?.lancar),
       previaVazia: 'nada pronto para subir agora',
-    },
-    {
-      // ESTA ETAPA NÃO É UM CONSERTO — É UMA COBRANÇA
-      //
-      //	Ela fica entre Lançar e Correções porque é o que sobra de Lançar: o
-      //	orçamento está certo, o valor está certo, e o que falta é alguém MOVER
-      //	o chamado. Pôr isto dentro de Correções sugeriria que há algo errado no
-      //	orçamento e mandaria a pessoa procurar defeito onde não há.
-      //
-      //	Medido em 27/08/2026: 68 orçamentos parados aqui, e nenhuma tela os
-      //	mostrava. O número de baixo é dinheiro nosso esperando o telefone tocar.
-      chave: 'pendencias',
-      titulo: 'Pendências',
-      descricao: 'Orçamentos prontos, parados pelo status do chamado. Quem move é gente.',
-      icone: <IconeEspera />,
-      numero: d.esperando_cliente + d.esperando_equipe + (d.esperando_decisao ?? 0),
-      rotulo: 'parados',
-      faixa: '#7A6A2A',
-      previaTitulo: 'quem precisa agir',
-      previa: [
-        { texto: 'Nossa equipe', fim: String(d.esperando_equipe) },
-        { texto: 'Cliente', fim: String(d.esperando_cliente) },
-        { texto: 'Você', fim: String(d.esperando_decisao ?? 0) },
-      ],
-      previaVazia: 'nada parado por status de chamado',
-      filhos: [
-        {
-          chave: 'pendencias:encarregados',
-          titulo: 'Nossa equipe',
-          descricao: 'Chamado Aberto ou Em execução — serviço a concluir',
-          numero: d.esperando_equipe,
-          previaVazia: 'nenhum chamado nosso segurando orçamento',
-        },
-        {
-          chave: 'pendencias:cliente',
-          titulo: 'Cliente',
-          descricao: 'Arquivado ou reaberto — só o cliente destrava',
-          numero: d.esperando_cliente,
-          previaVazia: 'nada esperando o cliente',
-        },
-        {
-          // As duas de cima esperam o mundo andar. Esta espera uma pessoa —
-          // e era ela que estava na fila de Lançar, fazendo o botão prometer
-          // cinco e entregar zero.
-          chave: 'pendencias:decisao',
-          titulo: 'Você',
-          descricao: 'Teto ou duplicidade — nada disso destrava sozinho',
-          numero: d.esperando_decisao ?? 0,
-          previaVazia: 'nada esperando decisão',
-        },
-      ],
     },
     {
       chave: 'correcoes',
@@ -205,14 +148,19 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       //
       //	Aqui ficam as NOTAS que travaram antes de virar orçamento, mais a
       //	lixeira. O que travou depois é pendência, e pendência tem tela própria.
-      numero: d.sem_ticket + d.sem_associacao + d.apagados,
+      numero: d.sem_ticket + d.sem_associacao + (d.extrapoladas ?? 0)
+            + d.esperando_equipe + d.esperando_cliente + (d.esperando_decisao ?? 0)
+            + d.apagados,
       rotulo: 'pendências',
       faixa: '#B8801F',
       previaTitulo: 'o que travou',
       previa: [
         { texto: 'Sem ticket', fim: String(d.sem_ticket) },
         { texto: 'Sem associação', fim: String(d.sem_associacao) },
-        { texto: 'Apagados', fim: String(d.apagados) },
+        { texto: 'Passam do teto', fim: String(d.extrapoladas ?? 0) },
+        { texto: 'Espera a equipe', fim: String(d.esperando_equipe) },
+        { texto: 'Espera o cliente', fim: String(d.esperando_cliente) },
+        { texto: 'Espera você', fim: String(d.esperando_decisao ?? 0) },
       ],
       filhos: [
         {
@@ -230,11 +178,40 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
           previaVazia: 'todos os tickets casaram',
         },
         {
-          chave: 'correcoes:recusados',
-          titulo: 'Recusados',
-          descricao: 'O Trílogo não aceitou — e por quê',
-          numero: d.recusados,
-          previaVazia: 'nenhuma recusa',
+          // ELA EXISTIA DESDE A 020 E NUNCA TEVE ENTRADA NO MENU
+          //   No lugar dela, o painel apontava para "Recusados" — uma frente que
+          //   saiu em 27/08. O menu levava a uma tela que não existe mais e
+          //   escondia uma que existe.
+          chave: 'correcoes:extrapoladas',
+          titulo: 'Passam do teto',
+          descricao: 'Nota que não cabe no limite do ticket',
+          numero: d.extrapoladas ?? 0,
+          previaVazia: 'nenhuma nota estourando o teto',
+        },
+        // AS TRÊS DE ORÇAMENTO PARADO
+        //   As de cima são NOTAS que travaram antes de virar orçamento; estas
+        //   são ORÇAMENTOS que travaram depois. É a mesma pergunta — "o que
+        //   travou?" — e ela passou a ter um lugar só.
+        {
+          chave: 'correcoes:equipe',
+          titulo: 'Espera a equipe',
+          descricao: 'Chamado Aberto ou Em execução — serviço a concluir',
+          numero: d.esperando_equipe,
+          previaVazia: 'nenhum chamado nosso segurando orçamento',
+        },
+        {
+          chave: 'correcoes:cliente',
+          titulo: 'Espera o cliente',
+          descricao: 'Arquivado ou reaberto — só o cliente destrava',
+          numero: d.esperando_cliente,
+          previaVazia: 'nada esperando o cliente',
+        },
+        {
+          chave: 'correcoes:decisao',
+          titulo: 'Espera você',
+          descricao: 'Teto ou duplicidade — nada disso destrava sozinho',
+          numero: d.esperando_decisao ?? 0,
+          previaVazia: 'nada esperando decisão',
         },
         {
           chave: 'correcoes:apagados',
@@ -262,29 +239,6 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
         { texto: 'A lançar', fim: String(d.a_lancar) },
         { texto: 'Apagados', fim: String(d.apagados) },
       ],
-    },
-    {
-      // O FECHAMENTO É A ÚLTIMA ETAPA PORQUE ELE OLHA TODAS AS OUTRAS
-      //
-      //	Ele não é mais uma fila: é a conferência de que nenhuma das filas
-      //	perdeu nada. Por isso o número dele não é uma pendência — é o total de
-      //	notas que já entraram no sistema, desde sempre.
-      chave: 'fechamento',
-      titulo: 'Fechamento',
-      descricao: 'Toda nota em um destino, todo orçamento em um estado. A conta que prova que nada se perdeu.',
-      icone: <IconeBalanca />,
-      // ESTE CARTÃO NÃO TEM NÚMERO, E É DE PROPÓSITO
-      //
-      //	Ele mostrava `notas_arquivos` sob o rótulo "notas na base" — e
-      //	`notas_arquivos` conta a FILA de notas, não a base. Com a fila vazia,
-      //	o painel anunciava "0 notas na base" tendo 91. Um contador errado num
-      //	cartão que existe para provar que as contas fecham é o pior lugar
-      //	possível para um número errado.
-      //
-      //	Os números desta etapa são DOIS balanços de treze e nove linhas, com
-      //	total e diferença. Não cabem num contador, e resumi-los a um seria
-      //	repetir o erro. Aqui fica o convite; a conta mora lá dentro.
-      rodape: 'clique para conferir',
     },
   ]
 }
@@ -340,25 +294,6 @@ function IconeRobo() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 3v4M5.6 5.6l2.8 2.8M3 12h4M18.4 5.6l-2.8 2.8M21 12h-4" />
       <rect x="7" y="12" width="10" height="9" rx="2" /><path d="M10 16h4" />
-    </svg>
-  )
-}
-
-/** Um relógio: o que trava aqui é TEMPO, não defeito. O triângulo de aviso, que
- *  é o ícone de Correções, diria "alguém errou" — e ninguém errou. */
-/** Uma balança: aqui não se trabalha, se confere. */
-function IconeBalanca() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 4v16M7 20h10M3 8l4-4 4 4M3 8a4 4 0 0 0 8 0M13 8l4-4 4 4M13 8a4 4 0 0 0 8 0" />
-    </svg>
-  )
-}
-
-function IconeEspera() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.2 2" />
     </svg>
   )
 }

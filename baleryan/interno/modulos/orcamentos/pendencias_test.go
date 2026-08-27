@@ -134,12 +134,12 @@ func TestAsTelasChamamAsRotasQueOMotorServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("não consegui ler o rotas.go: %v", err)
 	}
-	// Pendências e Fechamento: as duas frentes que nasceram de uma regra que já
-	// existia no motor e não tinha porta na tela.
-	registradas := regexp.MustCompile(`"(?:GET|POST) (/orcamentos/(?:pendencias|fechamento)[a-z./]*)"`).
+	// As rotas de Pendências: a regra existia no motor desde a 015 e passou um
+	// ano e meio sem porta na tela.
+	registradas := regexp.MustCompile(`"(?:GET|POST) (/orcamentos/pendencias[a-z./]*)"`).
 		FindAllStringSubmatch(string(rotas), -1)
-	if len(registradas) < 5 {
-		t.Fatalf("achei só %d rotas de pendências/fechamento — o teste deixou de olhar o que devia",
+	if len(registradas) < 4 {
+		t.Fatalf("achei só %d rotas de pendências — o teste deixou de olhar o que devia",
 			len(registradas))
 	}
 
@@ -348,29 +348,46 @@ func TestQuemPrecisaDeDecisaoEhDecididoNoBanco(t *testing.T) {
 	}
 }
 
-// O CARTÃO DO FECHAMENTO NÃO MOSTRA UM CONTADOR ERRADO
+// TUDO O QUE TRAVOU MORA EM CORREÇÕES
 //
-//	Ele exibia `notas_arquivos` sob o rótulo "notas na base". `notas_arquivos`
-//	conta a FILA de notas, não a base: com a fila vazia, o painel anunciava
-//	"0 notas na base" tendo 91. Num cartão que existe para provar que as contas
-//	fecham, é o pior lugar possível para um número errado.
-func TestOCartaoDoFechamentoNaoInventaNumero(t *testing.T) {
-	fonte, err := os.ReadFile("../../../../web/src/telas/orcamentos/Orcamentos.tsx")
+//	Até 28/08/2026 os orçamentos parados tinham cartão próprio no painel, ao lado
+//	de Correções. Era a mesma pergunta — "o que travou?" — respondida em dois
+//	lugares, o que obriga quem trabalha a lembrar de olhar os dois. O dono
+//	cortou: as notas que travam ANTES de virar orçamento e os orçamentos que
+//	travam DEPOIS ficam na mesma tela, em frentes diferentes.
+//
+//	E "Passam do teto" existia desde a 020 sem nunca ter entrada no menu — o
+//	painel apontava, no lugar dela, para "Recusados", uma frente já removida.
+func TestCorrecoesTemTodasAsFrentesQueTravam(t *testing.T) {
+	tela, err := os.ReadFile("../../../../web/src/telas/orcamentos/Correcoes.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	frentes := string(tela)
+	frentes = frentes[strings.Index(frentes, "const FRENTES"):]
+	frentes = frentes[:strings.Index(frentes, "\n]")]
+	for _, c := range []string{"sem-ticket", "sem-associacao", "extrapoladas",
+		"equipe", "cliente", "decisao", "apagados"} {
+		if !strings.Contains(frentes, "'"+c+"'") {
+			t.Errorf("Correções perdeu a frente %q — quem trabalha vai ter que "+
+				"procurar em outro lugar o que travou", c)
+		}
+	}
+
+	painel, err := os.ReadFile("../../../../web/src/telas/orcamentos/Orcamentos.tsx")
 	if err != nil {
 		t.Skipf("não achei o painel: %v", err)
 	}
-	texto := regexp.MustCompile(`(?m)^\s*//[^\n]*`).ReplaceAllString(string(fonte), "")
-	i := strings.Index(texto, "chave: 'fechamento'")
-	if i < 0 {
-		t.Fatal("o cartão de Fechamento sumiu do painel")
+	menu := string(painel)
+	// Todo filho do menu tem que apontar para uma frente que existe. Um ponteiro
+	// para tela removida gasta a ida de quem clicou.
+	for _, m := range regexp.MustCompile(`chave: 'correcoes:([a-z-]+)'`).FindAllStringSubmatch(menu, -1) {
+		if !strings.Contains(frentes, "'"+m[1]+"'") {
+			t.Errorf("o menu aponta para Correções › %q, que não é uma frente da tela", m[1])
+		}
 	}
-	cartao := texto[i:]
-	if fim := strings.Index(cartao, "\n    },"); fim > 0 {
-		cartao = cartao[:fim]
-	}
-	if strings.Contains(cartao, "numero:") {
-		t.Error("o cartão de Fechamento voltou a mostrar um contador — os números desta " +
-			"etapa são dois balanços com total e diferença, e resumi-los a um só foi " +
-			"como ele passou a anunciar \"0 notas na base\" tendo 91")
+	// E o painel não pode ter voltado a ter um cartão só para os parados.
+	if strings.Contains(menu, "chave: 'pendencias'") {
+		t.Error("o cartão de Pendências voltou ao painel — os parados moram em Correções")
 	}
 }
