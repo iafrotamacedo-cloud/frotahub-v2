@@ -367,7 +367,7 @@ func TestCorrecoesTemTodasAsFrentesQueTravam(t *testing.T) {
 	frentes = frentes[strings.Index(frentes, "const FRENTES"):]
 	frentes = frentes[:strings.Index(frentes, "\n]")]
 	for _, c := range []string{"sem-ticket", "sem-associacao", "extrapoladas",
-		"equipe", "cliente", "decisao", "apagados"} {
+		"pendencias", "apagados"} {
 		if !strings.Contains(frentes, "'"+c+"'") {
 			t.Errorf("Correções perdeu a frente %q — quem trabalha vai ter que "+
 				"procurar em outro lugar o que travou", c)
@@ -389,5 +389,26 @@ func TestCorrecoesTemTodasAsFrentesQueTravam(t *testing.T) {
 	// E o painel não pode ter voltado a ter um cartão só para os parados.
 	if strings.Contains(menu, "chave: 'pendencias'") {
 		t.Error("o cartão de Pendências voltou ao painel — os parados moram em Correções")
+	}
+
+	// A LIXEIRA FICA FORA DO MENU E DA CONTA
+	//
+	//	Apagado não é coisa a fazer: é o que já foi resolvido, guardado para o
+	//	caso de alguém ter se arrependido. Somá-lo ao que trava inflava o número
+	//	do cartão com trabalho que não existe. A aba continua dentro da tela,
+	//	para o arrependimento ter caminho de volta.
+	if strings.Contains(menu, "chave: 'correcoes:apagados'") {
+		t.Error("a lixeira voltou ao menu de Correções — ela não é coisa a fazer")
+	}
+	cartao := menu[strings.Index(menu, "chave: 'correcoes'"):]
+	cartao = cartao[:strings.Index(cartao, "filhos:")]
+	if regexp.MustCompile(`numero:[^,]*d\.apagados`).MatchString(cartao) {
+		t.Error("o número do cartão de Correções voltou a somar a lixeira")
+	}
+
+	// E as três esperas entram como UMA porta, com abas lá dentro.
+	if strings.Contains(menu, "chave: 'correcoes:equipe'") {
+		t.Error("os orçamentos parados voltaram a ser três portas no menu — " +
+			"eles são um assunto só, e o que muda entre eles é quem destrava")
 	}
 }

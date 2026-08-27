@@ -300,7 +300,12 @@ export function Pendencias({ lista, voltar, embutido }: {
     <div className="orc-tela">
       {!embutido && voltar && <BarraDeVolta voltar={voltar} titulo="Pendências" />}
 
-      {!embutido && !focado && <div className="orc-abas">
+      {/* AS ABAS FICAM MESMO EMBUTIDA
+          O que ela perde ao morar dentro de Correções é a barra de voltar —
+          quem tem o voltar é a casca de fora. As três abas são o miolo dela:
+          é por elas que se escolhe QUEM destrava, e sem elas a tela vira uma
+          lista só, misturando o que espera a equipe com o que espera você. */}
+      {!focado && <div className="orc-abas">
         {LISTAS.map(l => (
           <button
             key={l.chave}
@@ -321,12 +326,10 @@ export function Pendencias({ lista, voltar, embutido }: {
       {qual === 'decisao' ? (
         !decisoes ? <Carregando /> : (
           <div className="orc-lista">
-            {!embutido && (
-              <div className="orc-lista-cab">
-                <h2>Esperando você</h2>
-                <em>{LISTAS.find(l => l.chave === 'decisao')?.desc}</em>
-              </div>
-            )}
+            <div className="orc-lista-cab">
+              <h2>Esperando você</h2>
+              <em>{LISTAS.find(l => l.chave === 'decisao')?.desc}</em>
+            </div>
             {decisoes.linhas.length === 0 ? (
               <p className="orc-vazio grande">
                 Nada esperando decisão. Nenhum orçamento está travado por teto
@@ -356,12 +359,10 @@ export function Pendencias({ lista, voltar, embutido }: {
         )
       ) : !dados ? <Carregando /> : (
         <div className="orc-lista">
-          {!embutido && (
-            <div className="orc-lista-cab">
-              <h2>{LISTAS.find(l => l.chave === qual)?.titulo}</h2>
-              <em>{LISTAS.find(l => l.chave === qual)?.desc}</em>
-            </div>
-          )}
+          <div className="orc-lista-cab">
+            <h2>{LISTAS.find(l => l.chave === qual)?.titulo}</h2>
+            <em>{LISTAS.find(l => l.chave === qual)?.desc}</em>
+          </div>
 
           {/* O QUE ESTÁ PARADO, EM DINHEIRO, ANTES DA TABELA
               Trinta e quatro chamados não movem ninguém; oito mil e oitocentos

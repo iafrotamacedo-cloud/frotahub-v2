@@ -148,9 +148,13 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
       //
       //	Aqui ficam as NOTAS que travaram antes de virar orçamento, mais a
       //	lixeira. O que travou depois é pendência, e pendência tem tela própria.
+      // A LIXEIRA NÃO ENTRA NA CONTA
+      //   Apagado não é coisa a fazer: é o que já foi resolvido, guardado para
+      //   o caso de alguém ter se arrependido. Somá-lo ao que trava inflava o
+      //   número do cartão com trabalho que não existe. A aba continua dentro
+      //   de Correções, para o arrependimento ter caminho de volta.
       numero: d.sem_ticket + d.sem_associacao + (d.extrapoladas ?? 0)
-            + d.esperando_equipe + d.esperando_cliente + (d.esperando_decisao ?? 0)
-            + d.apagados,
+            + d.esperando_equipe + d.esperando_cliente + (d.esperando_decisao ?? 0),
       rotulo: 'pendências',
       faixa: '#B8801F',
       previaTitulo: 'o que travou',
@@ -158,9 +162,8 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
         { texto: 'Sem ticket', fim: String(d.sem_ticket) },
         { texto: 'Sem associação', fim: String(d.sem_associacao) },
         { texto: 'Passam do teto', fim: String(d.extrapoladas ?? 0) },
-        { texto: 'Espera a equipe', fim: String(d.esperando_equipe) },
-        { texto: 'Espera o cliente', fim: String(d.esperando_cliente) },
-        { texto: 'Espera você', fim: String(d.esperando_decisao ?? 0) },
+        { texto: 'Pendências de lançamento',
+          fim: String(d.esperando_equipe + d.esperando_cliente + (d.esperando_decisao ?? 0)) },
       ],
       filhos: [
         {
@@ -188,37 +191,17 @@ function montarEtapas(d: DadosDoPainel): Etapa[] {
           numero: d.extrapoladas ?? 0,
           previaVazia: 'nenhuma nota estourando o teto',
         },
-        // AS TRÊS DE ORÇAMENTO PARADO
-        //   As de cima são NOTAS que travaram antes de virar orçamento; estas
-        //   são ORÇAMENTOS que travaram depois. É a mesma pergunta — "o que
-        //   travou?" — e ela passou a ter um lugar só.
+        // OS ORÇAMENTOS PARADOS ENTRAM COMO UMA PORTA, NÃO TRÊS
+        //   As de cima são NOTAS, e cada uma tem um conserto próprio. Estas são
+        //   ORÇAMENTOS parados, e o que muda entre elas é só QUEM destrava —
+        //   por isso são abas lá dentro, e não três irmãs aqui. Sete portas
+        //   para quatro assuntos é um menu que a pessoa tem que decorar.
         {
-          chave: 'correcoes:equipe',
-          titulo: 'Espera a equipe',
-          descricao: 'Chamado Aberto ou Em execução — serviço a concluir',
-          numero: d.esperando_equipe,
-          previaVazia: 'nenhum chamado nosso segurando orçamento',
-        },
-        {
-          chave: 'correcoes:cliente',
-          titulo: 'Espera o cliente',
-          descricao: 'Arquivado ou reaberto — só o cliente destrava',
-          numero: d.esperando_cliente,
-          previaVazia: 'nada esperando o cliente',
-        },
-        {
-          chave: 'correcoes:decisao',
-          titulo: 'Espera você',
-          descricao: 'Teto ou duplicidade — nada disso destrava sozinho',
-          numero: d.esperando_decisao ?? 0,
-          previaVazia: 'nada esperando decisão',
-        },
-        {
-          chave: 'correcoes:apagados',
-          titulo: 'Apagados',
-          descricao: 'Restaurar o que foi excluído',
-          numero: d.apagados,
-          previaVazia: 'nenhum na lixeira',
+          chave: 'correcoes:pendencias',
+          titulo: 'Pendências de lançamento',
+          descricao: 'Orçamento pronto e parado — equipe, cliente ou você',
+          numero: d.esperando_equipe + d.esperando_cliente + (d.esperando_decisao ?? 0),
+          previaVazia: 'nenhum orçamento parado',
         },
       ],
     },

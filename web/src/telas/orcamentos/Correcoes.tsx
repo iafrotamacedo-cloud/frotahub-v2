@@ -47,16 +47,18 @@ const FRENTES = [
   //
   //	Eles tinham cartão próprio no painel, e o dono cortou: é tudo a mesma
   //	pergunta — "o que travou?" — e responder em dois lugares obriga quem
-  //	trabalha a lembrar de olhar os dois. As três de cima são NOTAS que travaram
-  //	antes de virar orçamento; estas três são ORÇAMENTOS que travaram depois.
-  //	A separação continua existindo na tela, e deixou de existir no caminho.
-  { chave: 'equipe', titulo: 'Espera a equipe', desc: 'Orçamento pronto, chamado Aberto ou Em execução — o Trílogo não aceita custo antes de concluir' },
-  { chave: 'cliente', titulo: 'Espera o cliente', desc: 'Orçamento pronto, chamado Arquivado ou Reaberto — só o cliente destrava' },
-  { chave: 'decisao', titulo: 'Espera você', desc: 'Travados por teto ou por duplicidade — nada disso destrava sozinho' },
+  //	trabalha a lembrar de olhar os dois.
+  //
+  //	E entram como UMA frente, não três. As três de cima são NOTAS, e cada uma
+  //	tem um conserto próprio; estas são ORÇAMENTOS parados, e o que muda entre
+  //	elas é só QUEM destrava. Espalhá-las como três irmãs das outras faria o
+  //	menu ter sete portas para quatro assuntos. As três moram dentro desta, em
+  //	abas.
+  { chave: 'pendencias', titulo: 'Pendências de lançamento', desc: 'Orçamento pronto e parado — o que falta é alguém mover o chamado' },
   { chave: 'apagados', titulo: 'Apagados', desc: 'O que foi excluído — e pode voltar' },
 ]
 
-const PARADAS = ['equipe', 'cliente', 'decisao']
+
 
 export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => void }) {
   const [dados, setDados] = useState<Dados | null>(null)
@@ -108,7 +110,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
       // Estas três não vêm de `/orcamentos/correcoes`: a tela de Pendências as
       // busca sozinha, e é ela quem sabe quantas são. Aqui o número vem do
       // painel, que é a mesma consulta do cartão.
-      case 'equipe': case 'cliente': case 'decisao': return paradas[c] ?? 0
+      case 'pendencias': return (paradas.equipe ?? 0) + (paradas.cliente ?? 0) + (paradas.decisao ?? 0)
       default: return dados.apagados.length
     }
   }
@@ -137,14 +139,14 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
           {/* O cabeçalho da lista explica QUAL fila é esta. Com a nota aberta a
               pergunta já foi respondida — e ele vira mais uma faixa entre a
               pessoa e o papel. */}
-          {!focado && !PARADAS.includes(qual) && (
+          {!focado && qual !== 'pendencias' && (
             <div className="orc-lista-cab">
               <h2>{FRENTES.find(f => f.chave === qual)?.titulo}</h2>
               <em>{FRENTES.find(f => f.chave === qual)?.desc}</em>
             </div>
           )}
 
-          {PARADAS.includes(qual) && <Pendencias lista={qual} embutido />}
+          {qual === 'pendencias' && <Pendencias embutido />}
           {qual === 'sem-ticket' && <SemTicket dados={dados} recarregar={carregar} />}
           {qual === 'sem-associacao' && <SemAssociacao dados={dados} recarregar={carregar} />}
           {qual === 'extrapoladas' && <Extrapoladas dados={dados} recarregar={carregar} />}
