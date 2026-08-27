@@ -26,6 +26,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitura"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/parametros"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -71,6 +72,10 @@ type Modulo struct {
 	hist  *historico.Servico
 	param *parametros.Servico
 	cfg   *config.Config
+	// leitura é a MESMA cascata que o robô do GitHub roda (CORE-06). Duas
+	// leituras diferentes para a mesma nota é como nasce a tela que diz uma
+	// coisa e o robô que diz outra.
+	leitura *leitura.Servico
 }
 
 func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico,
@@ -78,6 +83,7 @@ func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico,
 	return &Modulo{
 		bd: bd, seg: seg, perm: perm, arm: arm, hist: hist,
 		param: parametros.Novo(bd), cfg: cfg,
+		leitura: leitura.NovoDaConfig(cfg, bd, arm),
 	}
 }
 
@@ -90,6 +96,10 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /orcamentos/documentos", m.inserirDocumentos)
 	mux.HandleFunc("GET /orcamentos/documentos/{id}", m.verDocumento)
 	mux.HandleFunc("GET /orcamentos/documentos/{id}/arquivo", m.arquivoDoDocumento)
+	// A leitura na hora. A nota só vira orçamento depois dela, e até 27/08/2026
+	// quem lia era só o robô do GitHub, de meia em meia hora.
+	mux.HandleFunc("GET /orcamentos/documentos/porler", m.documentosPorLer)
+	mux.HandleFunc("POST /orcamentos/documentos/{id}/ler", m.lerDocumento)
 	mux.HandleFunc("DELETE /orcamentos/documentos/{id}", m.ocultarDocumento)
 	mux.HandleFunc("POST /orcamentos/documentos/{id}/restaurar", m.restaurarDocumento)
 

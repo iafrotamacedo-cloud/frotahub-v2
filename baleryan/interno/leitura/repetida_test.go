@@ -8,7 +8,7 @@
 //	como arquivo diferente: a foto e o PDF dela, dois escaneamentos, o mesmo PDF
 //	renomeado. Bytes diferentes, dois documentos, dois orçamentos, e a loja
 //	pagando o mesmo material duas vezes.
-package main
+package leitura
 
 import (
 	"context"
@@ -31,7 +31,7 @@ type marcada struct {
 }
 
 // bancoDeMentira responde às buscas com `achadas` e guarda os PATCH.
-func bancoDeMentira(t *testing.T, achadas []map[string]any, anotar *[]marcada) *Leitor {
+func bancoDeMentira(t *testing.T, achadas []map[string]any, anotar *[]marcada) *Servico {
 	t.Helper()
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -51,9 +51,9 @@ func bancoDeMentira(t *testing.T, achadas []map[string]any, anotar *[]marcada) *
 		}
 	}))
 	t.Cleanup(s.Close)
-	return &Leitor{bd: banco.Novo(&config.Config{
+	return &Servico{bd: banco.Novo(&config.Config{
 		Supabase: config.Supabase{URL: s.URL, ChaveServico: "chave-de-mentira"},
-	}), quem: "teste"}
+	})}
 }
 
 const (
@@ -65,13 +65,13 @@ const (
 // A QUE CHEGOU DEPOIS É A CÓPIA
 func TestANotaQueChegouDepoisEAMarcada(t *testing.T) {
 	var anotadas []marcada
-	l := bancoDeMentira(t, []map[string]any{
+	s := bancoDeMentira(t, []map[string]any{
 		{"id": "a-original", "nome_arquivo": "NF.pdf", "chave_acesso": chaveA,
 			"valor_total": 100.0, "inserido_em": cedo},
 	}, &anotadas)
 
 	doc := &documento{ID: "b-copia", Nome: "NF (1).pdf", Cliente: "c1", Inserido: tarde}
-	if err := l.conferirRepetida(context.Background(), doc,
+	if err := s.conferirRepetida(context.Background(), doc,
 		&leitor.Leitura{ChaveAcesso: chaveA, ValorTotal: 100}); err != nil {
 		t.Fatalf("falhou: %v", err)
 	}
@@ -93,13 +93,13 @@ func TestANotaQueChegouDepoisEAMarcada(t *testing.T) {
 //	cópia da cópia.
 func TestLendoAOriginalDepois_AMarcaVaiNaOutra(t *testing.T) {
 	var anotadas []marcada
-	l := bancoDeMentira(t, []map[string]any{
+	s := bancoDeMentira(t, []map[string]any{
 		{"id": "b-copia", "nome_arquivo": "NF (1).pdf", "chave_acesso": chaveA,
 			"valor_total": 100.0, "inserido_em": tarde},
 	}, &anotadas)
 
 	doc := &documento{ID: "a-original", Nome: "NF.pdf", Cliente: "c1", Inserido: cedo}
-	if err := l.conferirRepetida(context.Background(), doc,
+	if err := s.conferirRepetida(context.Background(), doc,
 		&leitor.Leitura{ChaveAcesso: chaveA, ValorTotal: 100}); err != nil {
 		t.Fatalf("falhou: %v", err)
 	}
@@ -120,12 +120,12 @@ func TestLendoAOriginalDepois_AMarcaVaiNaOutra(t *testing.T) {
 //	confiança na marca — que é pior que não ter marca.
 func TestNotaSemChaveESemNumeroNaoAcusa(t *testing.T) {
 	var anotadas []marcada
-	l := bancoDeMentira(t, []map[string]any{
+	s := bancoDeMentira(t, []map[string]any{
 		{"id": "outra", "nome_arquivo": "outra.jpg", "valor_total": 14.90, "inserido_em": cedo},
 	}, &anotadas)
 
 	doc := &documento{ID: "esta", Nome: "esta.jpg", Cliente: "c1", Inserido: tarde}
-	if err := l.conferirRepetida(context.Background(), doc,
+	if err := s.conferirRepetida(context.Background(), doc,
 		&leitor.Leitura{ValorTotal: 14.90}); err != nil {
 		t.Fatalf("falhou: %v", err)
 	}
@@ -137,14 +137,14 @@ func TestNotaSemChaveESemNumeroNaoAcusa(t *testing.T) {
 // Notas diferentes com números parecidos não podem virar cópia uma da outra.
 func TestNotasDiferentesNaoSaoMarcadas(t *testing.T) {
 	var anotadas []marcada
-	l := bancoDeMentira(t, []map[string]any{
+	s := bancoDeMentira(t, []map[string]any{
 		{"id": "outra", "nome_arquivo": "outra.pdf",
 			"chave_acesso": "23260714788633000110550010000091601000055287",
 			"valor_total":  100.0, "inserido_em": cedo},
 	}, &anotadas)
 
 	doc := &documento{ID: "esta", Nome: "esta.pdf", Cliente: "c1", Inserido: tarde}
-	if err := l.conferirRepetida(context.Background(), doc,
+	if err := s.conferirRepetida(context.Background(), doc,
 		&leitor.Leitura{ChaveAcesso: chaveA, ValorTotal: 100}); err != nil {
 		t.Fatalf("falhou: %v", err)
 	}
@@ -157,13 +157,13 @@ func TestNotasDiferentesNaoSaoMarcadas(t *testing.T) {
 func TestDAVRepetidoEPegoPeloNumeroEValor(t *testing.T) {
 	var anotadas []marcada
 	numero := "19037"
-	l := bancoDeMentira(t, []map[string]any{
+	s := bancoDeMentira(t, []map[string]any{
 		{"id": "a-original", "nome_arquivo": "dav.jpg", "numero": numero,
 			"valor_total": 14.90, "inserido_em": cedo},
 	}, &anotadas)
 
 	doc := &documento{ID: "b-copia", Nome: "dav-foto.jpeg", Cliente: "c1", Inserido: tarde}
-	if err := l.conferirRepetida(context.Background(), doc,
+	if err := s.conferirRepetida(context.Background(), doc,
 		&leitor.Leitura{Numero: numero, ValorTotal: 14.90}); err != nil {
 		t.Fatalf("falhou: %v", err)
 	}

@@ -39,6 +39,25 @@ const tituloDaVista: Record<Vista, string> = {
   fora:        'Fora da fila',
 }
 
+/** O que o motor diz que falta ler nesta fila. */
+interface PorLer {
+  notas: { id: string; nome_arquivo: string; status: string }[]
+  total: number
+  teto: number
+}
+
+/** O andamento da leitura, para a barra não deixar a pessoa no escuro. */
+interface LoteDeLeitura {
+  total: number
+  feito: number
+  lidas: number
+  falhas: number
+  rodando: boolean
+  agora?: string
+  /** Os motivos, sem repetir — três notas com a mesma queixa são uma linha. */
+  motivos: string[]
+}
+
 const vaziaDaVista: Record<Vista, string> = {
   fila:        'Nada na fila. Tudo o que entrou já foi resolvido.',
   processadas: 'Nenhuma nota virou orçamento ainda.',
@@ -85,6 +104,20 @@ export function Arquivos({ fila, voltar }: Props) {
   const [gerando, setGerando] = useState(false)
   const [resultados, setResultados] = useState<ResultadoDaGeracao[] | null>(null)
 
+  // A LEITURA AGORA É UM BOTÃO, E NÃO UMA ESPERA
+  //
+  //	Até 27/08/2026 quem lia era só o robô do GitHub, de meia em meia hora, nas
+  //	horas em que ele roda. Quem acabou de inserir a nota ficava olhando uma
+  //	fila cheia de "na fila" sem nada para fazer — e a nota só vira orçamento
+  //	depois de lida.
+  //
+  //	`porLer` é o que o motor diz que falta ler NA FILA INTEIRA, não na página
+  //	à vista: quem tem noventa e uma notas e vê cem por página precisa saber
+  //	que o botão vai além do que está na tela.
+  const [porLer, setPorLer] = useState<PorLer | null>(null)
+  const [lote, setLote] = useState<LoteDeLeitura | null>(null)
+  const pararLeitura = useRef(false)
+
 
   const carregar = useCallback(async () => {
     setOcupado(true)
@@ -96,6 +129,12 @@ export function Arquivos({ fila, voltar }: Props) {
       })
       setPagina(await motor<Pagina<Documento>>('/orcamentos/documentos?' + q))
       setErro('')
+      // Quantas faltam ler é pergunta da FILA, não desta página — e por isso é
+      // outra chamada. Falhar aqui não derruba a lista: some o botão, que é
+      // ajuda, e a lista, que é o serviço, continua.
+      try {
+        setPorLer(await motor<PorLer>('/orcamentos/documentos/porler?fila=' + fila))
+      } catch { setPorLer(null) }
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui carregar a lista.')
     } finally {
@@ -123,6 +162,46 @@ export function Arquivos({ fila, voltar }: Props) {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui restaurar.')
     }
+  }
+
+  // LER TODAS — UMA NOTA POR CHAMADA, DE PROPÓSITO
+  //
+  //	Uma chamada só que lesse noventa notas ficaria vinte minutos aberta e
+  //	morreria no tempo limite do servidor, jogando fora o trabalho já feito.
+  //	Uma por vez: cada nota que termina está gravada, e parar no meio deixa
+  //	lidas as que já foram.
+  //
+  //	O "parar depois desta" existe pela mesma razão do lote de reconferência:
+  //	quem começou tem que poder desistir sem fechar a aba no meio de uma
+  //	gravação.
+  async function lerTodas() {
+    const notas = porLer?.notas ?? []
+    if (notas.length === 0) return
+    pararLeitura.current = false
+    setErro('')
+    setLote({ total: notas.length, feito: 0, lidas: 0, falhas: 0, rodando: true, motivos: [] })
+
+    for (const n of notas) {
+      if (pararLeitura.current) break
+      setLote(l => (l ? { ...l, agora: n.nome_arquivo } : l))
+      try {
+        await motor(`/orcamentos/documentos/${n.id}/ler`, { metodo: 'POST' })
+        setLote(l => l && ({ ...l, feito: l.feito + 1, lidas: l.lidas + 1 }))
+      } catch (e) {
+        // Uma nota que não leu não derruba as outras: ela fica marcada como
+        // "falhou", com o motivo, e o próximo clique tenta de novo.
+        const motivo = e instanceof Error ? e.message : 'não consegui ler'
+        setLote(l => l && ({
+          ...l,
+          feito: l.feito + 1,
+          falhas: l.falhas + 1,
+          motivos: l.motivos.includes(motivo) ? l.motivos : [...l.motivos, motivo],
+        }))
+      }
+    }
+
+    setLote(l => (l ? { ...l, rodando: false, agora: undefined } : l))
+    await carregar()
   }
 
   async function gerar() {
@@ -227,10 +306,31 @@ export function Arquivos({ fila, voltar }: Props) {
         direita={
           <>
             <span className="orc-prontas">{contarProntas(pagina)}</span>
+            {/* LER VEM ANTES DE GERAR, NA TELA COMO NA VIDA
+                A nota só é liberada para gerar depois de lida. Pôr os dois
+                botões nessa ordem é dizer isso sem precisar de aviso. */}
+            {lote?.rodando ? (
+              <button type="button" className="orc-bt"
+                onClick={() => { pararLeitura.current = true }}>
+                parar depois desta
+              </button>
+            ) : (
+              porLer && porLer.notas.length > 0 && (
+                <button
+                  type="button"
+                  className="orc-bt forte"
+                  disabled={gerando}
+                  title="Lê as notas que ainda estão na fila. Só depois de lida a nota pode virar orçamento."
+                  onClick={() => void lerTodas()}
+                >
+                  Ler notas ({porLer.notas.length})
+                </button>
+              )
+            )}
             <button
               type="button"
               className="orc-bt forte"
-              disabled={gerando || contarProntas(pagina) === '' }
+              disabled={gerando || lote?.rodando || contarProntas(pagina) === '' }
               onClick={() => void gerar()}
             >
               {gerando ? 'Gerando…' : 'Gerar orçamentos'}
@@ -238,6 +338,8 @@ export function Arquivos({ fila, voltar }: Props) {
           </>
         }
       />
+
+      {lote && <PainelDaLeitura dados={lote} fechar={() => setLote(null)} />}
 
       {resultados && <ResumoDaGeracao resultados={resultados} fechar={() => setResultados(null)} />}
 
@@ -664,6 +766,47 @@ function Tickets({ numeros, soltos }: { numeros: number[] | null; soltos?: numbe
 }
 
 /** Quantas notas desta página estão prontas — o número que explica o botão. */
+// O ANDAMENTO DA LEITURA, E O QUE SOBROU DELA
+//
+//	A leitura de uma nota leva segundos — noventa levam minutos. Sem barra, a
+//	pessoa não sabe se o sistema está trabalhando ou travado, e a saída natural
+//	dela é fechar a aba no meio de uma gravação.
+//
+//	No fim, os motivos das falhas vêm SEM REPETIR: trinta notas paradas pela
+//	mesma cota estourada são um problema, não trinta.
+function PainelDaLeitura({ dados, fechar }: { dados: LoteDeLeitura; fechar: () => void }) {
+  const pct = dados.total === 0 ? 0 : Math.round((dados.feito / dados.total) * 100)
+  return (
+    <div className="orc-lote">
+      <div className="orc-lote-topo">
+        <span>
+          {dados.rodando
+            ? <>lendo{dados.agora ? ` — ${dados.agora}` : ''}…</>
+            : <>leitura terminada</>}
+        </span>
+        <strong>{dados.feito} de {dados.total}</strong>
+      </div>
+      <div className="orc-lote-barra"><span style={{ width: `${pct}%` }} /></div>
+      {!dados.rodando && (
+        <div className="orc-lote-fim">
+          <p>
+            <strong>{dados.lidas}</strong>{' '}
+            {dados.lidas === 1 ? 'nota lida' : 'notas lidas'}
+            {dados.falhas > 0 && <> · <strong>{dados.falhas}</strong> não deu para ler</>}.
+            {dados.lidas > 0 && ' Elas já podem virar orçamento.'}
+          </p>
+          {dados.motivos.length > 0 && (
+            <ul className="orc-lote-motivos">
+              {dados.motivos.map(m => <li key={m}>{m}</li>)}
+            </ul>
+          )}
+          <button type="button" className="orc-bt" onClick={fechar}>Entendi</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function contarProntas(pagina: Pagina<Documento> | null): string {
   if (!pagina) return ''
   const prontas = pagina.linhas.filter(d => d.pronto_para_gerar).length

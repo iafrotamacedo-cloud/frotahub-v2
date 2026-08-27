@@ -11,7 +11,7 @@
 //	Em 26/08/2026 as duas notas de rateio da fila escaparam por sorte (a IA
 //	estava fora do ar e a observação não foi lida). Este teste troca a sorte
 //	por uma regra.
-package main
+package leitura
 
 import (
 	"testing"

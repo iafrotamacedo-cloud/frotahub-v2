@@ -887,6 +887,17 @@
 .orc-lote-fim p { margin: 0; font-size: 12.5px; color: var(--txt); line-height: 1.5; }
 .orc-lote-fim strong { color: var(--ink); }
 
+/* OS MOTIVOS DA LEITURA QUE FALHOU
+   Vêm sem repetir — trinta notas paradas pela mesma cota são um problema, não
+   trinta linhas. A largura cheia é para a frase não quebrar em duas colunas ao
+   lado do botão "Entendi". */
+.orc-lote-motivos {
+  flex-basis: 100%; margin: 0; padding-left: 20px;
+  font-size: 12.5px; color: var(--txt); line-height: 1.5;
+  max-height: 150px; overflow-y: auto;
+}
+.orc-lote-motivos li { margin: 3px 0; }
+
 /* O × que tira um ticket já gravado da ficha da nota.
    Discreto até o mouse chegar: ele mexe no destino do dinheiro, e um botão
    vermelho permanente ao lado de cada número convida ao clique distraído. */

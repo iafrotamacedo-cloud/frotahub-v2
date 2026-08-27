@@ -3011,6 +3011,17 @@ O total conferido vem de fora da soma que ele confere, e o `else` de toda
 classificação tem nome e aparece. *Origem: um balanço cujo universo é a soma das
 próprias linhas fecha até quando perde registro.*
 
+**P-39 — Código que duas pontas precisam não mora em `package main`.**
+O `main` é a borda: lê o ambiente, monta e chama. Regra que alguém mais vai precisar
+nasce em pacote importável. *Origem: a leitura inteira estava no `main` do robô, e a
+única maneira de o motor ler uma nota seria copiar 400 linhas.*
+
+**P-40 — Falta de ferramenta do servidor não vira defeito do dado.**
+Antes de mandar o registro para o processo, pergunte se ESTA máquina tem com que
+processá-lo — e, se não tiver, recuse sem marcar o registro. *Origem: sem
+`GEMINI_API_KEY` no motor, cada clique marcaria a nota como `falhou`; noventa e uma
+notas levariam a culpa de uma variável de ambiente.*
+
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
 
@@ -3052,6 +3063,146 @@ A entrega escreve o novo; ninguém apaga o velho sozinho. *Origem: duas peças m
 pasta na entrega 3, as cópias antigas ficaram na máquina, o `git add -A` recolheu as duas,
 e a compilação quebrou. Toda entrega que MOVE arquivo vem acompanhada do comando que
 remove o original.*
+
+---
+
+## FASE 4 · Step 12 — a leitura sai do relógio e vira botão
+
+**Pedido do dono, 27/08/2026:** *"vamos colocar um botão de 'Ler Notas', que ativa
+a visualização antes de ativar o botão de geração... coloque esse botão tb nas
+notas de rateio"*, e depois, escolhendo entre as saídas: *"o motor le na hora,
+opcao A, e tira a leitura de 30 em 30 minutos do git"*.
+
+E dois alinhamentos dele, antes de eu escrever qualquer linha:
+*"a nota so eh liberada para ser gerada apos a leitura"* e
+*"cada nota eh lida apenas uma vez"*.
+
+### O que estava errado
+
+Ele abriu as duas filas e viu 91 notas dizendo **"na fila"**, com o botão de gerar
+apagado. Não era defeito: a nota só vira orçamento depois de lida, e **quem lia era
+só o robô do GitHub**, de trinta em trinta minutos, das 6h às 20h. Cinco trabalhos
+estavam parados na fila desde 26/08 19:57 UTC.
+
+Quem acabou de inserir a nota está **olhando** para ela e quer o orçamento agora.
+Mandá-lo esperar meia hora por um robô que está pago para dormir é a diferença
+entre um sistema que responde e um que se explica.
+
+### O obstáculo de verdade
+
+A cascata inteira — baixar, interpretar, gravar, conferir duplicidade — morava em
+`baleryan/cmd/leitor/main.go`, **797 linhas, pacote `main`**. Pacote `main` não se
+importa: o motor não tinha como chamar nada dali. Não havia atalho. A opção A
+exigia a separação (CORE-06).
+
+### O que ficou onde
+
+| Peça | Foi para | Por quê |
+|---|---|---|
+| interpretar, baixar, gravar, conferir repetida, amarrar ticket, texto do PDF | `baleryan/interno/leitura/` | as duas pontas precisam da MESMA leitura |
+| tomar trabalho, recolher órfão, contar tentativa, desistir depois de três | ficou em `cmd/leitor` | é assunto de quem roda em **lote** |
+
+São **14 funções movidas**, e a mudança foi provada mecanicamente: comparei corpo
+a corpo o arquivo antigo com os dois novos, aplicando só a renomeação do receptor
+(`(l *Leitor)` → `(s *Servico)`). **Nenhuma mudou além disso**, e nenhuma das 31
+declarações do arquivo original sumiu.
+
+### O contrato do erro, que é o que faz a separação funcionar
+
+As duas pontas decidem coisas diferentes com a mesma resposta: a fila escolhe
+entre **devolver o trabalho e desistir de vez**; o botão escolhe entre *"tente de
+novo em instantes"* e *"esta nota tem problema"*. Antes isso era um `if` dentro do
+`main`. Agora é o **tipo** do erro — `leitura.FalhaTemporaria` — e tipo se testa.
+
+### Ler uma vez só, e isso é garantido pela fila
+
+O trabalho `ler_documento` continua sendo a única autorização para ler. A rota nova
+o **toma** do mesmo jeito que o robô toma: alteração condicional com
+`status=eq.na_fila` **no filtro**. Duas pontas que disputam a mesma linha, só uma
+recebe a linha de volta. Sem isso, um clique no botão enquanto o robô roda leria a
+mesma nota duas vezes — duas chamadas de IA pagas, e a última a gravar decidindo o
+que a nota diz.
+
+E `podeLerAgora` recusa `lido` e `usado`. Não é economia de cota: reler apaga o que
+alguém corrigiu à mão, e mexer nos itens de uma nota que já virou orçamento faria a
+conta do orçamento discordar da nota que a originou.
+
+### O buraco que eu quase abri, e fechei antes de entregar
+
+O motor **não tem `pdftotext`** e pode não ter `GEMINI_API_KEY` — ela é segredo do
+GitHub. Do jeito que eu tinha escrito, cada clique mandaria a nota para a cascata,
+ela falharia lá dentro e voltaria marcada **`falhou`**: noventa e uma notas acusadas
+de um problema que é do **servidor**, não delas.
+
+`FaltaOLeitor` pergunta **antes** de tomar o trabalho, e a recusa não deixa marca em
+nota nenhuma. XML nunca precisa de ninguém; PDF com `pdftotext` à mão pode ter camada
+de texto. É a mesma pergunta em máquinas diferentes, com respostas diferentes — e é
+por isso que ela mora no serviço, e não na rota.
+
+### O relógio saiu, o robô ficou
+
+O `schedule` de `leitor-notas.yml` foi removido. O robô continua existindo, e não por
+saudade: ele tem `pdftotext` (PDF digital lido de graça, sem cota), ele é quem recolhe
+trabalho órfão, e ele é a saída para um lote grande sem ninguém segurando a aba aberta.
+Roda quando alguém manda: **Actions › Leitor de notas › Run workflow**.
+
+### Os testes novos, e cada um foi sabotado para provar que pega
+
+| Teste | O que ele pega | Sabotagem que o fez falhar |
+|---|---|---|
+| `NotaJaLidaNaoVolta` | reler nota já lida ou já usada | fiz `lido` liberar |
+| `TomarALeituraExigeQueOTrabalhoEstejaNaFila` | a corrida entre o botão e o robô | tirei `status=eq.na_fila` do filtro |
+| `TrabalhoNaMaoDeOutroRecusaALeitura` | ler por cima de quem está lendo | fiz a conferência nunca achar |
+| `NotaSemTrabalhoNaFilaAindaPodeSerLida` | prender a nota que não tem trabalho | recusei todas |
+| `DocumentoInexistenteNaoEhFalhaTemporaria` | três tentativas para o mesmo "não achei" | marquei tudo como temporário |
+| `FalhaAoBaixarEhTemporaria` | acusar a nota por um minuto ruim da rede | tirei a marca |
+| `SemIANaoSeLeImagemNemPDF` | 91 notas marcadas `falhou` por falta de chave | deixei a foto passar; e recusei o XML |
+| `PorlerNaoCaiNoCuringaDoId` | `/documentos/porler` comido por `/documentos/{id}` | virei a rota em `{id}/porler` |
+
+### O botão
+
+Fica **antes** do "Gerar orçamentos", na barra das duas filas — ler vem antes de
+gerar, na tela como na vida. O número que ele mostra vem do motor
+(`GET /orcamentos/documentos/porler`), **não da página à vista**: quem tem 91 notas e
+vê 100 por página precisa saber que o botão vai além do que está na tela.
+
+Lê **uma nota por chamada**. Uma chamada só que lesse noventa ficaria vinte minutos
+aberta e morreria no tempo limite do servidor, jogando fora o trabalho já feito.
+Barra de andamento, "parar depois desta", e no fim os motivos das falhas **sem
+repetir** — trinta notas paradas pela mesma cota são um problema, não trinta.
+
+### Práticas que nasceram deste Step
+
+**P-39 — Código que duas pontas precisam não mora em `package main`.**
+O `main` é a borda: ele lê o ambiente, monta e chama. Regra que alguém mais vai
+precisar nasce em pacote importável. *Origem: a leitura inteira estava no `main` do
+robô, e a única maneira de o motor ler uma nota seria copiar 400 linhas — duas
+leituras para a mesma nota, e a tela dizendo uma coisa e o robô outra.*
+
+**P-40 — Falta de ferramenta do servidor não vira defeito do dado.**
+Antes de mandar o registro para o processo, pergunte se ESTA máquina tem com que
+processá-lo — e, se não tiver, recuse sem marcar o registro. *Origem: sem
+`GEMINI_API_KEY` no motor, cada clique marcaria a nota como `falhou`; noventa e uma
+notas levariam a culpa de uma variável de ambiente.*
+
+### Inventário deste Step
+
+| Arquivo | Estado | Rev |
+|---|---|---|
+| `baleryan/interno/leitura/leitura.go` | **novo** — 14 funções vindas do `cmd/leitor` | 1 |
+| `baleryan/interno/leitura/falha_test.go` | **novo** | 1 |
+| `baleryan/interno/leitura/rateio_test.go` | **movido** de `cmd/leitor` | 1 |
+| `baleryan/interno/leitura/repetida_test.go` | **movido** de `cmd/leitor` | 1 |
+| `baleryan/cmd/leitor/main.go` | 797 → 369 linhas; virou só a fila | 2 |
+| `baleryan/interno/modulos/orcamentos/ler.go` | **novo** — as duas rotas | 1 |
+| `baleryan/interno/modulos/orcamentos/ler_test.go` | **novo** | 1 |
+| `baleryan/interno/modulos/orcamentos/rotas.go` | o módulo passou a ter o serviço de leitura | — |
+| `web/src/telas/orcamentos/Arquivos.tsx` | o botão, o lote e o painel de andamento | — |
+| `web/src/estilos/orcamentos.css` | `.orc-lote-motivos` | — |
+| `.github/workflows/leitor-notas.yml` | **sem `schedule`** — só `workflow_dispatch` | 2 |
+
+**Some da máquina:** `baleryan/cmd/leitor/rateio_test.go` e
+`baleryan/cmd/leitor/repetida_test.go` (P-28).
 
 ---
 
