@@ -121,9 +121,19 @@ func (m *Modulo) orcamentosACobrar(ctx context.Context, clienteID string) ([]aCo
 
 // GET /orcamentos/relatorio-mensal — o que a tela mostra antes de extrair.
 //
-// A tela não lista os 408: ela diz QUANTOS e QUANTO, e o que está sem o nome do
-// cliente. Uma lista de quatrocentas linhas na tela não ajuda a decidir nada — a
-// decisão é uma só, "mando ou não mando", e ela se toma com dois números.
+// A TELA MOSTRA A PLANILHA, E NÃO UM RESUMO DELA
+//
+//	A primeira versão devolvia só os números — quantos e quanto — com o
+//	argumento de que a decisão é uma só, "mando ou não mando". O argumento
+//	estava errado: quem vai mandar uma planilha ao cliente quer VER a planilha
+//	antes, e um retângulo com uma frase no meio não é a planilha.
+//
+//	Decisão do dono em 27/08/2026: *"a extracao deu certo, mas preciso colocar a
+//	planilha visivel na tela tb"*.
+//
+//	As linhas que a tela recebe são AS MESMAS que vão no arquivo, montadas pelo
+//	mesmo caminho. Uma prévia que diverge do arquivo é pior que prévia nenhuma:
+//	ela dá confiança onde não deveria.
 func (m *Modulo) relatorioMensal(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r, RotinaFaturar)
 	if p == nil {
@@ -156,6 +166,10 @@ func (m *Modulo) relatorioMensal(w http.ResponseWriter, r *http.Request) {
 		"valor":   soma,
 		"de":      de,
 		"ate":     ate,
+		// A PRÉVIA SAI DA MESMA FUNÇÃO QUE O ARQUIVO
+		//   `linhasDoModelo` é chamada aqui e na extração. Duas montagens da
+		//   mesma tabela divergem no dia em que alguém mexer numa só.
+		"linhas": linhasDoModelo(linhas),
 		// AS LOJAS SEM O NOME DO CLIENTE APARECEM ANTES DE O ARQUIVO SAIR
 		//   Sair com a coluna LOJA em branco é mandar ao cliente uma linha que
 		//   ele não consegue lançar em centro de custo nenhum. Melhor ele saber
@@ -185,22 +199,10 @@ func (m *Modulo) relatorioMensalExcel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var soma float64
-	corpo := make([][]any, 0, len(linhas))
-	for i, l := range linhas {
+	for _, l := range linhas {
 		soma += l.Valor
-		corpo = append(corpo, []any{
-			i + 1,
-			l.Ticket,
-			ouVazioTexto(l.Loja),
-			l.Valor,
-			emData(l.CriadoEm),
-			// ORÇAMENTO repete VALOR — ver o cabeçalho do arquivo.
-			l.Valor,
-			contaDoCliente(l.Conta),
-			// PCO, vazia por enquanto.
-			"",
-		})
 	}
+	corpo := linhasDoModelo(linhas)
 
 	tab := relatorio.Tabela{
 		Titulo:    "Orçamentos de materiais",
@@ -218,6 +220,32 @@ func (m *Modulo) relatorioMensalExcel(w http.ResponseWriter, r *http.Request) {
 	}
 	entregar(w, corpoXLSX, "orcamentos-materiais", "xlsx",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+}
+
+// linhasDoModelo monta as oito colunas, na ordem do cliente.
+//
+// É A MESMA FUNÇÃO PARA A TELA E PARA O ARQUIVO, E ISSO É O PONTO
+//
+//	A tela mostra a planilha antes de ela sair. Se a prévia fosse montada por
+//	outro caminho, um dia ela mostraria uma coisa e o arquivo levaria outra — e
+//	o erro só apareceria do lado do cliente. Uma montagem só, dois consumidores.
+func linhasDoModelo(linhas []aCobrar) [][]any {
+	corpo := make([][]any, 0, len(linhas))
+	for i, l := range linhas {
+		corpo = append(corpo, []any{
+			i + 1,
+			l.Ticket,
+			ouVazioTexto(l.Loja),
+			l.Valor,
+			emData(l.CriadoEm),
+			// ORÇAMENTO repete VALOR — ver o cabeçalho do arquivo.
+			l.Valor,
+			contaDoCliente(l.Conta),
+			// PCO, vazia por enquanto.
+			"",
+		})
+	}
+	return corpo
 }
 
 // emData transforma o carimbo do banco no `time.Time` que a planilha grava como

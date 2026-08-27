@@ -60,12 +60,25 @@ export function Faturamento({ voltar }: { voltar: () => void }) {
 // ---------------------------------------------------------------------------
 
 /**
- * O QUE ESTA ABA É, E O QUE ELA NÃO É
+ * A TELA MOSTRA A PLANILHA, E NÃO UM RESUMO DELA
  *
- *   Ela não lista os orçamentos. A decisão aqui é uma só — "mando ou não
- *   mando" — e ela se toma com dois números: quantos e quanto. Quatrocentas
- *   linhas na tela não ajudam a decidir nada, e quem quiser vê-las tem a aba
- *   "A faturar" ao lado.
+ *   A primeira versão mostrava só os dois números — quantos e quanto — com o
+ *   argumento de que a decisão é uma só, "mando ou não mando". O argumento
+ *   estava errado: quem vai mandar uma planilha ao cliente quer VER a planilha
+ *   antes, e um retângulo com uma frase no meio não é a planilha.
+ *
+ *   Decisão do dono em 27/08/2026: *"a extracao deu certo, mas preciso colocar a
+ *   planilha visivel na tela tb"*.
+ *
+ *   As linhas são as MESMAS que vão no arquivo, montadas pela mesma função do
+ *   motor. Prévia que diverge do arquivo dá confiança onde não deveria.
+ *
+ * O TEMA SEGUE A FRONTEIRA DE 25/08/2026
+ *
+ *   *"Todos os MENUS em tema escuro. O tema claro fica para a exibição das
+ *   LISTAS."* Menu é lugar de decidir; lista é lugar de ler. A casca, a barra e
+ *   os três cartões são escuros; a tabela é clara, igual à de Notas e DAVs, à de
+ *   Pendências e à de Lançar.
  *
  * SÓ EXCEL, E É DE PROPÓSITO
  *
@@ -147,7 +160,7 @@ function RelatorioMensal() {
       <div className="orc-lista">
         <div className="orc-lista-cab">
           <h2>Orçamentos de materiais</h2>
-          <em>no modelo do cliente</em>
+          <em>o que vai na planilha, no modelo do cliente</em>
           <span style={{ flex: 1 }} />
           <button type="button" className="orc-bt forte" disabled={vazio || baixando} onClick={() => void extrair()}>
             {baixando ? 'gerando…' : 'Extrair Excel'}
@@ -159,11 +172,39 @@ function RelatorioMensal() {
             Nada a cobrar. Tudo o que foi lançado no Trílogo já entrou numa planilha anterior.
           </p>
         ) : (
-          <p className="orc-vazio">
-            A planilha sai com <b>{dados.quantos}</b> {dados.quantos === 1 ? 'linha' : 'linhas'} e as oito colunas
-            do modelo — Nº, TICKET, LOJA, VALOR, DATA, ORÇAMENTO, CONTA e PCO. A coluna PCO vai vazia por
-            enquanto, no lugar certo, esperando o passo seguinte.
-          </p>
+          <div className="orc-rolagem">
+            <table className="orc-tabela rel-mensal">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'right' }}>Nº</th>
+                  <th style={{ textAlign: 'right' }}>TICKET</th>
+                  <th>LOJA</th>
+                  <th style={{ textAlign: 'right' }}>VALOR</th>
+                  <th>DATA</th>
+                  <th style={{ textAlign: 'right' }}>ORÇAMENTO</th>
+                  <th>CONTA</th>
+                  <th>PCO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dados.linhas.map((l, i) => (
+                  <tr key={i}>
+                    <td className="num">{String(l[0])}</td>
+                    <td className="num">{String(l[1])}</td>
+                    {/* A LOJA VAZIA APARECE COMO FALTA, NÃO COMO ESPAÇO EM BRANCO
+                        É a linha que o cliente não conseguiria lançar em centro
+                        de custo nenhum — some para o olho se não for marcada. */}
+                    <td>{l[2] ? String(l[2]) : <em className="ruim">sem o nome do cliente</em>}</td>
+                    <td className="num">{emReais(Number(l[3]))}</td>
+                    <td>{emData(String(l[4]))}</td>
+                    <td className="num">{emReais(Number(l[5]))}</td>
+                    <td className="mut">{String(l[6])}</td>
+                    <td className="mut">—</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

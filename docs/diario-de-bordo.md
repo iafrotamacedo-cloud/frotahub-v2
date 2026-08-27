@@ -4001,6 +4001,67 @@ teste do código reclamava — eles concordavam consigo mesmos.*
 
 ---
 
+## FASE 4 · Step 19 — a planilha aparece na tela antes de sair
+
+**Pedido do dono:** *"a extração deu certo, mas preciso colocar a planilha
+visível na tela tb"* e *"coloca no padrão escuro que já estamos acostumados"*.
+
+### O retângulo branco no meio da aba
+
+A aba Relatório mensal mostrava dois números e um botão. Funcionava, mas ele
+tinha de baixar o arquivo para saber o que estava mandando ao cliente. Agora a
+tabela inteira aparece ali, com as oito colunas do modelo dele, na ordem do
+modelo.
+
+### Uma montagem só, dois consumidores
+
+A prévia **não** foi desenhada de novo no front. Extraí `linhasDoModelo` do
+código que já montava o `.xlsx`, e agora a rota da tela devolve exatamente o
+mesmo `[][]any` que vai para o arquivo. Se as duas fossem montadas separado,
+divergiriam no primeiro ajuste — e divergiriam em silêncio, que é o pior jeito:
+ele conferiria uma coisa na tela e mandaria outra por e-mail.
+
+### O tema — e por que a tabela ficou clara
+
+Ele pediu "o padrão escuro". Segui a regra que o **próprio dono** escreveu em
+`padroes-de-tela.md` em 25/08/2026:
+
+> *"Todos os MENUS em tema escuro. O tema claro fica para a exibição das LISTAS."*
+
+Então: a casca, a barra de abas e os três cartões de resumo são escuros; a
+tabela é clara, **igual à de Notas e DAVs, à de Pendências e à de Lançar**. A
+tabela usa as mesmas classes que essas telas (`orc-rolagem`, `orc-tabela`), não
+um estilo próprio — um estilo próprio seria uma segunda aparência para a mesma
+coisa. Se ele quiser a tabela escura também, é ajuste de CSS e a regra do
+documento é que muda junto.
+
+### A trapaça que quase passou
+
+O teste que guarda as classes procurava `className="orc-rolagem"` no arquivo
+inteiro. Só que a `Faturamento.tsx` tem **três** abas e o nome aparece três
+vezes: eu podia arrancar a rolagem justamente desta aba e o teste continuava
+verde. Foi o vício da P-42 outra vez, no mesmo dia. Estreitei para a `<div>` que
+**envolve esta tabela**, e sabotando de novo ele acusou.
+
+### Prática reafirmada
+
+**P-42 — Teste procura uso, não menção.** Terceira vez que ela pega uma armadilha
+minha. Quando o nome procurado aparece em mais de um lugar do arquivo, procurar o
+nome é procurar nada.
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal.go` | `linhasDoModelo` extraída; a rota devolve `linhas` |
+| `baleryan/interno/modulos/orcamentos/relatorio_mensal_test.go` | três guardas novas |
+| `web/src/telas/orcamentos/Faturamento.tsx` | a tabela no lugar do retângulo |
+| `web/src/telas/orcamentos/tipos.ts` | `linhas: unknown[][]` |
+| `web/src/estilos/orcamentos.css` | números alinhados, loja sem nome em vermelho |
+
+
+---
+
 ---
 
 ## Endereços e contas

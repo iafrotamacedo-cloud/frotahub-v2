@@ -923,3 +923,39 @@
   max-height: 150px; overflow-y: auto;
 }
 .orc-repetidos b { color: var(--ink); word-break: break-all; }
+
+/* ---------------------------------------------------------------------------
+   O RELATÓRIO MENSAL — a planilha à vista, antes de sair
+   ---------------------------------------------------------------------------
+
+   A TABELA É CLARA, E ISSO NÃO É ESQUECIMENTO
+     Regra do dono, 25/08/2026: "Todos os MENUS em tema escuro. O tema claro
+     fica para a exibição das LISTAS." Menu é lugar de decidir; lista é lugar de
+     ler, e trezentas linhas se leem melhor em texto escuro sobre claro. A
+     casca, a barra e os três cartões continuam escuros — a fronteira é a mesma
+     de Notas e DAVs, Pendências e Lançar.
+
+   OS NÚMEROS ALINHAM À DIREITA, COM LARGURA FIXA DE DÍGITO
+     `tabular-nums` faz o 1 ocupar o mesmo que o 8. Sem isso, uma coluna de
+     valores fica com as vírgulas dançando, e conferir uma soma de olho vira
+     adivinhação.
+   --------------------------------------------------------------------------- */
+
+.orc-tabela td.num,
+.orc-tabela th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.orc-tabela td.mut { color: var(--gray); }
+
+/* A LOJA QUE FALTA É AVISO, NÃO CÉLULA VAZIA
+   Sem o nome do cliente, essa linha chega lá sem centro de custo. Em branco
+   ela some para o olho justamente na hora de conferir. */
+.orc-tabela td em.ruim { color: var(--err); font-style: italic; }
+
+/* A coluna CONTA é longa e repetida; ela não pode empurrar as outras. */
+.rel-mensal td:nth-child(7) { max-width: 22rem; }
+.rel-mensal td:nth-child(3) { max-width: 18rem; }
+.rel-mensal td:nth-child(3),
+.rel-mensal td:nth-child(7) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

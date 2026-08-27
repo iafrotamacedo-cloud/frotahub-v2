@@ -529,4 +529,15 @@ export interface RelatorioMensalDados {
   lojas_sem_nome: string[]
   /** Máximo de linhas por arquivo. Batendo nele, a planilha diz que cortou. */
   teto: number
+  /**
+   * AS LINHAS DA PLANILHA, NA ORDEM E NO FORMATO DO MODELO DO CLIENTE.
+   *
+   *   Oito posições por linha: Nº, TICKET, LOJA, VALOR, DATA, ORÇAMENTO, CONTA,
+   *   PCO. Vêm da MESMA função que monta o arquivo — uma prévia que diverge do
+   *   que vai sair é pior que prévia nenhuma.
+   *
+   *   `unknown[]` porque a linha mistura número, texto e data; quem desenha
+   *   sabe o que cada posição é pela coluna.
+   */
+  linhas: unknown[][]
 }

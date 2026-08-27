@@ -228,3 +228,91 @@ func TestORelatorioMensalNaoTemPDF(t *testing.T) {
 			"duas versões do mesmo documento divergem")
 	}
 }
+
+// A PRÉVIA E O ARQUIVO SAEM DA MESMA MONTAGEM
+//
+//	A tela mostra a planilha antes de ela sair. Se a prévia fosse montada por
+//	outro caminho, um dia mostraria uma coisa e o arquivo levaria outra — e o
+//	erro só apareceria do lado do cliente, que é o pior lugar possível.
+//
+//	*"a extracao deu certo, mas preciso colocar a planilha visivel na tela tb"*
+//	— 27/08/2026.
+func TestAPreviaDaTelaSaiDaMesmaMontagemQueOArquivo(t *testing.T) {
+	fonte, err := os.ReadFile("relatorio_mensal.go")
+	if err != nil {
+		t.Fatalf("não consegui ler o relatorio_mensal.go: %v", err)
+	}
+	texto := string(fonte)
+
+	// Uma função só, dois consumidores.
+	if n := strings.Count(texto, "linhasDoModelo(linhas)"); n < 2 {
+		t.Errorf("`linhasDoModelo` é chamada %d vez(es) — a prévia da tela e o "+
+			"arquivo têm que sair dela, senão divergem", n)
+	}
+	if !strings.Contains(texto, `"linhas": linhasDoModelo(linhas)`) {
+		t.Error("a rota da tela não devolve as linhas — a tela volta a mostrar " +
+			"um retângulo com uma frase no meio, que não é a planilha")
+	}
+}
+
+// A TELA DESENHA AS OITO COLUNAS, NA ORDEM
+//
+//	A prévia é a planilha. Mostrar sete colunas, ou trocar duas de lugar, faz a
+//	pessoa conferir uma coisa e mandar outra.
+func TestATelaDesenhaAsOitoColunasDoModelo(t *testing.T) {
+	tela, err := os.ReadFile("../../../../web/src/telas/orcamentos/Faturamento.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	texto := string(tela)
+	i := strings.Index(texto, `className="orc-tabela rel-mensal"`)
+	if i < 0 {
+		t.Fatal("a tela não desenha a tabela do relatório mensal")
+	}
+	cabeca := texto[i:]
+	if j := strings.Index(cabeca, "</thead>"); j > 0 {
+		cabeca = cabeca[:j]
+	}
+	for _, col := range []string{"Nº", "TICKET", "LOJA", "VALOR", "DATA", "ORÇAMENTO", "CONTA", "PCO"} {
+		if !strings.Contains(cabeca, ">"+col+"<") {
+			t.Errorf("a tabela da tela não tem a coluna %q — a prévia deixa de ser "+
+				"a planilha que vai sair", col)
+		}
+	}
+	// A LOJA QUE FALTA APARECE COMO FALTA
+	//   Em branco ela some para o olho justamente na hora de conferir.
+	if !strings.Contains(texto, "sem o nome do cliente") {
+		t.Error("a loja sem `nome_cliente` sai como célula vazia na prévia — é a " +
+			"linha que o cliente não conseguiria lançar, e ela precisa gritar")
+	}
+}
+
+// O TEMA SEGUE A FRONTEIRA QUE O DONO DESENHOU
+//
+//	*"Todos os MENUS em tema escuro. O tema claro fica para a exibição das
+//	LISTAS."* — 25/08/2026. A tabela usa as MESMAS classes das outras listas do
+//	sistema; um estilo próprio aqui seria uma segunda aparência para a mesma
+//	coisa, e ela divergiria no primeiro ajuste.
+func TestATabelaUsaAsMesmasClassesDasOutrasListas(t *testing.T) {
+	tela, err := os.ReadFile("../../../../web/src/telas/orcamentos/Faturamento.tsx")
+	if err != nil {
+		t.Skipf("não achei a tela: %v", err)
+	}
+	texto := string(tela)
+	i := strings.Index(texto, `className="orc-tabela rel-mensal"`)
+	if i < 0 {
+		t.Fatal("a tabela do relatório mensal não usa `orc-tabela` — é a classe que " +
+			"as outras listas usam, e sair dela cria uma segunda aparência para a " +
+			"mesma coisa")
+	}
+	// A ROLAGEM É A QUE ENVOLVE ESTA TABELA, NÃO OUTRA QUALQUER DA TELA
+	//   `orc-rolagem` aparece três vezes no arquivo, uma por aba. Procurar o
+	//   nome solto deixaria passar justamente a aba que perdeu a sua.
+	antes := texto[:i]
+	if j := strings.LastIndex(antes, "<div"); j < 0 ||
+		!strings.Contains(antes[j:], `className="orc-rolagem"`) {
+		t.Error("a tabela do relatório mensal não está dentro de um " +
+			"`orc-rolagem` — sem ele a tabela larga estoura a largura do cartão " +
+			"em vez de rolar dentro dele")
+	}
+}
