@@ -3046,6 +3046,18 @@ nem casa com `is.false`. Toda expressão booleana de view que compare coluna
 anulável leva `COALESCE`. *Origem: 39 orçamentos prontos para lançar ficaram
 invisíveis no painel e na fila ao mesmo tempo, sem erro nenhum.*
 
+**P-45 — Conserto de dado confere a premissa antes de gravar.**
+O script que repara um caso único começa checando que o mundo ainda é o que era
+quando a conta foi feita, e termina conferindo que a conta fechou — no banco, não
+na cabeça de quem escreveu. Erra fora, aborta inteiro. *Origem: a conta do 125371
+saiu do valor do 125372; se ele mudar, o número deixa de valer.*
+
+**P-46 — A consulta pesca largo; a regra julga.**
+Quando existe uma função que decide se dois registros são o mesmo, a busca que a
+alimenta não pode filtrar pelo mesmo critério — senão vira uma segunda regra,
+escondida, que decide antes e discorda. *Origem: `MesmaNota` aceita número quando
+falta a chave; a busca procurava só por chave. R$ 854,40 cobrados duas vezes.*
+
 **P-20 — O motor não serve arquivo.**
 Ele entrega endereço temporário e o arquivo vai direto da nuvem ao usuário.
 
@@ -3635,6 +3647,217 @@ invisíveis no painel e na fila ao mesmo tempo, sem erro nenhum, porque
 |---|---|
 | `db/migrations/039_precisa_decisao_nunca_e_nulo.sql` | **novo** |
 | `baleryan/interno/modulos/orcamentos/precisa_decisao_test.go` | **novo** — três guardas |
+
+---
+
+## FASE 4 · Step 16 — o orçamento do 125371 que ficou para trás
+
+Primeiro caso resolvido da fila de exceções **banco antigo × banco novo**.
+
+### O que aconteceu
+
+A **NF 9160** foi rateada **à mão**, antes deste sistema existir, entre os tickets
+**125371** e **125372** — dois chamados irmãos da LOJA 02 OLIVEIRA PAIVA, abertos
+no mesmo dia.
+
+O 125372 recebeu a parte dele, virou orçamento no sistema antigo e foi lançado no
+Trílogo (custo 36399, R$ 445,80). Veio na carga do legado e está correto.
+
+**O 125371 nunca teve orçamento.** Nem lá, nem aqui, nem custo no Trílogo. A parte
+dele se perdeu no caminho.
+
+### A conta, item a item
+
+Os cinco itens da NF 9160 somam R$ 514,60:
+
+| Item | Qtd × unit. | Total | Foi para |
+|---|---|---|---|
+| TOR LAV LG 1/4V C70 1198 5/8" | 4 × 83,90 | 335,60 | 125372 |
+| PAINEL LED QUAD EMB 18W 6500K | 1 × 17,90 | 17,90 | 125372 |
+| CHUVEIRO CROMADO 4 FLAMINGO | 4 × 29,90 | 119,60 | **ficou para trás** |
+| GRELHA ABRE FECHA INOX 100MM | 4 × 6,90 | 27,60 | **ficou para trás** |
+| GRELHA INOX 15X15 QUADRADA | 1 × 13,90 | 13,90 | **ficou para trás** |
+
+353,50 + 161,10 = **514,60**. O orçamento do 125371 é 161,10 × 1,20 = **R$ 193,32**.
+
+### Por que não é `NT − O72` direto
+
+O O72 traz uma **FITA VEDA ROSCA de R$ 18,00 que não está na NF 9160** — veio de
+outra nota. `514,60 − 371,50` daria 143,10, descontando do 125371 dezoito reais que
+ele nunca recebeu. A conta dos **itens** é a única que fecha em 514,60, e foi o que
+o dono pediu: *"calcular, pelos itens e precos"*. Confirmado por ele: R$ 193,32.
+
+### O que o conserto faz
+
+Não é migração: não muda esquema, não entra em `schema_migrations`, roda uma vez.
+Vive em `db/consertos/`.
+
+1. cria o orçamento do 125371, parte 1, `gerado`
+2. grava os três itens **amarrados aos itens reais da nota** (`documento_item_id`) —
+   daqui a um ano ainda dá para chegar na linha exata que originou cada valor
+3. amarra o orçamento à NF 9160
+4. marca a NF 9160 como `usado`: ela está inteiramente contabilizada (353,50 no
+   legado + 161,10 aqui) e sai da fila porque **terminou**, não porque sumiu
+
+O PDF não é gerado aqui — o motor o monta na hora do lançamento a partir destes
+itens (`montarPDF`). Por isso os itens são o que importa.
+
+### Três travas, todas provadas num Postgres de verdade
+
+Com os dados reais semeados — os dois chamados, a NF 9160 com os cinco itens, e o
+O72 do legado:
+
+| Trava | Prova |
+|---|---|
+| **idempotência** | rodando duas vezes: *"o ticket 125371 já tem orçamento — nada foi alterado"*, e continua 1 orçamento com 3 itens |
+| **o 125372 tem que estar como na análise** | mudei o valor dele para 999: *"o orçamento do 125372 não está em R$ 445,80 lançado — confira antes de rodar"* |
+| **a aritmética fecha, e quem confere é o banco** | mudei o preço do chuveiro: *"os itens somaram 529,32 e o orçamento diz 193,32 — abortado sem gravar"*, e **zero** linhas ficaram — a transação inteira voltou atrás |
+
+E o resultado, medido:
+
+```
+ticket 125371 · 161,10 → 193,32 · gerado · pode_lancar · precisa_decisao=false · pode-lancar
+nota inteira 514,60 = 353,50 (125372) + 161,10 (125371)
+NF 9160 · usado · fora da fila
+```
+
+### Prática que nasceu deste Step
+
+**P-45 — Conserto de dado confere a premissa antes de gravar.**
+O script que repara um caso único começa checando que o mundo ainda é o que era
+quando a conta foi feita, e termina conferindo que a conta fechou — no banco, não
+na cabeça de quem escreveu. Erra fora, aborta inteiro. *Origem: a conta do 125371
+foi calculada a partir do valor do 125372; se ele mudar, o número deixa de valer e
+gravar por cima seria inventar dinheiro.*
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `db/consertos/2026-08-27_o71_rateio_manual_125371.sql` | **novo** — roda uma vez, no Supabase |
+
+---
+
+## FASE 4 · Step 17 — a mesma nota cobrada duas vezes
+
+> *"repara nisso aqui e me diz. o que vc esta vendo de errado? rapaz...eh um
+> absurdo isso...tanto que falei sobre duplicidade"*
+
+Dois orçamentos no ticket 126342, **mesma nota 17936, R$ 600,00 cada**.
+
+### A causa é uma assimetria de quatro linhas
+
+```go
+if chave != "" {
+    filtro += "&chave_acesso=eq." + chave    // procura SÓ por chave
+} else {
+    filtro += "&numero=eq." + numero
+}
+```
+
+`regras.MesmaNota` é **simétrica e generosa**: faltando a chave de um dos lados,
+o número basta. Mas a **busca das candidatas era exclusiva**. Quem tinha chave
+procurava só por chave, e a cópia sem chave nunca entrava na lista —
+**`MesmaNota` nunca era chamada para aquele par.**
+
+Uma consulta que já decide é uma segunda regra escondida. E foi ela que discordou
+da primeira.
+
+### Como aconteceu, com três segundos de intervalo
+
+| | Arquivo | Chave | Inserida |
+|---|---|---|---|
+| A | `CCF17082026_0006.pdf` | **não tem** (o scan não deixou a IA ler os 44 dígitos) | 20:37:36 |
+| B | `nf frota macedo - 10.08_p3.pdf` | tem | 20:37:39 |
+
+- A é lida primeiro, procura por `numero=17936` — B ainda não tinha número gravado.
+- B é lida depois, procura por `chave_acesso=…` — A não tem chave.
+
+**Nenhuma das duas encontrou a outra.** É o mesmo material chegando por dois
+caminhos: um scan solto e uma página de PDF multipágina. O sha256 nunca pegaria —
+é exatamente o caso que a trava de NOTA existe para pegar.
+
+### O estrago, medido
+
+| Nota | Valor | Ticket | Orçamentos |
+|---|---|---|---|
+| 17936 | R$ 500,00 | 126342 | partes 1 e 2, R$ 600,00 cada |
+| 17937 | R$ 212,00 | 112449 | partes 1 e 2, R$ 254,40 cada |
+
+**R$ 854,40 de cobrança duplicada.** Nenhum dos quatro tinha sido lançado no
+Trílogo — deu tempo.
+
+### Três frentes
+
+**1. A busca pesca largo, `MesmaNota` julga.** `or=(chave_acesso.eq.X,numero.eq.Y)`.
+A divisão certa: a consulta traz candidatos, o julgamento fica num só lugar, em
+Go, com teste. Com isso, a segunda a ser lida sempre encontra a primeira.
+
+**2. Uma segunda barreira, na hora de gerar.** A trava que existia pergunta pelo
+ARQUIVO (`orcamento_documentos` único em documento+ticket) — e não estava errada:
+são arquivos diferentes mesmo. Faltava perguntar pela NOTA. `mesmaNotaJaOrcou`
+roda **antes de montar os itens** e recusa quando o mesmo ticket já tem orçamento
+vindo de outro arquivo que é a mesma nota fiscal.
+
+*Por que duas barreiras para a mesma coisa:* a primeira depende de a LEITURA ter
+acertado, e toda vez que a identidade da nota depende de a IA ler 44 dígitos num
+scan torto, ela pode falhar de um jeito novo. A segunda não depende de leitura
+nenhuma — pergunta ao banco na hora de gastar dinheiro. **Trava que roda na
+entrada protege o que entrou naquele dia; trava na geração protege sempre.**
+
+**3. O reparo dos R$ 854,40.** Marca a cópia como repetida, remove o orçamento
+dela (status `removido`, com motivo escrito — reversível, e deixa rastro; um
+`delete` esconderia que isso aconteceu), tira o vínculo de circulação e devolve a
+nota cópia de `usado` para `lido`.
+
+### O dublê que me enganou (P-30, de novo)
+
+O teste do caso real **passou com o defeito de volta no código**. O
+`bancoDeMentira` devolvia a lista inteira para qualquer consulta: a candidata sem
+chave aparecia mesmo quando a busca procurava só por chave. Um dublê mais
+permissivo que o original prova que o código funciona **num banco que não existe**.
+
+Reescrevi o dublê para aplicar o `or=(...)` como o PostgREST faria — e ele agora
+reclama se a busca vier sem filtro nenhum. Aí a sabotagem passou a falhar.
+
+**Só descobri porque sabotei.** O teste tinha sido escrito, tinha rodado, tinha
+passado — e não valia nada.
+
+### As sabotagens
+
+| Teste | Sabotagem | Pegou |
+|---|---|---|
+| `NotaComChaveAchaACopiaSemChave` | busca exclusiva de volta | sim (depois do dublê consertado) |
+| `ABuscaDeCandidatasNaoDecideSozinha` | idem | sim |
+| `AMesmaNotaEmOutroArquivoNaoOrcaOMesmoTicket` | busca das gêmeas exclusiva | sim |
+| `OutraNotaNoMesmoTicketContinuaPassando` | `MesmaNota` deixa de julgar | **o compilador** |
+| `AMesmaNotaEmOutroTicketPassa` | barrar por nota, ignorando o ticket | sim |
+| `AGeracaoConsultaASegundaBarreiraAntesDeGastar` | tirar a chamada; e pô-la depois dos itens | as duas |
+
+E o SQL de reparo, provado com os quatro documentos reais semeados: 1.200,00 → 600,00
+e 508,80 → 254,40, as cópias marcadas `repetida` e de volta a `lido`, zero pares
+iguais sem marcação. Rodando de novo: *"já estava tratada — pulando"*. E as duas
+travas de segurança, sabotadas: com um orçamento já lançado no Trílogo, aborta
+inteiro sem gravar nada; com a ordem de chegada invertida, recusa e manda conferir.
+
+### Prática que nasceu deste Step
+
+**P-46 — A consulta pesca largo; a regra julga.**
+Quando existe uma função que decide se dois registros são o mesmo, a busca que
+alimenta essa função não pode filtrar pelo mesmo critério — senão ela vira uma
+segunda regra, escondida, que decide antes e discorda. *Origem: `MesmaNota` aceita
+número quando falta a chave; a busca procurava só por chave e nunca lhe entregava
+o par. R$ 854,40 cobrados duas vezes.*
+
+### Inventário deste Step
+
+| Arquivo | Estado |
+|---|---|
+| `baleryan/interno/leitura/leitura.go` | `ouEntao` — a busca vira OU |
+| `baleryan/interno/leitura/repetida_test.go` | o dublê passa a filtrar; dois testes novos |
+| `baleryan/interno/modulos/orcamentos/gerar.go` | `mesmaNotaJaOrcou`, a segunda barreira |
+| `baleryan/interno/modulos/orcamentos/mesma_nota_test.go` | **novo** — cinco guardas |
+| `db/consertos/2026-08-27_nota_repetida_em_dois_arquivos.sql` | **novo** — os R$ 854,40 |
 
 ---
 

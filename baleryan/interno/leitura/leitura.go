@@ -326,12 +326,8 @@ func (s *Servico) conferirRepetida(ctx context.Context, doc *documento, lida *le
 
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(doc.Cliente) +
 		"&id=neq." + doc.ID + "&oculto_em=is.null&duplicada_de=is.null" +
-		"&select=id,nome_arquivo,numero,chave_acesso,valor_total,inserido_em"
-	if chave != "" {
-		filtro += "&chave_acesso=eq." + banco.Escapar(chave)
-	} else {
-		filtro += "&numero=eq." + banco.Escapar(numero)
-	}
+		"&select=id,nome_arquivo,numero,chave_acesso,valor_total,inserido_em" +
+		"&" + ouEntao(chave, numero)
 
 	var achadas []candidata
 	if err := s.bd.Buscar(ctx, filtro, &achadas); err != nil {
@@ -360,6 +356,49 @@ func (s *Servico) conferirRepetida(ctx context.Context, doc *documento, lida *le
 		return nil
 	}
 	return nil
+}
+
+// ouEntao monta a busca das candidatas: por chave OU por número.
+//
+// O DEFEITO QUE ISTO CONSERTA — R$ 854,40 COBRADOS DUAS VEZES
+//
+//	Era assim, e a assimetria custou dinheiro:
+//
+//	  if chave != "" { filtro += "&chave_acesso=eq." + chave }
+//	  else           { filtro += "&numero=eq." + numero }
+//
+//	`MesmaNota` é simétrica e generosa: faltando a chave de um dos lados, o
+//	número basta. Mas a BUSCA acima era exclusiva — a nota que tinha chave
+//	procurava SÓ por chave, e a cópia sem chave nunca entrava na lista de
+//	candidatas. `MesmaNota` nunca chegava a ser chamada para aquele par.
+//
+//	Medido em 27/08/2026, e é o caso exato: a NF 17936 entrou duas vezes, com 3
+//	segundos de diferença. `CCF17082026_0006.pdf` sem chave (a IA não leu os 44
+//	dígitos naquele scan) e `nf frota macedo - 10.08_p3.pdf` com chave.
+//
+//	  · a sem chave foi lida primeiro, procurou por `numero=17936`, e a outra
+//	    ainda não tinha número gravado — não achou;
+//	  · a com chave foi lida depois, procurou por `chave_acesso=...`, e a
+//	    primeira não tem chave — não achou.
+//
+//	Nenhuma das duas encontrou a outra. As duas viraram orçamento, R$ 600,00
+//	cada, no MESMO ticket 126342. E a NF 17937 repetiu a história no 112449.
+//
+// A REGRA MORA EM `MesmaNota`, E A BUSCA SÓ PRECISA ENTREGAR OS CANDIDATOS
+//
+//	É a divisão de trabalho certa: a consulta pesca largo — quem tem esta chave
+//	OU este número — e o julgamento fica num só lugar, em Go, com teste. Uma
+//	busca que já decide é uma segunda regra escondida, e foi ela que discordou
+//	da primeira.
+func ouEntao(chave, numero string) string {
+	var partes []string
+	if chave != "" {
+		partes = append(partes, "chave_acesso.eq."+banco.Escapar(chave))
+	}
+	if numero != "" {
+		partes = append(partes, "numero.eq."+banco.Escapar(numero))
+	}
+	return "or=(" + strings.Join(partes, ",") + ")"
 }
 
 func texto(p *string) string {

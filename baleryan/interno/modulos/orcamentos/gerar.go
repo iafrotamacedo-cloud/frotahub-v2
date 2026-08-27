@@ -347,6 +347,36 @@ func (m *Modulo) gerarDeUmDocumento(ctx context.Context, p *seguranca.Principal,
 		return []saidaDaGeracao{base}
 	}
 
+	// A MESMA NOTA, EM OUTRO ARQUIVO, JÁ ORÇOU ESTE TICKET?
+	//
+	//	A trava acima pergunta pelo ARQUIVO (`documento_id`). Esta pergunta pela
+	//	NOTA — e a diferença custou R$ 854,40 em 26/08/2026.
+	//
+	//	A NF 17936 entrou duas vezes, com três segundos de diferença: um scan sem
+	//	a chave de acesso e uma página de PDF multipágina com a chave. São dois
+	//	`documento_id`, então a trava do arquivo deixou passar; e a marcação de
+	//	repetida, que deveria ter unido as duas na leitura, falhou pelo defeito da
+	//	busca de candidatas. Resultado: R$ 600,00 duas vezes no ticket 126342, e
+	//	R$ 254,40 duas vezes no 112449.
+	//
+	// POR QUE DUAS BARREIRAS PARA A MESMA COISA
+	//
+	//	Porque a primeira depende de a LEITURA ter acertado. Toda vez que a
+	//	identidade da nota depende de a IA ter lido 44 dígitos num scan torto, ela
+	//	pode falhar de um jeito novo. Esta segunda não depende de leitura nenhuma:
+	//	ela pergunta ao banco, na hora de gastar dinheiro, se já existe orçamento
+	//	daquela nota naquele ticket.
+	//
+	//	Uma trava que roda uma vez, na entrada, protege o que entrou naquele dia.
+	//	Uma trava na hora de gerar protege sempre.
+	if conflito, err := m.mesmaNotaJaOrcou(ctx, p.ClienteID, d, numerosDe(tickets)); err != nil {
+		base.Erro = "não consegui conferir se esta nota já foi orçada: " + err.Error()
+		return []saidaDaGeracao{base}
+	} else if conflito != "" {
+		base.Erro = conflito
+		return []saidaDaGeracao{base}
+	}
+
 	lidos, err := m.itensDo(ctx, d.ID)
 	if err != nil || len(lidos.Linhas) == 0 {
 		base.Erro = "esta nota não tem itens lidos"
@@ -652,6 +682,93 @@ func (m *Modulo) ticketsJaOrcados(ctx context.Context, documentoID string) ([]in
 		}
 	}
 	return saida, nil
+}
+
+// mesmaNotaJaOrcou procura, nos tickets desta nota, orçamento que tenha vindo de
+// OUTRO arquivo que é a MESMA nota fiscal. Devolve a frase da recusa, ou "".
+//
+// A BUSCA PESCA LARGO E `MesmaNota` JULGA
+//
+//	Mesma divisão de trabalho da trava da leitura, e pelo mesmo motivo: uma
+//	consulta que já decide é uma segunda regra escondida. Aqui ela traz tudo o
+//	que tem esta chave OU este número, e o julgamento fica em `regras.MesmaNota`,
+//	que é onde ele tem teste.
+func (m *Modulo) mesmaNotaJaOrcou(ctx context.Context, clienteID string,
+	d documentoPronto, tickets []int) (string, error) {
+
+	chave, numero := texto(d.Chave), texto(d.Numero)
+	if chave == "" && numero == "" {
+		// Sem identidade não há o que comparar — e inventar duplicidade a partir
+		// de valor igual acusaria duas notas de R$ 14,90 que nada têm a ver.
+		return "", nil
+	}
+
+	var condicoes []string
+	if chave != "" {
+		condicoes = append(condicoes, "chave_acesso.eq."+banco.Escapar(chave))
+	}
+	if numero != "" {
+		condicoes = append(condicoes, "numero.eq."+banco.Escapar(numero))
+	}
+
+	var iguais []struct {
+		ID     string  `json:"id"`
+		Nome   string  `json:"nome_arquivo"`
+		Numero *string `json:"numero"`
+		Chave  *string `json:"chave_acesso"`
+		Valor  float64 `json:"valor_total"`
+	}
+	if err := m.bd.Buscar(ctx, "documentos?cliente_id=eq."+banco.Escapar(clienteID)+
+		"&id=neq."+d.ID+"&oculto_em=is.null&or=("+strings.Join(condicoes, ",")+")"+
+		"&select=id,nome_arquivo,numero,chave_acesso,valor_total", &iguais); err != nil {
+		return "", err
+	}
+
+	valor := regras.DinheiroDe(d.Valor)
+	gemeas := make([]string, 0, len(iguais))
+	nomes := map[string]string{}
+	for _, o := range iguais {
+		if regras.MesmaNota(chave, numero, valor, texto(o.Chave), texto(o.Numero),
+			regras.DinheiroDe(o.Valor)) {
+			gemeas = append(gemeas, o.ID)
+			nomes[o.ID] = o.Nome
+		}
+	}
+	if len(gemeas) == 0 {
+		return "", nil
+	}
+
+	numeros := make([]string, 0, len(tickets))
+	for _, t := range tickets {
+		numeros = append(numeros, strconv.Itoa(t))
+	}
+	var choques []struct {
+		Documento string `json:"documento_id"`
+		Ticket    *int   `json:"ticket"`
+	}
+	if err := m.bd.Buscar(ctx, "orcamento_documentos?documento_id=in.("+
+		strings.Join(gemeas, ",")+")&ticket=in.("+strings.Join(numeros, ",")+")"+
+		"&select=documento_id,ticket", &choques); err != nil {
+		return "", err
+	}
+	if len(choques) == 0 {
+		return "", nil
+	}
+
+	batidos := make([]int, 0, len(choques))
+	for _, c := range choques {
+		if c.Ticket != nil {
+			batidos = append(batidos, *c.Ticket)
+		}
+	}
+	outro := nomes[choques[0].Documento]
+
+	return fmt.Sprintf(
+		"esta é a MESMA nota que \"%s\", que já virou orçamento em %s. "+
+			"Dois arquivos diferentes, a mesma nota fiscal — gerar de novo cobraria "+
+			"o mesmo material duas vezes. Se forem notas distintas mesmo, apague uma "+
+			"das duas ou corrija o número antes de gerar.",
+		outro, listaDeTickets(batidos)), nil
 }
 
 func semOsJaOrcados(tickets []ticketDoDocumento, jaOrcados []int) []ticketDoDocumento {
