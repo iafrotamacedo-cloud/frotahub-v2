@@ -508,16 +508,35 @@ func (m *Modulo) avaliarPartes(ctx context.Context, d documentoPronto,
 	// O BRUTO SAI DOS ITENS; O PAGO SAI DA NOTA
 	//   São dois números diferentes quando há desconto, e é justamente a
 	//   diferença entre eles que esta regra existe para tratar.
-	comMargem, totalComMargem := regras.MontarItens(linhas, par.MargemBP)
-	cheio := somaDasLinhas(linhas)
 	pago := regras.DinheiroDe(d.Valor)
 
 	n := len(tickets)
+
+	// O RATEIO REPARTE QUANTIDADE, NÃO VALOR (31/08/2026)
+	//
+	//	Antes daqui saía `fatiar(total, n, i)`: o valor da nota dividido por
+	//	igual, e os itens espremidos até caberem na fatia — o que mudava o preço
+	//	unitário. A abraçadeira de R$ 0,88 saía a R$ 0,0753 em catorze
+	//	orçamentos, cada um listando as 30 unidades inteiras.
+	//
+	//	Agora cada ticket recebe uma FATIA DA QUANTIDADE, com o preço da nota
+	//	intacto. Quem faz isso é `regras.Repartir`, e o `pago` acompanha na
+	//	proporção do que cada um levou (`regras.RepartirPago`), para o desconto
+	//	da nota cair sobre cada ticket na medida do material que ele recebeu.
+	linhasPorTicket := make([][]regras.LinhaDaNota, n)
+	cheios := make([]regras.Dinheiro, n)
+	for i := range tickets {
+		linhasPorTicket[i] = regras.Repartir(linhas, n, i)
+		cheios[i] = somaDasLinhas(linhasPorTicket[i])
+	}
+	pagos := regras.RepartirPago(pago, cheios)
+
 	partes := make([]parteDaNota, 0, n)
 	motivos := make([]string, 0, n)
 
 	for i, t := range tickets {
-		custo := regras.AplicarDesconto(fatiar(cheio, n, i), fatiar(pago, n, i), par)
+		comMargem, totalComMargem := regras.MontarItens(linhasPorTicket[i], par.MargemBP)
+		custo := regras.AplicarDesconto(cheios[i], pagos[i], par)
 
 		// ALGUÉM ASSINOU EMBAIXO
 		//   A autorização não muda a regra: ela diz que, para ESTA nota, se
@@ -537,14 +556,19 @@ func (m *Modulo) avaliarPartes(ctx context.Context, d documentoPronto,
 		// O ALVO DESTE PEDAÇO
 		//   Quando o custo foi aparado, o orçamento fecha no TETO exato — é o
 		//   que o dono pediu com "ajusta orçamento para o teto, ou seja, 600".
-		//   Quando não foi, é a fatia normal do total com margem.
-		alvo := fatiar(totalComMargem, n, i)
+		//   Quando não foi, é o que as linhas DESTE ticket já somam: a fatia
+		//   saiu da quantidade, não de uma divisão do total.
+		alvo := totalComMargem
 		if custo.Ajustada() {
 			alvo = par.Teto
 		}
 
+		// O ENCAIXE SÓ ENTRA QUANDO O TETO APARA
+		//   Ele mexe no preço unitário para a soma fechar, e isso é aceitável
+		//   como consequência de um corte que alguém decidiu. Não é aceitável
+		//   como jeito de ratear — era esse o defeito.
 		itensDaParte := comMargem
-		if n > 1 || custo.Ajustada() {
+		if custo.Ajustada() {
 			var errCorte error
 			if itensDaParte, errCorte = regras.Encaixar(comMargem, alvo); errCorte != nil {
 				return nil, nil, errCorte
@@ -568,6 +592,26 @@ func (m *Modulo) avaliarPartes(ctx context.Context, d documentoPronto,
 		switch {
 		case t.ChamadoID == nil:
 			motivo = fmt.Sprintf("ticket %d — não existe na nossa base de chamados", t.Ticket)
+
+		// TICKET QUE NÃO ALCANÇOU NENHUM ITEM (31/08/2026)
+		//
+		//	Desde que o rateio reparte QUANTIDADE, uma nota pode não ter o que
+		//	dar a todo mundo: 3 tickets para uma nota de 1 disjuntor. Antes
+		//	disso o valor era dividido por igual e todos recebiam alguma coisa
+		//	— um terço de um preço que não existe.
+		//
+		//	Não se gera orçamento vazio, e não se pula o ticket calado: se ele
+		//	não recebeu nada desta nota, ou a associação está errada, ou a nota
+		//	é de outro material. As duas coisas são para uma pessoa olhar, e é
+		//	por isso que isto é MOTIVO — vai para a tela de tratamento com o
+		//	número do ticket, em vez de virar erro de servidor.
+		//
+		//	Vale mesmo com aprovação pedida: aprovação leva o valor cheio ao
+		//	cliente, não inventa material que a nota não tem.
+		case len(linhasPorTicket[i]) == 0:
+			motivo = fmt.Sprintf(
+				"ticket %d — nenhum item desta nota chega até ele: são %d tickets para itens "+
+					"que não se dividem tanto. Confira a associação da nota.", t.Ticket, n)
 
 		// A NOTA QUE VAI AO CLIENTE PASSA DE PROPÓSITO
 		//
@@ -611,18 +655,6 @@ func somaDasLinhas(linhas []regras.LinhaDaNota) regras.Dinheiro {
 		soma += regras.Total(l.Quantidade, l.Unitario)
 	}
 	return soma
-}
-
-// fatiar divide um valor em n partes iguais, jogando a sobra na última.
-func fatiar(total regras.Dinheiro, n, i int) regras.Dinheiro {
-	if n <= 1 {
-		return total
-	}
-	parte := regras.Dinheiro(int64(total) / int64(n))
-	if i == n-1 {
-		return total - parte*regras.Dinheiro(n-1)
-	}
-	return parte
 }
 
 // semChamado devolve os tickets que não casaram com a nossa base.

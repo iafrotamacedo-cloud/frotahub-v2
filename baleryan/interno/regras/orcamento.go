@@ -467,6 +467,16 @@ type Desconto struct {
 	Final Dinheiro
 	// Motivo explica a recusa, para a tela poder dizer por que o botão não abre.
 	Motivo string
+	// Desnecessario separa "não dá" de "não precisa".
+	//
+	//	NUMA NOTA RATEADA ISSO É A DIFERENÇA ENTRE PARAR E SEGUIR (31/08/2026)
+	//
+	//	Desde que o rateio reparte QUANTIDADE, os pedaços de uma nota são
+	//	desiguais: o ticket que levou o quadro precisa de desconto e o que levou
+	//	dois parafusos não. Sem esta marca, quem percorre os pedaços lê o
+	//	segundo como recusa e responde "esta nota não tem desconto possível" —
+	//	quando o que faltava era só ignorar o pedaço que já cabia.
+	Desnecessario bool
 }
 
 // CalcularDesconto acha o desconto que leva o orçamento ao teto do ticket.
@@ -508,6 +518,7 @@ func CalcularDesconto(pago, jaNoTicket Dinheiro, p Parametros) Desconto {
 		return d
 	}
 	if d.Original <= d.Final {
+		d.Desnecessario = true
 		d.Motivo = "esta nota já cabe no teto — não precisa de desconto"
 		return d
 	}

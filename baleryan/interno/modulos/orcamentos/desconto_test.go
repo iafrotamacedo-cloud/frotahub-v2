@@ -40,6 +40,19 @@ func umaLinha(reais float64) regras.LinhaDaNota {
 	}
 }
 
+// Uma linha com quantidade suficiente para ser repartida entre n tickets.
+//
+// Desde que o rateio divide QUANTIDADE, uma nota de 1 unidade não se divide
+// entre três — e não deve mesmo. Os testes de rateio precisam de uma nota que
+// tenha o que dar a todo mundo.
+func linhaParaRatear(unidades int, reaisCada float64) regras.LinhaDaNota {
+	return regras.LinhaDaNota{
+		Descricao: "material", Unidade: "UN",
+		Quantidade: regras.QuantidadeDe(float64(unidades)),
+		Unitario:   regras.PrecoDe(reaisCada),
+	}
+}
+
 func tickets(n int) []ticketDoDocumento {
 	id := "11111111-1111-1111-1111-111111111111"
 	saida := make([]ticketDoDocumento, 0, n)
@@ -127,7 +140,7 @@ func TestNotaGrandeRateadaEntreVariosTicketsPassa(t *testing.T) {
 	m := moduloComTicketVazio(t)
 	partes, bloqueio, err := m.planejarNota(context.Background(),
 		documentoPronto{ID: "d1", Nome: "rateio.pdf", Fila: "rateio", Valor: 900},
-		tickets(3), []regras.LinhaDaNota{umaLinha(900)}, regras.Padrao)
+		tickets(3), []regras.LinhaDaNota{linhaParaRatear(3, 300)}, regras.Padrao)
 
 	if err != nil || bloqueio != "" {
 		t.Fatalf("uma nota de R$ 900 entre três tickets foi bloqueada: erro=%v bloqueio=%q", err, bloqueio)
@@ -156,7 +169,7 @@ func TestUmPedacoQueNaoCabeParaANotaInteira(t *testing.T) {
 	// passa dos R$ 500 e nenhum orçamento cabe no teto.
 	partes, bloqueio, err := m.planejarNota(context.Background(),
 		documentoPronto{ID: "d1", Nome: "rateio.pdf", Fila: "rateio", Valor: 1100},
-		tickets(2), []regras.LinhaDaNota{umaLinha(1100)}, regras.Padrao)
+		tickets(2), []regras.LinhaDaNota{linhaParaRatear(2, 550)}, regras.Padrao)
 
 	if err != nil {
 		t.Fatalf("erro: %v", err)

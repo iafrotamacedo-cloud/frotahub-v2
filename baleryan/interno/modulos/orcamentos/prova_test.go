@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
 )
 
 // O caso que o dono descreveu: 90% das vezes o fornecedor digitou errado. Estes
@@ -65,22 +63,6 @@ func TestComoDifere(t *testing.T) {
 	}
 	if s := comoDifere("130328", "13032"); s != "um dígito a mais ou a menos" {
 		t.Fatalf("comoDifere = %q", s)
-	}
-}
-
-// O rateio: a soma das partes tem que dar exatamente o total. Um centavo de
-// sobra multiplicado por 509 orçamentos é o tipo de divergência que ninguém
-// consegue explicar seis meses depois.
-func TestFatiarFechaNoCentavo(t *testing.T) {
-	for _, n := range []int{2, 3, 7, 13} {
-		total := regras.DinheiroDe(1000.01)
-		var soma regras.Dinheiro
-		for i := 0; i < n; i++ {
-			soma += fatiar(total, n, i)
-		}
-		if soma != total {
-			t.Fatalf("dividido em %d, a soma deu %s e o total é %s", n, soma.Reais(), total.Reais())
-		}
 	}
 }
 

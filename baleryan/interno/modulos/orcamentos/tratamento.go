@@ -561,15 +561,48 @@ func (m *Modulo) calcularDesconto(ctx context.Context, p *seguranca.Principal, i
 		return &descontoNaTela{Motivo: "esta nota não tem ticket"}, nil
 	}
 
+	// A DIVISÃO AQUI É A MESMA DA GERAÇÃO (31/08/2026)
+	//
+	//	Esta tela responde "quanto de desconto resolve esta nota". A geração
+	//	responde "esta nota roda". As duas perguntas só têm resposta compatível
+	//	se as duas repartirem a nota do mesmo jeito.
+	//
+	//	Até aqui esta linha dividia o pago por igual (`fatiar`) enquanto a
+	//	geração já repartia QUANTIDADE. Numa nota com itens de tamanhos
+	//	diferentes as duas contas divergem: a tela ofereceria um desconto de 6%
+	//	e a geração continuaria recusando o ticket que levou o pedaço maior —
+	//	com a autorização já assinada e nada resolvido.
+	lidos, err := m.itensDo(ctx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	if lidos.Bloqueio != "" {
+		return &descontoNaTela{Motivo: lidos.Bloqueio}, nil
+	}
+	if len(lidos.Linhas) == 0 {
+		return &descontoNaTela{Motivo: "esta nota não tem itens lidos"}, nil
+	}
+
 	par := m.parametros(ctx, p.ClienteID)
 	pago := regras.DinheiroDe(d.Valor)
 	n := len(tickets)
+
+	cheios := make([]regras.Dinheiro, n)
+	for i := range tickets {
+		cheios[i] = somaDasLinhas(regras.Repartir(lidos.Linhas, n, i))
+	}
+	pagos := regras.RepartirPago(pago, cheios)
 
 	// NUMA NOTA RATEADA, O PIOR PEDAÇO MANDA
 	//   O desconto é da nota inteira, e só serve se resolver TODOS os tickets.
 	//   Calcular pelo primeiro deixaria a nota autorizada e ainda travada — com
 	//   a assinatura já dada e nada resolvido.
+	// PEDAÇO QUE JÁ CABE NÃO É RECUSA
+	//   Numa nota rateada os pedaços são desiguais. Ler "não precisa de
+	//   desconto" como "não dá desconto" faria a nota inteira travar por causa
+	//   do ticket que recebeu dois parafusos.
 	pior := regras.Desconto{}
+	algumPrecisa := false
 	for i, t := range tickets {
 		var jaNoTicket regras.Dinheiro
 		if t.ChamadoID != nil {
@@ -577,15 +610,24 @@ func (m *Modulo) calcularDesconto(ctx context.Context, p *seguranca.Principal, i
 				return nil, err
 			}
 		}
-		este := regras.CalcularDesconto(fatiar(pago, n, i), jaNoTicket, par)
+		este := regras.CalcularDesconto(pagos[i], jaNoTicket, par)
+		if este.Desnecessario {
+			continue
+		}
 		if !este.Pode {
 			return &descontoNaTela{
 				Motivo: fmt.Sprintf("ticket %d — %s", t.Ticket, este.Motivo),
 			}, nil
 		}
+		algumPrecisa = true
 		if este.BP > pior.BP {
 			pior = este
 		}
+	}
+	if !algumPrecisa {
+		return &descontoNaTela{
+			Motivo: "esta nota já cabe no teto — não precisa de desconto",
+		}, nil
 	}
 
 	return &descontoNaTela{
