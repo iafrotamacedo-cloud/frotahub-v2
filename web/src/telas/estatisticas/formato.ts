@@ -11,9 +11,54 @@
 
 export const DIA = 86400000
 
-/** Converte o que o banco manda em Date. Data pura ganha meio-dia, para o fuso não puxá-la para o dia anterior. */
-export const data = (s: string | null | undefined): Date | null =>
-  s ? new Date(s.length === 10 ? s + 'T12:00:00' : s + 'Z') : null
+const SO_DATA = /^\d{4}-\d{2}-\d{2}$/
+const FUSO_CHEIO = /(?:Z|[+-]\d{2}:\d{2})$/
+const FUSO_CURTO = /[+-]\d{2}$/
+
+const valida = (d: Date): Date | null => (Number.isNaN(d.getTime()) ? null : d)
+
+/**
+ * Converte o que o banco manda em Date. Devolve `null` para o que não dá para ler.
+ *
+ * TRÊS FORMAS, E ELAS NÃO SÃO INTERCAMBIÁVEIS
+ *
+ *	`2026-09-02`                   data pura (uma coluna `date`)
+ *	`2026-08-28T19:57:42+00:00`    instante COM fuso — é o que o PostgREST manda
+ *	`2026-08-28T19:57:42`          instante SEM fuso — é o que o retrato tinha
+ *
+ * O QUE ISSO CUSTOU (31/08/2026)
+ *
+ *	A primeira versão colava `Z` em tudo que não tivesse 10 caracteres. Sobre a
+ *	forma COM fuso isso produz `…+00:00Z` — e aí entra a pegadinha: com `T` no
+ *	meio, o parser de datas do JavaScript é ESTRITO e recusa; com ESPAÇO no
+ *	meio ele cai no parser legado, permissivo, e aceita.
+ *
+ *	O retrato offline e o console do banco escrevem com espaço. O PostgREST
+ *	escreve com `T`. Então a conta passou em toda a conferência — números
+ *	idênticos aos da versão offline — e derrubou a tela no primeiro minuto de
+ *	produção: `toISOString()` sobre Date inválida LANÇA, e o React levou a
+ *	árvore inteira junto. Tela branca, sem nem a barra lateral.
+ *
+ * POR QUE `null`, E NÃO UMA DATE INVÁLIDA
+ *
+ *	Date inválida é `truthy`. Ela atravessa a conta inteira comparando falso
+ *	com tudo, não aparece em lugar nenhum, e explode longe de onde nasceu.
+ *	`null` para na primeira porta: a linha fica de fora do período, e a tela
+ *	continua de pé. Formato que eu não souber ler vira ausência, não estrago.
+ */
+export function data(s: string | null | undefined): Date | null {
+  if (!s) return null
+  const t = s.trim()
+  if (!t) return null
+  // Data pura ganha meio-dia, para o fuso não puxá-la para o dia anterior.
+  if (SO_DATA.test(t)) return valida(new Date(t + 'T12:00:00'))
+  const comT = t.includes('T') ? t : t.replace(' ', 'T')
+  if (FUSO_CHEIO.test(comT)) return valida(new Date(comT))
+  // `+00` abreviado não é ISO 8601, e o parser estrito recusa. Vira `+00:00`.
+  if (FUSO_CURTO.test(comT)) return valida(new Date(comT + ':00'))
+  // Sem fuso nenhum: é UTC, que é como o banco grava.
+  return valida(new Date(comT + 'Z'))
+}
 
 export const mesDe = (s: string | null | undefined): string | null => (s ? s.slice(0, 7) : null)
 

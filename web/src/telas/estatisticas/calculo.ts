@@ -164,9 +164,16 @@ const CURVA_DO_PLANO: Par[] = [
 // de X·27/40 a X·53/40.
 const FAIXA = { pior: 27 / 40, melhor: 53 / 40 }
 
-/** O dia de Fortaleza (UTC−3) de um instante que o banco gravou em UTC. */
-export const diaLocal = (s: string): string => {
-  const d = new Date(s + 'Z')
+/**
+ * O dia de Fortaleza (UTC−3) de um instante.
+ *
+ * Quem sabe LER instante é `data()`, e só ela — antes esta função tinha a sua
+ * própria regra (colar um `Z`), e foi por aí que a tela caiu em 31/08/2026.
+ * Instante que não dá para ler devolve `null`, e quem chama decide o que fazer.
+ */
+export const diaLocal = (s: string | null | undefined): string | null => {
+  const d = data(s)
+  if (!d) return null
   d.setUTCHours(d.getUTCHours() - 3)
   return d.toISOString().slice(0, 10)
 }
@@ -237,7 +244,7 @@ export interface Expectativa {
 
 function calcularExpectativa(base: Base): Expectativa {
   const { chamados, porUnidade } = base
-  const ate = base.geradoEm ? diaLocal(base.geradoEm.slice(0, 19)) : iso(new Date())
+  const ate = diaLocal(base.geradoEm) ?? iso(new Date())
 
   // Toda a rede, as duas contas, só as unidades do plano (`no_escopo`). O
   // chamado conta no dia em que foi ABERTO pela primeira vez — a demanda que o
@@ -250,7 +257,7 @@ function calcularExpectativa(base: Base): Expectativa {
     // Trílogo, não pela posição numa lista (ver `dados.ts`).
     if (c.unidade == null || !porUnidade.get(c.unidade)?.no_escopo || !c.criado_em) continue
     const d = diaLocal(c.criado_em)
-    if (d < INICIO_CONTRATO) continue
+    if (!d || d < INICIO_CONTRATO) continue
     porDia.set(d, (porDia.get(d) || 0) + 1)
     let m = porLojaDia.get(c.unidade)
     if (!m) { m = new Map<string, number>(); porLojaDia.set(c.unidade, m) }
@@ -537,7 +544,9 @@ export function calcular(base: Base, f: Filtro): Resultado {
     if (!dono) continue
     if (!daConta(f, dono) || !daLoja(f, dono)) continue
     const exec = marcos.get(k.chamado)?.[5]
-    const quando = k.criado_em || (exec ? exec.toISOString().slice(0, 19) : dono.criado_em)
+    // ISO inteira, com o `Z`: cortar o fuso aqui seria fabricar outra vez a
+    // forma ambígua que derrubou a tela.
+    const quando = k.criado_em || (exec ? exec.toISOString() : dono.criado_em)
     cu.push({ ...k, ch: dono, quando, semData: !k.criado_em })
   }
   const cuPeriodo = cu.filter(k => noPeriodo(f, k.quando))
