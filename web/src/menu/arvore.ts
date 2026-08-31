@@ -32,10 +32,20 @@ export interface ItemMenu {
 
 export type Icone =
   | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
-  | 'dinheiro' | 'saida' | 'entrada' | 'balanca'
+  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
+export type Tela =
+  | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
+  // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
+  //
+  //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
+  //	em vez de doze linhas iguais. E os três primeiros são NÓS que também têm
+  //	tela: as barras deles mostram número e prévia, e é isso que os distingue
+  //	de um menu comum — por isso não podem cair no painel genérico da casca.
+  | 'est-raiz' | 'est-operacionais' | 'est-financeiras'
+  | 'est-expectativa' | 'est-chamados' | 'est-onde' | 'est-tempo' | 'est-fila'
+  | 'est-custos' | 'est-orcamentos' | 'est-faturamento' | 'est-balanco'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   {
@@ -123,6 +133,120 @@ const ARVORE_COMPLETA: ItemMenu[] = [
                 icone: 'balanca',
                 desc: 'A pagar contra a receber, no período escolhido',
                 breve: true,
+              },
+            ],
+          },
+          {
+            // ESTATÍSTICAS — TRÊS NÍVEIS, E OS NÓS TAMBÉM SÃO TELAS
+            //
+            //	O painel genérico da casca desenha qualquer nó com `sub`, mas
+            //	desenha um MENU: título, descrição, seta. Aqui os nós precisam
+            //	mostrar número e prévia — "5 lojas com chamado", "121 a lançar" —
+            //	que é o que transforma a entrada da seção num painel em vez de
+            //	uma lista de links.
+            //
+            //	Por isso eles têm `sub` E `tela`. A árvore continua sendo a
+            //	verdade sobre a navegação (o endereço, o voltar do navegador, a
+            //	migalha), e quem desenha as barras é a própria seção.
+            //
+            //	Uma `rotina` só, no nó de cima: quem alcança as estatísticas do
+            //	contrato alcança as nove. Partir isso em nove linhas de permissão
+            //	seria pedir que alguém marcasse nove caixas para liberar uma
+            //	tela — e a matriz vira um lugar onde ninguém mais olha.
+            t: 'Estatísticas',
+            rota: 'estatisticas',
+            icone: 'grafico',
+            desc: 'Chamados, tempo de atendimento, custos e faturamento do contrato',
+            tela: 'est-raiz',
+            rotina: 'CONTRATO_ESTATISTICAS',
+            sub: [
+              {
+                t: 'Operacionais',
+                rota: 'operacionais',
+                icone: 'chave-inglesa',
+                desc: 'Chamados, onde, tempo de atendimento e a fila de hoje',
+                tela: 'est-operacionais',
+                sub: [
+                  {
+                    t: 'Expectativa × Realidade',
+                    rota: 'expectativa',
+                    icone: 'grafico',
+                    desc: 'O plano de manutenção preventiva contra os chamados abertos, dia a dia',
+                    tela: 'est-expectativa',
+                  },
+                  {
+                    t: 'Chamados',
+                    rota: 'chamados',
+                    icone: 'lista',
+                    desc: 'Quantos entraram, quantos foram resolvidos e como estão hoje',
+                    tela: 'est-chamados',
+                  },
+                  {
+                    t: 'Onde',
+                    rota: 'onde',
+                    icone: 'loja',
+                    desc: 'Em que lojas e em que lugares os chamados acontecem',
+                    tela: 'est-onde',
+                  },
+                  {
+                    t: 'Tempo de atendimento',
+                    rota: 'tempo',
+                    icone: 'servicos',
+                    desc: 'Quanto tempo leva para resolver um chamado',
+                    tela: 'est-tempo',
+                  },
+                  {
+                    t: 'Fila de hoje',
+                    rota: 'fila',
+                    icone: 'lista',
+                    desc: 'O que está em aberto agora (não depende do período)',
+                    tela: 'est-fila',
+                  },
+                ],
+              },
+              {
+                t: 'Financeiras',
+                rota: 'financeiras',
+                icone: 'dinheiro',
+                desc: 'Custos, orçamentos, faturamento e balanço',
+                tela: 'est-financeiras',
+                sub: [
+                  {
+                    t: 'Custos no Trílogo',
+                    rota: 'custos',
+                    icone: 'dinheiro',
+                    desc: 'Quanto foi lançado nos chamados, e onde',
+                    tela: 'est-custos',
+                  },
+                  {
+                    t: 'Orçamentos',
+                    rota: 'orcamentos',
+                    icone: 'lista',
+                    desc: 'O que espera lançamento, o que travou e o que já foi',
+                    tela: 'est-orcamentos',
+                  },
+                  {
+                    t: 'Faturamento ao cliente',
+                    rota: 'faturamento',
+                    icone: 'entrada',
+                    desc: 'O que foi cobrado do cliente e o que já voltou',
+                    tela: 'est-faturamento',
+                  },
+                  {
+                    // NÃO É O "BALANÇO" DE FINANCEIRO, E OS DOIS VÃO CONVIVER
+                    //
+                    //	Aquele é a operação: conferir nota, marcar pagamento,
+                    //	tratar pendência. Este é a MEDIDA: quanto se pagou,
+                    //	quanto se cobrou, qual foi a margem. Mesmo assunto,
+                    //	trabalhos diferentes — mas a palavra é a mesma no
+                    //	mesmo contrato, e isso ainda precisa de decisão do dono.
+                    t: 'Balanço',
+                    rota: 'balanco',
+                    icone: 'balanca',
+                    desc: 'O que se paga ao fornecedor, o que se cobra do cliente, e a margem',
+                    tela: 'est-balanco',
+                  },
+                ],
               },
             ],
           },

@@ -103,6 +103,16 @@ const CAMINHOS: Record<NomeIcone, JSX.Element> = {
       <path d="M19.4 7.6 16.8 13.3a2.6 2.6 0 0 0 5.2 0Z" />
     </>
   ),
+  // As barras de um gráfico. É o ícone de Estatísticas, e o mesmo desenho que a
+  // seção usa na barra lateral — um assunto, uma figura.
+  'grafico': (
+    <>
+      <path d="M4 19.4V10.6" />
+      <path d="M9.4 19.4V4.6" />
+      <path d="M14.8 19.4v-6.6" />
+      <path d="M20.2 19.4h-18" />
+    </>
+  ),
 }
 
 export function Icone({ nome }: { nome: NomeIcone }) {

@@ -27,6 +27,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
@@ -79,6 +80,10 @@ func main() {
 	// cliente e o endereçamento por sha256 é o mesmo. Dois armazéns seriam duas
 	// verdades sobre onde um arquivo está.
 	orcamentos.Novo(cfg, bd, seg, m.perm, arm, hist).Montar(mux)
+	// Estatísticas é leitura pura: não recebe nem o armazém nem o histórico,
+	// porque não abre arquivo e não grava nada. O que ela alcança é o que as
+	// nove views da migração 042 entregam, e nada além disso.
+	estatisticas.Novo(bd, seg, m.perm).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".

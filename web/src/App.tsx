@@ -23,6 +23,7 @@ import { APagar } from './telas/financeiro/APagar'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
+import { Estatisticas, type TelaEstatistica } from './telas/estatisticas/Estatisticas'
 import { useExpiracao } from './sessao/inatividade'
 
 // A CASCA MORA DENTRO DO PROVEDOR
@@ -285,6 +286,27 @@ function Casca() {
           + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura) ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
+          ) : atual?.tela?.startsWith('est-') ? (
+            // ESTATÍSTICAS VEM ANTES DO PAINEL GENÉRICO, E É DE PROPÓSITO
+            //
+            //	Os nós dela têm `sub` — logo cairiam no ramo de baixo e ganhariam
+            //	o painel de MENU: título, descrição, seta. Só que as barras de
+            //	Estatísticas mostram número e prévia ("121 a lançar", "34 lojas
+            //	com chamado"), e é isso que faz a entrada da seção ser um painel
+            //	em vez de uma lista de links. Quem sabe desenhar isso é a seção.
+            //
+            //	Um ramo só para as doze telas: o prefixo `est-` é o contrato
+            //	(ver `menu/arvore.ts`). Doze linhas iguais aqui envelheceriam
+            //	mal, e a décima terceira seria esquecida.
+            <Estatisticas
+              tela={atual.tela as TelaEstatistica}
+              titulo={atual.t}
+              descricao={atual.desc ?? ''}
+              abrir={rota => {
+                const filho = atual.sub?.find(f => f.rota === rota)
+                if (filho) navegar([...caminho, filho])
+              }}
+            />
           ) : atual?.sub?.length ? (
             // O MESMO desenho de barras da tela inicial e do painel de
             // Orçamentos. Um esquema de menu só para o programa inteiro.

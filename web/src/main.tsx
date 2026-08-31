@@ -7,6 +7,10 @@ import './estilos/telas.css'
 import './estilos/trilogo.css'
 import './estilos/escuro.css'
 import './estilos/orcamentos.css'
+// Estatísticas entra por último: tudo nela mora dentro de `.est`, então a ordem
+// não muda nada — mas se um dia alguém tirar o invólucro, é aqui que se vê que
+// ela passou a poder pisar nas outras.
+import './estilos/estatisticas.css'
 import App from './App'
 
 const raiz = document.getElementById('raiz')
