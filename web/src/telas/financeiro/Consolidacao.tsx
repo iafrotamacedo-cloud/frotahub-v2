@@ -75,11 +75,22 @@ interface Consolidado {
 
 type Aba = 'notas' | 'tickets'
 
+// TODOS / SIM / NÃO, E NÃO UMA CAIXA DE TEXTO
+//   'nf' e 'pago ao fornecedor' são as duas colunas que o dono pediu para
+//   filtrar por S/N. Não entram na busca por texto cru (linha acima) porque
+//   "sim" e "não" não são o que está escrito no papel que a pessoa tem na
+//   mão — são uma pergunta categórica ('tem nota ligada?', 'já foi pago?'),
+//   que um <select> de três posições responde num clique e uma busca de
+//   texto não responde nunca.
+type FiltroSN = 'todos' | 'sim' | 'nao'
+
 export function Consolidacao({ voltar }: { voltar: () => void }) {
   const [dados, setDados] = useState<Consolidado | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('notas')
   const [busca, setBusca] = useState('')
+  const [filtroNf, setFiltroNf] = useState<FiltroSN>('todos')
+  const [filtroPago, setFiltroPago] = useState<FiltroSN>('todos')
   // A nota aberta mora aqui, não no endereço: é uma gaveta de conferência que
   // se fecha em dois segundos, não um lugar para onde alguém manda link.
   const [notaAberta, setNotaAberta] = useState<Nota | null>(null)
@@ -109,12 +120,14 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
     [dados, q])
 
   const tickets = useMemo(
-    () => !dados ? [] : !q ? dados.tickets
-      : dados.tickets.filter(o =>
-        String(o.ticket).includes(q)
+    () => !dados ? [] : dados.tickets.filter(o =>
+      (!q
+        || String(o.ticket).includes(q)
         || (o.nfs ?? '').toLowerCase().includes(q)
-        || (o.loja ?? '').toLowerCase().includes(q)),
-    [dados, q])
+        || (o.loja ?? '').toLowerCase().includes(q))
+      && (filtroNf === 'todos' || (filtroNf === 'sim') === (o.nfs !== null))
+      && (filtroPago === 'todos' || (filtroPago === 'sim') === o.pago)),
+    [dados, q, filtroNf, filtroPago])
 
   const somaNotas = useMemo(() => ({
     valor: notas.reduce((s, n) => s + (n.valor ?? 0), 0),
@@ -161,6 +174,22 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
             </button>
             <input type="search" value={busca} placeholder="nota, DAV, ticket ou loja"
               onChange={e => setBusca(e.target.value)} style={{ minWidth: 220 }} />
+            {aba === 'tickets' && (
+              <>
+                <select aria-label="filtrar por NF" value={filtroNf}
+                  onChange={e => setFiltroNf(e.target.value as FiltroSN)}>
+                  <option value="todos">NF: todos</option>
+                  <option value="sim">NF: sim</option>
+                  <option value="nao">NF: não</option>
+                </select>
+                <select aria-label="filtrar por pago ao fornecedor" value={filtroPago}
+                  onChange={e => setFiltroPago(e.target.value as FiltroSN)}>
+                  <option value="todos">Pago: todos</option>
+                  <option value="sim">Pago: sim</option>
+                  <option value="nao">Pago: não</option>
+                </select>
+              </>
+            )}
             <span className="pg-resumo">
               {aba === 'notas'
                 ? <><b>{notas.length}</b> nota{notas.length === 1 ? '' : 's'}<u>{emReais(somaNotas.valor)}</u></>
