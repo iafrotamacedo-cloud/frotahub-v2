@@ -20,6 +20,7 @@ import { MinhaConta } from './telas/MinhaConta'
 import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
+import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
@@ -331,6 +332,8 @@ function Casca() {
             <MinhaConta perfil={perfil} />
           ) : atual?.tela === 'a-pagar' ? (
             <APagar voltar={() => navegar(caminho.slice(0, -1))} />
+          ) : atual?.tela === 'consolidacao' ? (
+            <Consolidacao voltar={() => navegar(caminho.slice(0, -1))} />
           ) : atual?.tela === 'faturar' ? (
             <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />
           ) : atual?.tela === 'orcamentos' ? (

@@ -37,6 +37,7 @@ export type Icone =
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela =
   | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
+  | 'consolidacao'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -128,11 +129,19 @@ const ARVORE_COMPLETA: ItemMenu[] = [
                 rotina: 'CONTRATO_ORCAMENTOS_FATURAR',
               },
               {
-                t: 'Balanço',
-                rota: 'balanco',
+                // CONSOLIDAÇÃO, E NÃO MAIS "BALANÇO" (01/09/2026)
+                //
+                //	Decisão do dono, e ela resolve dois problemas de uma vez. O
+                //	nome ficou honesto — esta tela CONFERE dois sistemas um
+                //	contra o outro, não fecha um balanço — e a palavra "Balanço"
+                //	deixa de aparecer duas vezes no mesmo contrato, que era o
+                //	que estava anotado aqui embaixo esperando decisão.
+                t: 'Consolidação',
+                rota: 'consolidacao',
                 icone: 'balanca',
-                desc: 'A pagar contra a receber, no período escolhido',
-                breve: true,
+                desc: 'O que se comprou contra o que se cobrou — nota e ticket, nos dois sentidos',
+                tela: 'consolidacao',
+                rotina: 'CONTRATO_FINANCEIRO_CONSOLIDACAO',
               },
             ],
           },
@@ -233,13 +242,13 @@ const ARVORE_COMPLETA: ItemMenu[] = [
                     tela: 'est-faturamento',
                   },
                   {
-                    // NÃO É O "BALANÇO" DE FINANCEIRO, E OS DOIS VÃO CONVIVER
+                    // A PALAVRA FICOU LIVRE (01/09/2026)
                     //
-                    //	Aquele é a operação: conferir nota, marcar pagamento,
-                    //	tratar pendência. Este é a MEDIDA: quanto se pagou,
-                    //	quanto se cobrou, qual foi a margem. Mesmo assunto,
-                    //	trabalhos diferentes — mas a palavra é a mesma no
-                    //	mesmo contrato, e isso ainda precisa de decisão do dono.
+                    //	O "Balanço" de Financeiro virou Consolidação, então este
+                    //	deixa de ser homônimo. Os dois convivem porque são
+                    //	trabalhos diferentes: lá se CONFERE nota contra ticket;
+                    //	aqui se MEDE — quanto se pagou, quanto se cobrou, qual
+                    //	foi a margem.
                     t: 'Balanço',
                     rota: 'balanco',
                     icone: 'balanca',

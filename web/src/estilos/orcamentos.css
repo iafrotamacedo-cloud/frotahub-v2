@@ -959,3 +959,20 @@
 .rel-mensal td:nth-child(3) { max-width: 18rem; }
 .rel-mensal td:nth-child(3),
 .rel-mensal td:nth-child(7) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A GAVETA DA CONSOLIDAÇÃO (01/09/2026)
+ *
+ *   Os tickets de uma nota abrem AQUI, embaixo da lista, e não numa página
+ *   nova. O gesto é de conferência: olhar, comparar com a linha de cima,
+ *   fechar. Navegar para fora e voltar perderia a posição da lista — e é
+ *   justamente a linha de onde se saiu que a pessoa quer reencontrar.
+ *
+ *   Por isso ela também não é modal: o modal escurece a lista, que é metade do
+ *   que se está comparando.
+ */
+.orc-gaveta {
+  flex: 0 0 auto; max-height: 42vh; display: flex; flex-direction: column;
+  border-top: 2px solid var(--line); background: var(--card);
+}
+.orc-gaveta .orc-lista-cab button { margin-left: auto; }
+.orc-gaveta .orc-rolagem { max-height: 34vh; }

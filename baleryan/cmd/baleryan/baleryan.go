@@ -27,6 +27,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
@@ -84,6 +85,10 @@ func main() {
 	// porque não abre arquivo e não grava nada. O que ela alcança é o que as
 	// nove views da migração 042 entregam, e nada além disso.
 	estatisticas.Novo(bd, seg, m.perm).Montar(mux)
+	// Consolidação também é leitura pura, sobre as duas views da migração 043.
+	// Ela cruza o que já existe — nota, orçamento, fatura — e por isso não
+	// precisa de nada que grave.
+	consolidacao.Novo(bd, seg, m.perm).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".
