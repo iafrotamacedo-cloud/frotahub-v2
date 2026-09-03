@@ -1,11 +1,12 @@
-// rev 1 — as travas da consolidação
+// rev 2 — as travas da consolidação
 //
 // O QUE ESTE ARQUIVO PROTEGE
 //
-//	A consolidação é um contrato entre TRÊS lugares que não se conhecem: as duas
-//	views da migração 043, as duas listas de colunas aqui no Go, e a tela em
-//	JavaScript. Os três falam em nome de coluna, e nenhum avisa o outro quando
-//	muda.
+//	A consolidação é um contrato entre TRÊS lugares que não se conhecem: as
+//	views (043 para a aba dos tickets, 046 para a aba das notas — ver o
+//	cabeçalho da 046 sobre por que a aba das notas mudou de migração e de
+//	grão), as duas listas de colunas aqui no Go, e a tela em JavaScript. Os
+//	três falam em nome de coluna, e nenhum avisa o outro quando muda.
 //
 //	O modo de falhar é o pior possível numa tela de dinheiro: ela abre, responde
 //	rápido, e fecha uma conta errada com ar de certa.
@@ -26,19 +27,27 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 )
 
-const arquivoDaMigracao = "043_a_consolidacao.sql"
+// arquivoDaView diz em qual migração procurar o `create view` de cada uma —
+// as duas abas não nasceram juntas: a 043 trouxe as duas, a 046 substituiu a
+// de notas (grão novo), a 047 substituiu de novo só para acrescentar
+// `intrusa` (ver os cabeçalhos da 046 e da 047).
+var arquivoDaView = map[string]string{
+	"consolidacao_notas":   "047_nota_intrusa.sql",
+	"consolidacao_tickets": "043_a_consolidacao.sql",
+}
 
-func migracao(t *testing.T) string {
+func migracao(t *testing.T, arquivo string) string {
 	t.Helper()
-	caminho := filepath.Join("..", "..", "..", "..", "db", "migrations", arquivoDaMigracao)
+	caminho := filepath.Join("..", "..", "..", "..", "db", "migrations", arquivo)
 	bruto, err := os.ReadFile(caminho)
 	if err != nil {
-		t.Fatalf("não achei a migração da consolidação em %s: %v", caminho, err)
+		t.Fatalf("não achei a migração %s: %v", arquivo, err)
 	}
 	return string(bruto)
 }
 
-// corpoDaView devolve o SQL da view, sem os comentários.
+// corpoDaView acha a migração certa para `nome` (ver `arquivoDaView`) e
+// devolve o SQL da view, sem os comentários.
 //
 // OS COMENTÁRIOS SAEM ANTES DE QUALQUER COISA
 //
@@ -49,11 +58,16 @@ func migracao(t *testing.T) string {
 //
 //	Pior: se o comentário citasse `security_invoker`, o teste da tranca passaria
 //	sem a tranca existir. Comentário não é código, e não pode responder por ele.
-func corpoDaView(t *testing.T, sql, nome string) string {
+func corpoDaView(t *testing.T, nome string) string {
 	t.Helper()
+	arquivo, ok := arquivoDaView[nome]
+	if !ok {
+		t.Fatalf("teste não sabe em qual migração procurar a view %s — atualize arquivoDaView", nome)
+	}
+	sql := migracao(t, arquivo)
 	abre := strings.Index(sql, "create view "+nome+"\n")
 	if abre < 0 {
-		t.Fatalf("a view %s não existe na migração %s", nome, arquivoDaMigracao)
+		t.Fatalf("a view %s não existe na migração %s", nome, arquivo)
 	}
 	limpo := semComentarios(sql[abre:])
 	fim := strings.Index(limpo, ";")
@@ -107,13 +121,12 @@ func colunas(lista string) []string {
 //	compilação, não quebra teste nenhum que não chegue ao banco, e só aparece em
 //	produção. Este teste lê as duas fontes e as compara antes disso (P-36).
 func TestTodaColunaPedidaExisteNaView(t *testing.T) {
-	sql := migracao(t)
 	casos := []struct{ view, lista string }{
 		{"consolidacao_notas", colunasDaNota},
 		{"consolidacao_tickets", colunasDoTicket},
 	}
 	for _, c := range casos {
-		corpo := corpoDaView(t, sql, c.view)
+		corpo := corpoDaView(t, c.view)
 		for _, col := range colunas(c.lista) {
 			if !entrega(corpo, col) {
 				t.Errorf("%s: a view não entrega a coluna %q que o motor pede", c.view, col)
@@ -128,26 +141,32 @@ func TestTodaColunaPedidaExisteNaView(t *testing.T) {
 //	por cima do RLS de todo mundo. Numa tela que mostra o que se pagou e o que
 //	se cobrou, isso é o contrato de um cliente aparecendo na conta de outro.
 func TestAsDuasViewsRodamComoQuemPergunta(t *testing.T) {
-	sql := migracao(t)
 	for _, view := range []string{"consolidacao_notas", "consolidacao_tickets"} {
-		corpo := corpoDaView(t, sql, view)
+		corpo := corpoDaView(t, view)
 		if !strings.Contains(corpo, "security_invoker = true") {
 			t.Errorf("%s foi criada SEM security_invoker — ela fura o RLS", view)
 		}
 	}
 }
 
-// A NOTA OCULTA E A REPETIDA NÃO PODEM SOMAR
+// A NOTA AGRUPA POR NÚMERO, E O VALOR NÃO SOMA PARCELA
 //
-//	A primeira foi descartada por alguém; a segunda é a mesma nota contada duas
-//	vezes. Qualquer uma das duas entrando na soma faz o total do período não
-//	bater com nada, e ninguém descobre olhando.
-func TestAAbaDasNotasIgnoraOcultaERepetida(t *testing.T) {
-	corpo := corpoDaView(t, migracao(t), "consolidacao_notas")
-	for _, trava := range []string{"d.oculto_em is null", "d.duplicada_de is null"} {
-		if !strings.Contains(corpo, trava) {
-			t.Errorf("a aba das notas perdeu a trava %q", trava)
-		}
+//	Desde a migração 046, a aba das notas lê `obra_prima_notas` — uma linha por
+//	PARCELA do CSV — e precisa virar uma linha por NOTA (`Núm.`). `Bruto` é o
+//	valor do documento inteiro, repetido em cada parcela (medido na amostra
+//	real: a nota 660575 traz R$ 2.100,00 em CADA uma das 3 parcelas). Somar por
+//	linha infla a nota parcelada por 2x/3x — por isso a view tem que agrupar
+//	por `(cliente_id, num)` e usar `max(bruto)`, nunca `sum(bruto)`.
+func TestANotaAgrupaPorNumeroEUsaMaxNaoSum(t *testing.T) {
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if !strings.Contains(corpo, "group by cliente_id, num") {
+		t.Error("a aba das notas não agrupa por (cliente_id, num) — nota parcelada vira mais de uma linha")
+	}
+	if !strings.Contains(corpo, "max(bruto)") {
+		t.Error("o valor da nota não usa max(bruto) — arrisca somar o mesmo documento repetido por parcela")
+	}
+	if strings.Contains(corpo, "sum(bruto)") {
+		t.Error("a view soma bruto — nota de 3 parcelas viraria 3x o próprio valor (ver migração 046)")
 	}
 }
 
@@ -156,23 +175,22 @@ func TestAAbaDasNotasIgnoraOcultaERepetida(t *testing.T) {
 //	`removido_em` marca o orçamento desfeito. Somá-lo cobraria do cliente uma
 //	coisa que alguém já decidiu que não existe.
 func TestOOrcamentoRemovidoNaoEntraEmNenhumaDasAbas(t *testing.T) {
-	sql := migracao(t)
-	if !strings.Contains(corpoDaView(t, sql, "consolidacao_notas"), "orc.removido_em is null") {
+	if !strings.Contains(corpoDaView(t, "consolidacao_notas"), "orc.removido_em is null") {
 		t.Error("a aba das notas soma orçamento apagado")
 	}
-	if !strings.Contains(corpoDaView(t, sql, "consolidacao_tickets"), "orc.removido_em is null") {
+	if !strings.Contains(corpoDaView(t, "consolidacao_tickets"), "orc.removido_em is null") {
 		t.Error("a aba dos tickets lista orçamento apagado")
 	}
 }
 
 // O TICKET CONTA UMA VEZ SÓ
 //
-//	`documento_tickets` pode ter o mesmo ticket em duas linhas quando alguém
+//	`obra_prima_ticket` pode ter o mesmo ticket em duas linhas quando alguém
 //	corrige a associação. Sem `distinct`, a nota diz que cobre três chamados
 //	quando cobre dois.
 func TestOTicketRepetidoNaoInflaAContagem(t *testing.T) {
-	corpo := corpoDaView(t, migracao(t), "consolidacao_notas")
-	if !strings.Contains(corpo, "count(distinct dt.ticket)") {
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if !strings.Contains(corpo, "count(distinct pt.ticket)") {
 		t.Error("a contagem de tickets da nota não é distinta — ticket corrigido conta duas vezes")
 	}
 }
@@ -182,15 +200,45 @@ func TestOTicketRepetidoNaoInflaAContagem(t *testing.T) {
 //	Foi o erro medido na primeira versão desta tela: R$ 220.787,51 de pendente
 //	onde o certo era R$ 59.185,21, porque dois `left join` viraram produto. A
 //	forma que impede isso é sub-consulta por linha — `left join lateral` — e não
-//	junção direta com `group by`.
+//	junção direta. O `group by` que agrupa parcela em nota (acima) é diferente:
+//	ele não junta com `orcamentos` nem com `obra_prima_ticket`, então não corre
+//	o mesmo risco — os dois `left join lateral` é que garantem isso.
 func TestASomaDaNotaNaoMultiplicaPorTicket(t *testing.T) {
-	corpo := corpoDaView(t, migracao(t), "consolidacao_notas")
-	if strings.Contains(corpo, "group by") {
-		t.Error("a aba das notas usa group by — é assim que a soma multiplica por ticket")
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if strings.Count(corpo, "group by") != 1 {
+		t.Errorf("esperava exatamente 1 group by (parcela→nota), achei %d",
+			strings.Count(corpo, "group by"))
 	}
 	if strings.Count(corpo, "left join lateral") != 2 {
-		t.Errorf("esperava as duas sub-consultas laterais, achei %d",
+		t.Errorf("esperava as duas sub-consultas laterais (tickets e orçado), achei %d",
 			strings.Count(corpo, "left join lateral"))
+	}
+}
+
+// A MARCA DE INTRUSA MORA EM TABELA À PARTE, NÃO EM obra_prima_notas
+//
+//	Ver o cabeçalho da migração 047: se a marca morasse dentro de
+//	`obra_prima_notas`, reimportar o CSV (upsert por doc+parc) apagaria a
+//	marca sem avisar ninguém — a nota voltaria a contar sozinha.
+func TestIntrusaVemDeTabelaAParte(t *testing.T) {
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if !strings.Contains(corpo, "obra_prima_nota_intrusa") {
+		t.Error("a view não junta com obra_prima_nota_intrusa — de onde viria a marca?")
+	}
+	if !strings.Contains(corpo, "i.num is not null") {
+		t.Error("intrusa não é calculada pela presença da linha em obra_prima_nota_intrusa")
+	}
+}
+
+// A MARGEM É NULL SEM ORÇADO, NUNCA ZERO
+//
+//	Zero diria "a margem é zero" — uma afirmação sobre uma nota que ainda não
+//	tem ticket associado nenhum. Null diz "ainda não dá para calcular", que é a
+//	verdade enquanto `obra_prima_ticket` não tem linha para essa nota.
+func TestMargemENullSemOrcado(t *testing.T) {
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if !strings.Contains(corpo, "else null end") {
+		t.Error("a margem não tem um caminho para null — vai sair 0 (ou erro de divisão) sem orçado")
 	}
 }
 
@@ -200,7 +248,7 @@ func TestASomaDaNotaNaoMultiplicaPorTicket(t *testing.T) {
 //	entram na aba das notas — e está certo. Se também não fossem marcados na aba
 //	dos tickets, seriam dinheiro cobrado que nenhuma tela mostra.
 func TestOOrcamentoDeNotaExcluidaSaiMarcado(t *testing.T) {
-	corpo := corpoDaView(t, migracao(t), "consolidacao_tickets")
+	corpo := corpoDaView(t, "consolidacao_tickets")
 	if !strings.Contains(corpo, "nota_excluida") {
 		t.Fatal("a aba dos tickets não marca o orçamento de nota excluída")
 	}
@@ -241,7 +289,7 @@ func bancoQueResponde(t *testing.T, corpo, contagem string) *banco.Cliente {
 func TestListaCortadaPeloTetoERecusada(t *testing.T) {
 	m := &Modulo{bd: bancoQueResponde(t, `[{"nf":"1"},{"nf":"2"}]`, "0-1/900")}
 	_, err := m.carregar(context.Background(), "consolidacao_notas", colunasDaNota,
-		"inserido_em.desc", "c1")
+		"importado_em.desc", "c1")
 	if err == nil {
 		t.Fatal("o banco disse 900 linhas, chegaram 2, e o motor aceitou")
 	}
@@ -256,7 +304,7 @@ func TestListaCortadaPeloTetoERecusada(t *testing.T) {
 func TestListaVaziaSaiComoListaENaoComoNulo(t *testing.T) {
 	m := &Modulo{bd: bancoQueResponde(t, `[]`, "*/0")}
 	fora, err := m.carregar(context.Background(), "consolidacao_notas", colunasDaNota,
-		"inserido_em.desc", "c1")
+		"importado_em.desc", "c1")
 	if err != nil {
 		t.Fatalf("lista vazia virou erro: %v", err)
 	}
@@ -278,7 +326,7 @@ func TestListaVaziaSaiComoListaENaoComoNulo(t *testing.T) {
 func TestCorpoNuloTambemSaiComoLista(t *testing.T) {
 	m := &Modulo{bd: bancoQueResponde(t, `null`, "*/0")}
 	fora, err := m.carregar(context.Background(), "consolidacao_notas", colunasDaNota,
-		"inserido_em.desc", "c1")
+		"importado_em.desc", "c1")
 	if err != nil {
 		t.Fatalf("corpo nulo virou erro: %v", err)
 	}
@@ -333,7 +381,7 @@ func TestAConsultaVaiSempreFiltradaPorCliente(t *testing.T) {
 		Supabase: config.Supabase{URL: s.URL, ChaveServico: "chave-de-mentira"},
 	})}
 	if _, err := m.carregar(context.Background(), "consolidacao_notas", colunasDaNota,
-		"inserido_em.desc", "c-do-sao-luiz"); err != nil {
+		"importado_em.desc", "c-do-sao-luiz"); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(visto, "cliente_id=eq.c-do-sao-luiz") {
@@ -344,15 +392,26 @@ func TestAConsultaVaiSempreFiltradaPorCliente(t *testing.T) {
 	}
 }
 
-// A rota é uma só, e é de leitura. Um POST aqui seria uma tela de conferência
-// que altera o que está conferindo.
-func TestARotaEUmaSoEDeLeitura(t *testing.T) {
+// AS ESCRITAS DESTA TELA TÊM ENDEREÇO PRÓPRIO, E SÓ DUAS
+//
+//	Até a migração 046 esta tela era só leitura. A 046 abriu uma exceção
+//	(importar o CSV); a 047 abriu uma segunda, nomeada e pequena (marcar/
+//	desmarcar intrusa). Este teste verifica que as DUAS existem no endereço
+//	certo, e que a rota principal (`/consolidacao`, sem mais nada depois)
+//	continua sem aceitar escrita nenhuma.
+func TestAsEscritasSaoSoAsDuasNomeadas(t *testing.T) {
 	mux := http.NewServeMux()
 	(&Modulo{}).Montar(mux)
 	if _, padrao := mux.Handler(httptest.NewRequest("GET", "/consolidacao", nil)); padrao != "GET /consolidacao" {
 		t.Errorf("GET /consolidacao não está montado (achei %q)", padrao)
 	}
 	if _, padrao := mux.Handler(httptest.NewRequest("POST", "/consolidacao", nil)); padrao == "POST /consolidacao" {
-		t.Error("existe um POST em /consolidacao — esta tela não grava nada")
+		t.Error("existe um POST na rota principal — a lista de notas/tickets não deveria aceitar escrita")
+	}
+	if _, padrao := mux.Handler(httptest.NewRequest("POST", "/consolidacao/obra-prima", nil)); padrao != "POST /consolidacao/obra-prima" {
+		t.Errorf("POST /consolidacao/obra-prima não está montado (achei %q)", padrao)
+	}
+	if _, padrao := mux.Handler(httptest.NewRequest("POST", "/consolidacao/notas/intrusa", nil)); padrao != "POST /consolidacao/notas/intrusa" {
+		t.Errorf("POST /consolidacao/notas/intrusa não está montado (achei %q)", padrao)
 	}
 }

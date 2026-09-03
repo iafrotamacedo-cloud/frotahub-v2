@@ -61,6 +61,19 @@ func Novo(bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico) *M
 
 func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /consolidacao", m.consolidacao)
+	// ÚNICO POST DESTA TELA, E DE PROPÓSITO
+	//   Até a migração 046 esta tela era só leitura (era até testado: nenhum
+	//   POST em /consolidacao). O pedido do dono mudou isso para a ABA 1
+	//   especificamente — ela precisa da nota que o Obra Prima emitiu de
+	//   verdade, e isso só chega por CSV. O resto do módulo continua sem
+	//   gravar nada.
+	mux.HandleFunc("POST /consolidacao/obra-prima", m.importarObraPrima)
+	// SEGUNDO POST, MIGRAÇÃO 047: marcar/desmarcar uma nota como "intrusa"
+	// (não conta na consolidação — ver o cabeçalho de obra_prima.go). Não
+	// grava em obra_prima_notas nem toca no CSV importado; é uma marca à
+	// parte, então continua não brigando com o "este módulo não calcula
+	// nada" do topo deste arquivo — quem decide excluir da soma é a tela.
+	mux.HandleFunc("POST /consolidacao/notas/intrusa", m.alternarIntrusa)
 }
 
 // ---------------------------------------------------------------------------
@@ -71,8 +84,18 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 // chega à tela. Pedir `*` traria a coluna nova de amanhã sem ninguém decidir
 // que ela deve sair — e numa tela de dinheiro isso é como um número aparece sem
 // dono.
-const colunasDaNota = "documento_id,nf,tipo,fornecedor,emissao,valor,fila,status," +
-	"tickets,ticket_numeros,orcamentos,orcado,recebido,pendente,lancado,inserido_em"
+//
+// MUDOU NA MIGRAÇÃO 046: a aba das notas passou a ler a nota que o OBRA PRIMA
+// emitiu (via CSV), não mais o `documentos` que o próprio FrotaHub já tinha
+// lido. `documento_id`/`tipo`/`emissao`/`fila`/`status`/`orcamentos`/
+// `recebido`/`pendente`/`lancado` saíram porque não existem nesse grão novo —
+// ver o cabeçalho da migração.
+//
+// MUDOU DE NOVO NA MIGRAÇÃO 047: entrou `intrusa` (nota marcada à mão como
+// "não é gasto de manutenção" — não conta na consolidação. Ver o cabeçalho de
+// obra_prima.go).
+const colunasDaNota = "nf,fornecedor,valor,situacao,parcelas," +
+	"tickets,ticket_numeros,orcado,margem,intrusa,importado_em"
 
 const colunasDoTicket = "orcamento_id,ticket,parte,loja,conta,valor,valor_nota,nfs," +
 	"nota_excluida,no_relatorio,faturado,pago,status,lancado_em,rateio,legado,criado_em"
@@ -101,7 +124,7 @@ func (m *Modulo) consolidacao(w http.ResponseWriter, r *http.Request) {
 	}
 
 	notas, err := m.carregar(r.Context(), "consolidacao_notas", colunasDaNota,
-		"inserido_em.desc", p.ClienteID)
+		"importado_em.desc", p.ClienteID)
 	if err != nil {
 		log.Printf("consolidação: %v", err)
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar a lista de notas.")
