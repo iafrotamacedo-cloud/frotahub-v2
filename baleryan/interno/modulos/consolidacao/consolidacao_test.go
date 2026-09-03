@@ -30,9 +30,10 @@ import (
 // arquivoDaView diz em qual migração procurar o `create view` de cada uma —
 // as duas abas não nasceram juntas: a 043 trouxe as duas, a 046 substituiu a
 // de notas (grão novo), a 047 substituiu de novo só para acrescentar
-// `intrusa` (ver os cabeçalhos da 046 e da 047).
+// `intrusa`, e a 048 substituiu mais uma vez só para trocar o divisor da
+// margem (ver os cabeçalhos da 046, da 047 e da 048).
 var arquivoDaView = map[string]string{
-	"consolidacao_notas":   "047_nota_intrusa.sql",
+	"consolidacao_notas":   "048_margem_sobre_valor.sql",
 	"consolidacao_tickets": "043_a_consolidacao.sql",
 }
 
@@ -239,6 +240,23 @@ func TestMargemENullSemOrcado(t *testing.T) {
 	corpo := corpoDaView(t, "consolidacao_notas")
 	if !strings.Contains(corpo, "else null end") {
 		t.Error("a margem não tem um caminho para null — vai sair 0 (ou erro de divisão) sem orçado")
+	}
+}
+
+// A MARGEM DIVIDE PELO VALOR DA NOTA, NÃO PELO ORÇADO (MIGRAÇÃO 048)
+//
+//	Pedido do dono, 03/09/2026, verbatim: "preciso de inverter o percentual
+//	exibido: margem = (orcamento - valor)/valor". Até a 047 o divisor era
+//	`o.orcado`; são duas contas DIFERENTES (ver o cabeçalho da 048), então
+//	este teste fixa o divisor novo e recusa se alguém devolver ao antigo sem
+//	querer.
+func TestMargemDivideParaValorNaoParaOrcado(t *testing.T) {
+	corpo := corpoDaView(t, "consolidacao_notas")
+	if !strings.Contains(corpo, "(o.orcado - n.valor) / nullif(n.valor, 0)") {
+		t.Error("a margem não está dividindo por nullif(n.valor, 0) — voltou a dividir pelo orçado?")
+	}
+	if strings.Contains(corpo, "(o.orcado - n.valor) / o.orcado") {
+		t.Error("a margem ainda divide por o.orcado — é a conta da migração 047, não a que o dono pediu na 048")
 	}
 }
 
