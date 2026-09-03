@@ -381,21 +381,40 @@ type resultadoDaImportacao struct {
 // linhaGravada é o formato que vai para `obra_prima_notas` — nomes de coluna
 // e nada além do que a tabela espera (a mesma disciplina do `select=` de
 // `consolidacao.go`, mas do lado de escrever).
+//
+// NENHUM CAMPO TEM `omitempty` — DE PROPÓSITO
+//
+//	O `Upsert` manda um ARRAY de objetos numa chamada só ao PostgREST, e o
+//	PostgREST exige que todo objeto do array tenha o MESMO conjunto de
+//	chaves — é assim que ele decide as colunas do INSERT antes de olhar linha
+//	por linha. `omitempty` faz o `encoding/json` do Go omitir a chave quando o
+//	valor é zero (""), e duas notas do mesmo arquivo raramente têm as MESMAS
+//	colunas em branco: uma tem `Tipo` vazio e a outra não, e a chave some de
+//	uma mas não da outra. O resultado é exatamente o erro que apareceu em
+//	produção em 03/09/2026 (RECUSA-2): `PGRST102 "All object keys must
+//	match"` — a importação inteira falha, mesmo tendo lido o CSV certinho.
+//
+//	A correção não é só tirar o `omitempty`: `Tipo`, `Obra`, `Situacao` e
+//	`Descricao` viram ponteiro (como `Vencimento`/`Liquido` já eram), porque
+//	"campo vazio no CSV" continua precisando virar NULL no banco, não uma
+//	string vazia gravada como se fosse dado de verdade — ver `textoOuNil`.
+//	Ponteiro nil serializa como `"campo":null`: a CHAVE continua presente
+//	(o que o PostgREST exige), só o VALOR é nulo (o que o dado exige).
 type linhaGravada struct {
 	ClienteID     string   `json:"cliente_id"`
 	Doc           string   `json:"doc"`
-	Tipo          string   `json:"tipo,omitempty"`
+	Tipo          *string  `json:"tipo"`
 	Num           string   `json:"num"`
 	Parc          string   `json:"parc"`
-	Obra          string   `json:"obra,omitempty"`
+	Obra          *string  `json:"obra"`
 	Fornecedor    string   `json:"fornecedor"`
-	Vencimento    *string  `json:"vencimento,omitempty"`
+	Vencimento    *string  `json:"vencimento"`
 	Bruto         float64  `json:"bruto"`
-	Liquido       *float64 `json:"liquido,omitempty"`
-	DataPagamento *string  `json:"data_pagamento,omitempty"`
-	ValorPago     *float64 `json:"valor_pago,omitempty"`
-	Situacao      string   `json:"situacao,omitempty"`
-	Descricao     string   `json:"descricao,omitempty"`
+	Liquido       *float64 `json:"liquido"`
+	DataPagamento *string  `json:"data_pagamento"`
+	ValorPago     *float64 `json:"valor_pago"`
+	Situacao      *string  `json:"situacao"`
+	Descricao     *string  `json:"descricao"`
 	Arquivo       string   `json:"arquivo"`
 }
 
@@ -473,18 +492,18 @@ func paraGravar(clienteID, arquivo string, linhas []linhaObraPrima) []linhaGrava
 		gravar = append(gravar, linhaGravada{
 			ClienteID:     clienteID,
 			Doc:           l.Doc,
-			Tipo:          l.Tipo,
+			Tipo:          textoOuNil(l.Tipo),
 			Num:           l.Num,
 			Parc:          l.Parc,
-			Obra:          l.Obra,
+			Obra:          textoOuNil(l.Obra),
 			Fornecedor:    l.Fornecedor,
 			Vencimento:    dataOuNil(l.Vencimento),
 			Bruto:         l.Bruto.Float(),
 			Liquido:       dinheiroOuNil(l.Liquido),
 			DataPagamento: dataOuNil(l.DataPagamento),
 			ValorPago:     dinheiroOuNil(l.ValorPago),
-			Situacao:      l.Situacao,
-			Descricao:     l.Descricao,
+			Situacao:      textoOuNil(l.Situacao),
+			Descricao:     textoOuNil(l.Descricao),
 			Arquivo:       arquivo,
 		})
 	}
@@ -601,6 +620,20 @@ func dataOuNil(iso string) *string {
 		return nil
 	}
 	return &iso
+}
+
+// textoOuNil devolve nil quando o texto está vazio — mesma ideia de
+// dataOuNil/dinheiroOuNil, mas para as colunas de texto opcionais (Tipo,
+// Obra, Situação, Descrição): "não veio nesta linha do CSV" vira NULL na
+// tabela, não uma string vazia gravada como se fosse dado de verdade. E, tão
+// importante quanto o valor: NULL preserva a CHAVE no JSON (`"tipo":null`),
+// que é o que o `Upsert` em lote precisa para todo objeto do array ter o
+// mesmo conjunto de chaves — ver o comentário de `linhaGravada`.
+func textoOuNil(texto string) *string {
+	if texto == "" {
+		return nil
+	}
+	return &texto
 }
 
 func dinheiroOuNil(d *regras.Dinheiro) *float64 {
