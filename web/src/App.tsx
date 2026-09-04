@@ -1,4 +1,4 @@
-// rev 8 — a casca do FrotaHub
+// rev 9 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -288,6 +288,7 @@ function Casca() {
               <div className="titulo">{atual ? atual.t : 'Início'}</div>
             )}
           </div>
+          <div className="tp-acoes" id="tp-acoes" />
         </header>}
 
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura

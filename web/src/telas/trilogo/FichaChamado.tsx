@@ -44,16 +44,21 @@ interface Props {
    * aqui, em vez de reconstruir a ficha do zero.
    */
   acaoExtra?: ReactNode
+  /**
+   * false no hub de Serviços: marcar chamado é o botão do cabeçalho da
+   * página, não o da ficha. Dados do Trílogo deixa o padrão (true).
+   */
+  permitirMarcarServico?: boolean
 }
 
-export function FichaChamado({ numero, perfil, voltar, anterior, proximo, posicao, acaoExtra }: Props) {
+export function FichaChamado({ numero, perfil, voltar, anterior, proximo, posicao, acaoExtra, permitirMarcarServico = true }: Props) {
   const [ficha, setFicha] = useState<Ficha | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [aberta, setAberta] = useState<number | null>(null)
   // O documento do custo, aberto na tela. Ver documento é na tela, sempre.
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
 
-  const podeMarcarServico = alcanca(perfil, 'CONTRATO_SERVICO_GERENCIAR')
+  const podeMarcarServico = permitirMarcarServico && alcanca(perfil, 'CONTRATO_SERVICO_GERENCIAR')
 
   useEffect(() => {
     let vivo = true

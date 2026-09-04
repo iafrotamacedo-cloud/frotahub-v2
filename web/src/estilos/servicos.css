@@ -8,6 +8,13 @@
 
 .sv-voltar{margin:0 0 14px}
 
+/* Tom escuro: no cabeçalho da casca (.top) o .bt-neutro virava um retângulo
+   claro. Este é o mesmo desenho de orcamentos/.orc-bt. */
+.sv-bt{
+  background:var(--d-card3);color:var(--d-txt);border-color:var(--d-line2);
+}
+.sv-bt:hover:not(:disabled){color:#fff;border-color:var(--red-lift)}
+
 .sv-extrair{display:flex;gap:8px;flex-wrap:wrap}
 
 /* Compacta como a do Trílogo (letra, ticket, ponto da conta), mas com altura

@@ -72,6 +72,7 @@ export function Planilha({ perfil, voltar }: { perfil: Perfil; voltar: () => voi
         numero={String(aberto)}
         perfil={perfil}
         voltar={() => setAberto(null)}
+        permitirMarcarServico={false}
       />
     )
   }

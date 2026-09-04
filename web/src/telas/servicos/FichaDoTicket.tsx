@@ -1,4 +1,4 @@
-// rev 1 — a ficha de um ticket de Serviço
+// rev 2 — a ficha de um ticket de Serviço
 //
 // REAPROVEITA A FICHA DO TRÍLOGO POR COMPOSIÇÃO, NÃO RECONSTRUÇÃO
 //
@@ -10,6 +10,7 @@
 //	sozinhas (Execução, Faturado).
 import { useState } from 'react'
 import { FichaChamado } from '../trilogo/FichaChamado'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { motor, enviarFormulario, ErroMotor, avisoDe } from '../../motor/cliente'
 import type { Perfil } from '../../sessao/tipos'
 import type { ItemLista, Status } from './tipos'
@@ -26,9 +27,35 @@ interface Props {
 }
 
 export function FichaDoTicket({ item, perfil, acao, voltar, aoMudar }: Props) {
+  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+
   function aoFeito(recado: string) {
     aoMudar(recado)
     voltar()
+  }
+
+  // O PDF ANEXADO ABRE NA TELA, NÃO EM DOWNLOAD
+  //
+  //	Mesmo padrão de orcamentos/FichaDoOrcamento.tsx: o orçamento ocupa a
+  //	página inteira e o voltar devolve à ficha, não à lista — quem abriu
+  //	estava conferindo o ticket.
+  async function verOrcamento() {
+    const r = await motor<{ url: string }>(`/servicos/kanban/${item.id}/arquivo?tipo=orcamento`)
+    setVendo({
+      endereco: r.url,
+      nome: item.orcamento_arquivo_nome ?? `orcamento-${item.ticket}.pdf`,
+    })
+  }
+
+  if (vendo) {
+    return (
+      <VisorDeDocumento
+        endereco={vendo.endereco}
+        nomeSugerido={vendo.nome}
+        titulo={`Orçamento · ticket ${item.ticket}`}
+        voltar={() => setVendo(null)}
+      />
+    )
   }
 
   return (
@@ -36,19 +63,25 @@ export function FichaDoTicket({ item, perfil, acao, voltar, aoMudar }: Props) {
       numero={String(item.ticket)}
       perfil={perfil}
       voltar={voltar}
-      acaoExtra={<PainelDeAcao item={item} acao={acao} aoFeito={aoFeito} />}
+      acaoExtra={<PainelDeAcao item={item} acao={acao} aoFeito={aoFeito} aoVerOrcamento={verOrcamento} />}
+      permitirMarcarServico={false}
     />
   )
 }
 
-function PainelDeAcao({ item, acao, aoFeito }: { item: ItemLista; acao: Acao; aoFeito: (recado: string) => void }) {
+function PainelDeAcao({ item, acao, aoFeito, aoVerOrcamento }: {
+  item: ItemLista
+  acao: Acao
+  aoFeito: (recado: string) => void
+  aoVerOrcamento: () => Promise<void>
+}) {
   switch (acao) {
     case 'inserir-orcamento':
       return <AnexarArquivo titulo="Inserir orçamento" campo="arquivo"
         caminho={`/servicos/kanban/${item.id}/arquivo-orcamento`}
         aoFeito={() => aoFeito('Orçamento anexado — o card avançou para "Feitos".')} />
     case 'lancar':
-      return <Lancar item={item} aoFeito={aoFeito} />
+      return <Lancar item={item} aoFeito={aoFeito} aoVerOrcamento={aoVerOrcamento} />
     case 'aprovar-rejeitar':
       return <AprovarOuRejeitar item={item} aoFeito={aoFeito} />
     case 'preencher-pco':
@@ -118,22 +151,57 @@ function AnexarArquivo({ titulo, campo, caminho, extraCampo, aoFeito }: {
   )
 }
 
-function Lancar({ item, aoFeito }: { item: ItemLista; aoFeito: (recado: string) => void }) {
+function Lancar({ item, aoFeito, aoVerOrcamento }: {
+  item: ItemLista
+  aoFeito: (recado: string) => void
+  aoVerOrcamento: () => Promise<void>
+}) {
   const [abriu, setAbriu] = useState(false)
+  const [abrindo, setAbrindo] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function ver() {
+    setAbrindo(true)
+    setErro(null)
+    try {
+      await aoVerOrcamento()
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o orçamento.')
+    } finally {
+      setAbrindo(false)
+    }
+  }
+
+  const verOrcamento = (
+    <button type="button" className="bt bt-neutro" disabled={abrindo} onClick={() => void ver()}>
+      {abrindo ? 'Abrindo...' : 'Visualizar orçamento'}
+    </button>
+  )
+
   if (!abriu) {
     return (
       <div className="sv-form">
         <p className="dica">Orçamento anexado — falta lançar a cotação e o orçamento no Trílogo.</p>
-        <button type="button" className="bt bt-forte" onClick={() => setAbriu(true)}>Lançar no Trílogo</button>
+        {erro && <div className="erro-caixa">{erro}</div>}
+        <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+          {verOrcamento}
+          <button type="button" className="bt bt-forte" onClick={() => setAbriu(true)}>Lançar no Trílogo</button>
+        </div>
       </div>
     )
   }
   return (
-    <FormularioDeLancamento
-      itemID={item.id}
-      aoFeito={aoFeito}
-      aoCancelar={() => setAbriu(false)}
-    />
+    <>
+      {erro && <div className="erro-caixa">{erro}</div>}
+      <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 0, marginBottom: 12 }}>
+        {verOrcamento}
+      </div>
+      <FormularioDeLancamento
+        itemID={item.id}
+        aoFeito={aoFeito}
+        aoCancelar={() => setAbriu(false)}
+      />
+    </>
   )
 }
 

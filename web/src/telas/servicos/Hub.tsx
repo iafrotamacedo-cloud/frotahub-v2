@@ -6,7 +6,8 @@
 //	etapa aberta, e cards com `filhos` usam uma chave composta
 //	("execucao:aberto") que este arquivo decodifica — não vira nó novo na
 //	árvore de menu (ver menu/arvore.ts).
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel as PainelDeCards, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
@@ -83,14 +84,14 @@ export function Hub({ onde, perfil, abrir, voltar }: Props) {
 
   return (
     <>
-      <header className="hero hero-linha">
-        <div>
-          <h1>Serviços</h1>
-          <p>Instalação, obra ou ampliação — fora do contrato de manutenção.</p>
-        </div>
-        <button type="button" className="bt bt-neutro" onClick={() => setMarcando(true)}>
+      <NoCabecalho>
+        <button type="button" className="bt sv-bt" onClick={() => setMarcando(true)}>
           Marcar chamado como Serviço
         </button>
+      </NoCabecalho>
+      <header className="hero">
+        <h1>Serviços</h1>
+        <p>Instalação, obra ou ampliação — fora do contrato de manutenção.</p>
       </header>
       {recado && (
         <div className="recado" role="status">
@@ -107,6 +108,16 @@ export function Hub({ onde, perfil, abrir, voltar }: Props) {
       )}
     </>
   )
+}
+
+// O botão mora no `.top` da casca (App.tsx, #tp-acoes), não no hero da tela.
+// O hero é o título; o cabeçalho da página é a barra de cima. Portal em vez
+// de subir o clique até a App: quem sabe marcar chamado é este módulo.
+function NoCabecalho({ children }: { children: ReactNode }) {
+  const [alvo, setAlvo] = useState<HTMLElement | null>(null)
+  useEffect(() => { setAlvo(document.getElementById('tp-acoes')) }, [])
+  if (!alvo) return null
+  return createPortal(children, alvo)
 }
 
 function montarEtapas(d: Painel): Etapa[] {

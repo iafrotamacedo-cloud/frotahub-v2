@@ -66,6 +66,7 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
         numero={String(aberto)}
         perfil={perfil}
         voltar={() => setAberto(null)}
+        permitirMarcarServico={false}
       />
     )
   }
