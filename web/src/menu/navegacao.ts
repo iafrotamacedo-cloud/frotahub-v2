@@ -10,8 +10,8 @@
 //   a página cai no mesmo lugar, e um endereço colado numa conversa abre onde deve.
 //
 // POR QUE COM `#` NO ENDEREÇO
-//   `novo.frotamacedo.com.br/#/configuracoes/usuarios` em vez de
-//   `novo.frotamacedo.com.br/configuracoes/usuarios`.
+//   `frotamacedo.com.br/#/configuracoes/usuarios` em vez de
+//   `frotamacedo.com.br/configuracoes/usuarios`.
 //
 //   O sistema é um arquivo só, servido pelo HostGator. Com endereço sem `#`, quem
 //   recarregasse a página numa tela interna receberia um 404 do servidor, porque

@@ -6,10 +6,10 @@
 #   à mão, e o código-fonte não vai para o servidor.
 #
 # ONDE PUBLICA
-#   Na pasta que a conta de FTP `deploy` enxerga, que é o diretório do subdomínio
-#   novo.frotamacedo.com.br. Essa conta está trancada lá dentro pelo próprio servidor:
-#   ela NÃO alcança o public_html nem o FrotaHub que está no ar hoje. A trava é do lado
-#   do HostGator, não desta configuração.
+#   Na pasta que a conta de FTP `deploy` enxerga — hoje é frotamacedo.com.br
+#   (antes era o subdomínio novo.frotamacedo.com.br; o domínio foi trocado do
+#   lado do HostGator, não desta configuração). Essa conta está trancada lá
+#   dentro pelo próprio servidor.
 #
 # O QUE PRECISA ESTAR CONFIGURADO (Settings > Secrets and variables > Actions)
 #   Secrets:   FTP_SERVIDOR · FTP_USUARIO · FTP_SENHA
