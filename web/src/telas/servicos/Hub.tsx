@@ -1,4 +1,4 @@
-// rev 1 — o hub de Serviço: 6 cards, mesmo padrão de Orçamentos
+// rev 2 — o hub de Serviço: 6 cards, mesmo padrão de Orçamentos
 //
 // A SUB-TELA VEM DO ENDEREÇO
 //
@@ -76,19 +76,22 @@ export function Hub({ onde, perfil, abrir, voltar }: Props) {
   if (onde === 'faturamento:faturado') {
     return lista({ titulo: 'Faturado', status: 'faturado', acao: 'nenhuma' }, perfil, voltar)
   }
-  if (onde === 'planilha') return <Planilha voltar={voltar} />
+  if (onde === 'planilha') return <Planilha perfil={perfil} voltar={voltar} />
 
   if (erro) return <div className="erro-caixa">{erro}</div>
   if (!dados) return <Carregando texto="Carregando o painel de Serviço..." />
 
   return (
     <>
-      <div className="hero-linha" style={{ margin: '2px 0 14px' }}>
-        <span />
+      <header className="hero hero-linha">
+        <div>
+          <h1>Serviços</h1>
+          <p>Instalação, obra ou ampliação — fora do contrato de manutenção.</p>
+        </div>
         <button type="button" className="bt bt-neutro" onClick={() => setMarcando(true)}>
           Marcar chamado como Serviço
         </button>
-      </div>
+      </header>
       {recado && (
         <div className="recado" role="status">
           {recado}
