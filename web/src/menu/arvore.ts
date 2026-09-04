@@ -58,6 +58,19 @@ const ARVORE_COMPLETA: ItemMenu[] = [
     desc: 'Contratos, chamados e serviços',
     sub: [
       {
+        // PRIMEIRO DA LISTA (04/09/2026)
+        //
+        //	Morava dentro de "Contrato São Luiz", como o primeiro dos quatro
+        //	cards, até subir um nível. O dono pediu pra vir antes do próprio
+        //	contrato na barra lateral — é o que mais se abre no dia a dia.
+        t: 'Dados do Trílogo',
+        rota: 'dados-trilogo',
+        icone: 'lista',
+        desc: 'Os chamados do contrato, como o robô os trouxe',
+        tela: 'trilogo-dados',
+        rotina: 'CONTRATO_TRILOGO_DADOS',
+      },
+      {
         t: 'Contrato São Luiz',
         rota: 'contrato-sao-luiz',
         icone: 'loja',
@@ -254,19 +267,6 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             ],
           },
         ],
-      },
-      {
-        // SUBIU UM NÍVEL (04/09/2026)
-        //
-        //	Morava dentro de "Contrato São Luiz", como o primeiro dos quatro
-        //	cards. O dono pediu pra subir: hoje é clique direto na barra
-        //	lateral, sem passar pelo painel do contrato antes.
-        t: 'Dados do Trílogo',
-        rota: 'dados-trilogo',
-        icone: 'lista',
-        desc: 'Os chamados do contrato, como o robô os trouxe',
-        tela: 'trilogo-dados',
-        rotina: 'CONTRATO_TRILOGO_DADOS',
       },
       servicosMenu,
     ],
