@@ -1,12 +1,11 @@
-/* rev 3 — o hub de Serviço (cards) e as listas
+/* rev 4 — o hub de Serviço (cards) e as listas
    O board de colunas antigo saiu (Kanban.tsx foi substituído por Hub.tsx +
    listas/ListaDeServicos.tsx, no mesmo padrão de cards de Orçamentos — ver
    componentes/Painel.tsx e estilos/escuro.css, .pn-*). Aqui só o que é
-   genuinamente específico de Serviço: o botão de voltar das sub-telas, a
-   tabela compacta no visual do Trílogo (sem copiar .tri-tabela, que nasceu
-   para 11 colunas e 500 linhas sem botão), e os formulários de anexar/lançar. */
-
-.sv-voltar{margin:0 0 14px}
+   genuinamente específico de Serviço: a tabela compacta no visual do
+   Trílogo (sem copiar .tri-tabela, que nasceu para 11 colunas e 500 linhas
+   sem botão), e os formulários de anexar/lançar. Voltar das sub-telas é o
+   ← da casca (.tp-voltar), não uma segunda barra na página. */
 
 /* Tom escuro: no cabeçalho da casca (.top) o .bt-neutro virava um retângulo
    claro. Este é o mesmo desenho de orcamentos/.orc-bt. */
@@ -16,6 +15,16 @@
 .sv-bt:hover:not(:disabled){color:#fff;border-color:var(--red-lift)}
 
 .sv-extrair{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Busca na mesma linha do título, à direita — o ← da casca já ocupa a
+   esquerda do cabeçalho; outra faixa abaixo do h1 era barra duplicada. */
+.sv-hero-busca{align-items:center}
+.sv-hero-busca .barra-busca{margin:0;min-width:0}
+.sv-hero-busca .barra-busca input{width:280px;max-width:100%}
+@media (max-width:900px){
+  .sv-hero-busca{align-items:stretch}
+  .sv-hero-busca .barra-busca input{width:100%}
+}
 
 /* Compacta como a do Trílogo (letra, ticket, ponto da conta), mas com altura
    que cabe o botão de ação da linha. .tri-tabela trava em min-width 1150px,

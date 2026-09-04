@@ -152,11 +152,21 @@ func (s *Servico) itemAtivo(ctx context.Context, clienteID, itemID string) (Item
 // depurar uma fatura emitida seria mexer em dinheiro que já saiu.
 var ErrJaFaturado = fmt.Errorf("este serviço já foi faturado — não dá para reclassificar")
 
-// Reclassificar volta um chamado pra fila do contrato: remove o responsável
-// no Trílogo E fecha a linha do Kanban (removido_em). As DUAS coisas, nesta
-// ordem — se a segunda falhar depois da primeira ter dado certo, o chamado
-// já saiu da fila de Serviço no Trílogo (a fonte da verdade), e a próxima
-// leitura do robô corrige a nossa tabela mesmo assim.
+// Reclassificar volta um chamado pra fila do contrato. Não é só tirar o
+// responsável: o PDF do orçamento sai do R2, o Budget lançado (se houver)
+// some no Trílogo, e o card local perde os vínculos. A cotação em si o
+// Trílogo não deixa apagar — só o orçamento.
+//
+// ORDEM
+//
+//	1. Apaga o Budget no Trílogo enquanto o chamado ainda é Serviço.
+//	2. Apaga o PDF no R2 enquanto o card ainda está ativo — se o armazém
+//	   recusar, o usuário aperta de novo e itemAtivo ainda acha a linha.
+//	3. Tira o responsável (o chamado volta pra fila do contrato).
+//	4. Fecha a linha (removido_em) e zera os vínculos do orçamento.
+//
+//	A fonte da verdade do "é Serviço?" continua sendo o Trílogo: se 4
+//	falhar depois de 3, a próxima leitura do robô corrige a nossa tabela.
 func (s *Servico) Reclassificar(ctx context.Context, clienteID, itemID, autorID, motivo string) error {
 	item, err := s.itemAtivo(ctx, clienteID, itemID)
 	if err != nil {
@@ -170,16 +180,45 @@ func (s *Servico) Reclassificar(ctx context.Context, clienteID, itemID, autorID,
 	if err != nil {
 		return fmt.Errorf("entrando no Trílogo: %w", err)
 	}
+
+	if item.OrcamentoTrilogoID != nil {
+		if err := sessao.ExcluirOrcamentoServico(ctx, *item.OrcamentoTrilogoID); err != nil {
+			return fmt.Errorf("excluindo o orçamento no Trílogo: %w", err)
+		}
+	}
+
+	var shaDoArquivo string
+	apagouDoArmazem := false
+	if item.OrcamentoArquivoSHA256 != nil {
+		shaDoArquivo = *item.OrcamentoArquivoSHA256
+		apagou, err := s.apagarArquivoDeOrcamento(ctx, item.ID, shaDoArquivo)
+		if err != nil {
+			return fmt.Errorf("apagando o orçamento do armazém: %w", err)
+		}
+		apagouDoArmazem = apagou
+	}
+
 	if err := sessao.RemoverResponsavel(ctx, item.Ticket); err != nil {
 		return fmt.Errorf("removendo o responsável no Trílogo: %w", err)
 	}
 
 	campos := map[string]any{
-		"removido_em":     time.Now().UTC().Format(time.RFC3339),
-		"removido_por":    nuloSeVazio(autorID),
-		"removido_motivo": nuloSeVazio(motivo),
+		"removido_em":              time.Now().UTC().Format(time.RFC3339),
+		"removido_por":             nuloSeVazio(autorID),
+		"removido_motivo":          nuloSeVazio(motivo),
+		"orcamento_arquivo_sha256": nil,
+		"orcamento_arquivo_nome":   nil,
+		"orcamento_arquivo_em":     nil,
+		"orcamento_trilogo_id":     nil,
+		"orcamento_valor":          nil,
 	}
-	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos)
+	if err := s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos); err != nil {
+		return err
+	}
+	if apagouDoArmazem && shaDoArquivo != "" {
+		s.soltarRegistroDeArquivo(ctx, shaDoArquivo)
+	}
+	return nil
 }
 
 // PreencherPCO grava o pedido de compra que o cliente abriu pra este ticket

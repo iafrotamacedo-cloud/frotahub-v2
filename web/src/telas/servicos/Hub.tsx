@@ -20,18 +20,17 @@ import { MarcarComoServico } from './MarcarComoServico'
 
 // abrevia as nove chamadas de ListaDeServicos abaixo — cada uma só muda
 // título/status/pco/ação, o resto é sempre o mesmo.
-function lista(props: Omit<Parameters<typeof ListaDeServicos>[0], 'perfil' | 'voltar'>, perfil: Perfil, voltar: () => void) {
-  return <ListaDeServicos {...props} perfil={perfil} voltar={voltar} />
+function lista(props: Omit<Parameters<typeof ListaDeServicos>[0], 'perfil'>, perfil: Perfil) {
+  return <ListaDeServicos {...props} perfil={perfil} />
 }
 
 interface Props {
   onde?: string
   perfil: Perfil
   abrir: (onde: string) => void
-  voltar: () => void
 }
 
-export function Hub({ onde, perfil, abrir, voltar }: Props) {
+export function Hub({ onde, perfil, abrir }: Props) {
   const [dados, setDados] = useState<Painel | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -49,35 +48,35 @@ export function Hub({ onde, perfil, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   // ---- roteamento das 9 listas + a planilha ----
-  if (onde === 'candidatos') return <Candidatos perfil={perfil} voltar={voltar} />
+  if (onde === 'candidatos') return <Candidatos perfil={perfil} />
   if (onde === 'pendentes') {
-    return lista({ titulo: 'Orçamentos pendentes', status: 'aguardando_orcamento', acao: 'inserir-orcamento' }, perfil, voltar)
+    return lista({ titulo: 'Orçamentos pendentes', status: 'aguardando_orcamento', acao: 'inserir-orcamento' }, perfil)
   }
   if (onde === 'gerados:feitos') {
-    return lista({ titulo: 'Orçamentos feitos', status: 'orcamento_feito', acao: 'lancar' }, perfil, voltar)
+    return lista({ titulo: 'Orçamentos feitos', status: 'orcamento_feito', acao: 'lancar' }, perfil)
   }
   if (onde === 'gerados:lancados') {
-    return lista({ titulo: 'Orçamentos lançados', status: 'orcamento_lancado', acao: 'aprovar-rejeitar' }, perfil, voltar)
+    return lista({ titulo: 'Orçamentos lançados', status: 'orcamento_lancado', acao: 'aprovar-rejeitar' }, perfil)
   }
   if (onde === 'execucao:aberto') {
-    return lista({ titulo: 'Execução — Aberto', status: 'aprovado_execucao', acao: 'nenhuma' }, perfil, voltar)
+    return lista({ titulo: 'Execução — Aberto', status: 'aprovado_execucao', acao: 'nenhuma' }, perfil)
   }
   if (onde === 'execucao:em-curso') {
-    return lista({ titulo: 'Execução — Em execução', status: 'em_execucao', acao: 'nenhuma' }, perfil, voltar)
+    return lista({ titulo: 'Execução — Em execução', status: 'em_execucao', acao: 'nenhuma' }, perfil)
   }
   if (onde === 'execucao:executado') {
-    return lista({ titulo: 'Execução — Executado', status: 'finalizado', acao: 'nenhuma' }, perfil, voltar)
+    return lista({ titulo: 'Execução — Executado', status: 'finalizado', acao: 'nenhuma' }, perfil)
   }
   if (onde === 'faturamento:aguardando-pco') {
-    return lista({ titulo: 'Aguardando PCO', status: 'aguardando_faturamento', semPCO: true, acao: 'preencher-pco' }, perfil, voltar)
+    return lista({ titulo: 'Aguardando PCO', status: 'aguardando_faturamento', semPCO: true, acao: 'preencher-pco' }, perfil)
   }
   if (onde === 'faturamento:a-faturar') {
-    return lista({ titulo: 'A faturar', status: 'aguardando_faturamento', comPCO: true, acao: 'anexar-nf' }, perfil, voltar)
+    return lista({ titulo: 'A faturar', status: 'aguardando_faturamento', comPCO: true, acao: 'anexar-nf' }, perfil)
   }
   if (onde === 'faturamento:faturado') {
-    return lista({ titulo: 'Faturado', status: 'faturado', acao: 'nenhuma' }, perfil, voltar)
+    return lista({ titulo: 'Faturado', status: 'faturado', acao: 'nenhuma' }, perfil)
   }
-  if (onde === 'planilha') return <Planilha perfil={perfil} voltar={voltar} />
+  if (onde === 'planilha') return <Planilha perfil={perfil} />
 
   if (erro) return <div className="erro-caixa">{erro}</div>
   if (!dados) return <Carregando texto="Carregando o painel de Serviço..." />

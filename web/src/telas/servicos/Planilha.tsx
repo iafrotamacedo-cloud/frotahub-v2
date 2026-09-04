@@ -13,7 +13,7 @@ import { FichaChamado } from '../trilogo/FichaChamado'
 import { CONTA_ROTULO, STATUS_ORDEM, STATUS_ROTULO, type ItemLista } from './tipos'
 import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from './celulas'
 
-export function Planilha({ perfil, voltar }: { perfil: Perfil; voltar: () => void }) {
+export function Planilha({ perfil }: { perfil: Perfil }) {
   const [status, setStatus] = useState('')
   const [conta, setConta] = useState('')
   const [busca, setBusca] = useState('')
@@ -79,8 +79,6 @@ export function Planilha({ perfil, voltar }: { perfil: Perfil; voltar: () => voi
 
   return (
     <>
-      <button type="button" className="bt bt-neutro sv-voltar" onClick={voltar}>‹ Voltar</button>
-
       <header className="hero hero-linha">
         <div>
           <h1>Planilha de controle</h1>

@@ -127,6 +127,51 @@ func TestEnviaOObjetoComOsCabecalhosCertos(t *testing.T) {
 	}
 }
 
+func TestApagaOObjetoComOsCabecalhosCertos(t *testing.T) {
+	var recebido struct {
+		metodo, caminho, sha, autoriza string
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recebido.metodo = r.Method
+		recebido.caminho = r.URL.Path
+		recebido.sha = r.Header.Get("x-amz-content-sha256")
+		recebido.autoriza = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{R2: config.R2{ContaID: "conta", Bucket: "frotahub", ChaveID: "id", ChaveSecreta: "s"}}
+	c := NovoEm(cfg, srv.URL)
+	chave := Caminho("frota-macedo", strings.Repeat("a", 64), "pdf")
+	if err := c.Apagar(context.Background(), chave); err != nil {
+		t.Fatalf("erro: %v", err)
+	}
+	if recebido.metodo != http.MethodDelete {
+		t.Errorf("método %s", recebido.metodo)
+	}
+	if !strings.Contains(recebido.caminho, "/frotahub/"+chave) {
+		t.Errorf("caminho %s", recebido.caminho)
+	}
+	if recebido.sha != payloadVazio {
+		t.Errorf("DELETE assina corpo vazio, veio %s", recebido.sha)
+	}
+	if !strings.Contains(recebido.autoriza, "SignedHeaders=host;x-amz-content-sha256;x-amz-date") {
+		t.Errorf("assinatura: %s", recebido.autoriza)
+	}
+}
+
+func TestApagarOQueJaNaoEstaLaNaoEErro(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	cfg := &config.Config{R2: config.R2{ContaID: "conta", Bucket: "frotahub", ChaveID: "id", ChaveSecreta: "s"}}
+	c := NovoEm(cfg, srv.URL)
+	if err := c.Apagar(context.Background(), "clientes/x/arquivos/aa/aa/aaaa.pdf"); err != nil {
+		t.Fatalf("404 tinha que ser sucesso, veio: %v", err)
+	}
+}
+
 func TestArmazemDesligadoFalaClaro(t *testing.T) {
 	c := Novo(&config.Config{})
 	err := c.Enviar(context.Background(), "x", bytes.NewReader(nil), 0, strings.Repeat("0", 64), "")

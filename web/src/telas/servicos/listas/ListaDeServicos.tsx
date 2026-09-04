@@ -1,4 +1,4 @@
-// rev 2 — a lista genérica das 9 filas de Serviço
+// rev 4 — a lista genérica das 9 filas de Serviço
 //
 // UMA TELA SÓ, PARAMETRIZADA — NÃO NOVE ARQUIVOS QUASE IDÊNTICOS
 //
@@ -29,10 +29,9 @@ interface Props {
   semPCO?: boolean
   acao: Acao
   perfil: Perfil
-  voltar: () => void
 }
 
-export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, voltar }: Props) {
+export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }: Props) {
   const [pagina, setPagina] = useState<Pagina<ItemLista> | null>(null)
   const [numeroDaPagina, setNumeroDaPagina] = useState(1)
   const [por, setPor] = useState(100)
@@ -65,11 +64,13 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, 
   useEffect(() => { void carregar() }, [carregar])
 
   async function voltarProContrato(item: ItemLista) {
-    if (!window.confirm(`Voltar o ticket ${item.ticket} para a fila do contrato?`)) return
+    if (!window.confirm(
+      `Voltar o ticket ${item.ticket} para a fila do contrato?\n\nO PDF do orçamento sai do arquivo e o orçamento desvincula deste ticket.`,
+    )) return
     setErro(null)
     try {
       const resposta = await motor(`/servicos/kanban/${item.id}/reclassificar`, { metodo: 'POST', corpo: { motivo: '' } })
-      setRecado(avisoDe(resposta) ?? 'Voltou para o contrato.')
+      setRecado(avisoDe(resposta) ?? 'Voltou para o contrato. Orçamento removido.')
       void carregar()
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui reclassificar.')
@@ -90,10 +91,14 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, 
 
   return (
     <>
-      <button type="button" className="bt bt-neutro sv-voltar" onClick={voltar}>‹ Voltar</button>
-
-      <header className="hero">
+      <header className="hero hero-linha sv-hero-busca">
         <h1>{titulo}</h1>
+        <div className="barra-busca">
+          <input
+            value={busca} onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar por ticket ou loja..." aria-label="Buscar"
+          />
+        </div>
       </header>
 
       {recado && (
@@ -103,13 +108,6 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, 
         </div>
       )}
       {erro && <div className="erro-caixa">{erro}</div>}
-
-      <div className="barra-busca">
-        <input
-          value={busca} onChange={e => setBusca(e.target.value)}
-          placeholder="Buscar por ticket ou loja..." aria-label="Buscar"
-        />
-      </div>
 
       {pagina === null && !erro ? (
         <Carregando texto="Carregando..." />

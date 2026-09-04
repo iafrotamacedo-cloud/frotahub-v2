@@ -349,7 +349,6 @@ function Casca() {
               onde={extra[0]}
               perfil={perfil}
               abrir={onde => navegar(caminho, [onde])}
-              voltar={() => navegar(caminho)}
             />
           ) : atual?.tela === 'faturar' ? (
             <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />

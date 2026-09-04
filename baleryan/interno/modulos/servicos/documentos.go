@@ -1,4 +1,4 @@
-// rev 1 — o arquivo do orçamento e da nota fiscal
+// rev 2 — o arquivo do orçamento e da nota fiscal
 //
 // O MESMO PADRÃO DE orcamentos/documentos.go (guardarUm)
 //
@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"mime"
 	"path/filepath"
 	"strings"
@@ -57,9 +58,10 @@ func (s *Servico) guardarArquivo(ctx context.Context, clienteID, nome string, co
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(nome)), ".")
 	tipo := tipoDoNome(nome)
 
-	// O ARQUIVO NUNCA É APAGADO, ENTÃO ELE PODE JÁ ESTAR LÁ — a chave é o
-	// sha256 do conteúdo; subir o mesmo PDF duas vezes grava o mesmo lugar
-	// com os mesmos bytes (P-04), sem duplicar nada.
+	// A chave é o sha256 do conteúdo: subir o mesmo PDF duas vezes grava o
+	// mesmo lugar com os mesmos bytes (P-04), sem duplicar. Apagar só
+	// acontece no "voltar pro contrato" (apagarArquivoDeOrcamento), e só
+	// quando nenhum outro vínculo ainda aponta pra esse sha.
 	chave := armazem.Caminho(clienteID, sha, ext)
 	if err := s.arm.Enviar(ctx, chave, bytes.NewReader(conteudo), int64(len(conteudo)), sha, tipo); err != nil {
 		return "", fmt.Errorf("não consegui guardar no armazém: %w", err)
@@ -174,4 +176,80 @@ func (s *Servico) ArquivoDoItem(ctx context.Context, clienteID, itemID, tipo str
 		return "", fmt.Errorf("arquivo não encontrado no armazém")
 	}
 	return linhas[0].ChaveR2, nil
+}
+
+// apagarArquivoDeOrcamento tira o PDF do R2. Se o mesmo conteúdo ainda
+// aparece em outro card ativo, em um documento da fila ou num anexo de
+// chamado, o objeto fica — a chave é o sha256, apagar ali apagaria a prova
+// de outra pessoa. 404 no armazém conta como sucesso (já não estava lá).
+func (s *Servico) apagarArquivoDeOrcamento(ctx context.Context, itemID, sha string) (apagou bool, err error) {
+	ainda, err := s.shaAindaEmUso(ctx, itemID, sha)
+	if err != nil {
+		return false, err
+	}
+	if ainda {
+		return false, nil
+	}
+
+	var linhas []struct {
+		ChaveR2 string `json:"chave_r2"`
+	}
+	caminho := "arquivos?sha256=eq." + banco.Escapar(sha) + "&select=chave_r2&limit=1"
+	if err := s.bd.Buscar(ctx, caminho, &linhas); err != nil {
+		return false, err
+	}
+	if len(linhas) == 0 {
+		return false, nil
+	}
+	if err := s.arm.Apagar(ctx, linhas[0].ChaveR2); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// shaAindaEmUso ignora o próprio card e as linhas já reclassificadas
+// (removido_em): orçamento que voltou pro contrato não segura o arquivo
+// de outro ticket que também está voltando.
+func (s *Servico) shaAindaEmUso(ctx context.Context, itemID, sha string) (bool, error) {
+	esc := banco.Escapar(sha)
+	var cards []struct {
+		ID string `json:"id"`
+	}
+	q := "servicos_orcamentos?or=(orcamento_arquivo_sha256.eq." + esc +
+		",nf_arquivo_sha256.eq." + esc + ")&id=neq." + banco.Escapar(itemID) +
+		"&removido_em=is.null&select=id&limit=1"
+	if err := s.bd.Buscar(ctx, q, &cards); err != nil {
+		return false, err
+	}
+	if len(cards) > 0 {
+		return true, nil
+	}
+
+	var docs []struct {
+		ID string `json:"id"`
+	}
+	if err := s.bd.Buscar(ctx, "documentos?arquivo_sha256=eq."+esc+"&select=id&limit=1", &docs); err != nil {
+		return false, err
+	}
+	if len(docs) > 0 {
+		return true, nil
+	}
+
+	var anexos []struct {
+		ID string `json:"id"`
+	}
+	if err := s.bd.Buscar(ctx, "chamado_anexos?arquivo_sha256=eq."+esc+"&select=id&limit=1", &anexos); err != nil {
+		return false, err
+	}
+	return len(anexos) > 0, nil
+}
+
+// soltarRegistroDeArquivo apaga a linha em `arquivos` depois que o card
+// já soltou a FK. Recusa do banco (outro vínculo que o shaAindaEmUso não
+// viu) fica no log — o PDF já saiu do R2, e travar o "voltar pro contrato"
+// agora deixaria o chamado no limbo.
+func (s *Servico) soltarRegistroDeArquivo(ctx context.Context, sha string) {
+	if err := s.bd.Apagar(ctx, "arquivos", "sha256=eq."+banco.Escapar(sha)); err != nil {
+		log.Printf("servicos: não soltei o registro do arquivo %s: %v", sha, err)
+	}
 }

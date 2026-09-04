@@ -1,4 +1,4 @@
-// rev 2 — o armazém: enviar arquivo para o Cloudflare R2, e deixar ver de volta
+// rev 3 — o armazém: enviar, ver e apagar arquivo no Cloudflare R2
 //
 // O R2 fala o mesmo protocolo do S3 da Amazon, e a assinatura desse protocolo
 // (Signature V4) está escrita aqui à mão. São umas cem linhas de HMAC — contra
@@ -173,6 +173,49 @@ func (c *Cliente) Baixar(ctx context.Context, chave string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 }
 
+// payloadVazio é o SHA-256 de um corpo vazio — o protocolo exige esse valor
+// em DELETE (e em GET assinado por cabeçalho), não uma string "UNSIGNED-PAYLOAD"
+// que só vale na query string do link temporário.
+const payloadVazio = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+// Apagar remove o objeto. 404 conta como sucesso: apagar o que já não está
+// lá é o mesmo resultado, e o chamado que volta pro contrato não pode
+// falhar só porque o arquivo já tinha sumido.
+func (c *Cliente) Apagar(ctx context.Context, chave string) error {
+	if !c.Ligado() {
+		return fmt.Errorf("o armazém não está configurado (R2_*)")
+	}
+	agora := time.Now().UTC()
+	carimbo := agora.Format("20060102T150405Z")
+	dia := agora.Format("20060102")
+	alvo := c.base()
+	host := strings.TrimPrefix(strings.TrimPrefix(alvo, "https://"), "http://")
+	caminho := "/" + c.cfg.R2.Bucket + "/" + escaparCaminho(chave)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, alvo+caminho, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Host", host)
+	req.Header.Set("x-amz-content-sha256", payloadVazio)
+	req.Header.Set("x-amz-date", carimbo)
+	req.Header.Set("Authorization", c.assinarDelete(dia, carimbo, host, caminho))
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("não consegui falar com o armazém: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	if resp.StatusCode >= 300 {
+		bruto, _ := io.ReadAll(io.LimitReader(resp.Body, 600))
+		return fmt.Errorf("o armazém recusou apagar (%d): %s", resp.StatusCode, strings.TrimSpace(string(bruto)))
+	}
+	return nil
+}
+
 func (c *Cliente) LinkTemporario(chave string, validade time.Duration) (string, error) {
 	return c.linkEm(chave, validade, time.Now().UTC())
 }
@@ -266,6 +309,29 @@ func (c *Cliente) assinar(dia, carimbo, host, caminho, tipo, sha string) string 
 		resumo(canonica),
 	}, "\n")
 
+	return "AWS4-HMAC-SHA256 " +
+		"Credential=" + c.cfg.R2.ChaveID + "/" + escopo + ", " +
+		"SignedHeaders=" + assinados + ", " +
+		"Signature=" + hex.EncodeToString(hmacRaw(c.chaveDoDia(dia), paraAssinar))
+}
+
+func (c *Cliente) assinarDelete(dia, carimbo, host, caminho string) string {
+	assinados := "host;x-amz-content-sha256;x-amz-date"
+	canonica := strings.Join([]string{
+		http.MethodDelete,
+		caminho,
+		"",
+		"host:" + host,
+		"x-amz-content-sha256:" + payloadVazio,
+		"x-amz-date:" + carimbo,
+		"",
+		assinados,
+		payloadVazio,
+	}, "\n")
+	escopo := dia + "/" + regiao + "/" + servico + "/aws4_request"
+	paraAssinar := strings.Join([]string{
+		"AWS4-HMAC-SHA256", carimbo, escopo, resumo(canonica),
+	}, "\n")
 	return "AWS4-HMAC-SHA256 " +
 		"Credential=" + c.cfg.R2.ChaveID + "/" + escopo + ", " +
 		"SignedHeaders=" + assinados + ", " +

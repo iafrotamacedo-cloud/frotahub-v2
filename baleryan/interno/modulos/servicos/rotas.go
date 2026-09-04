@@ -340,9 +340,9 @@ type pedidoDeReclassificacao struct {
 
 // POST /servicos/kanban/{id}/reclassificar   {"motivo":"..."}
 //
-// A troca de fila que tem que existir sempre, nos dois sentidos: esta é
-// Serviço -> Contrato. A outra (Contrato -> Serviço) é marcarComoServico,
-// mais acima.
+// Serviço -> Contrato: tira o responsável, apaga o PDF do orçamento no
+// R2 e desvincula o orçamento do ticket. A outra direção (Contrato ->
+// Serviço) é marcarComoServico, mais acima.
 func (m *Modulo) reclassificar(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r)
 	if p == nil {

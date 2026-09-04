@@ -21,7 +21,7 @@ import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, use
 
 type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato }
 
-export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => void }) {
+export function Candidatos({ perfil }: { perfil: Perfil }) {
   const [linhas, setLinhas] = useState<Candidato[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -73,8 +73,6 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
 
   return (
     <>
-      <button type="button" className="bt bt-neutro sv-voltar" onClick={voltar}>‹ Voltar</button>
-
       <header className="hero">
         <h1>Candidatos</h1>
         <p>Chamados novos que o sistema suspeita não serem conserto do que já existia — aguardando alguém decidir.</p>
