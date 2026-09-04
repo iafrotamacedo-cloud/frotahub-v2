@@ -27,14 +27,48 @@ type aClassificar struct {
 	Conta     string `json:"conta"`
 }
 
-// Candidato é uma linha de servicos_candidatos, como a tela lê.
+// Candidato é uma linha de servicos_candidatos, como a tela lê — já com
+// loja/conta/descrição do chamado, pro mesmo formato de linha de
+// trilogo/DadosTrilogo.tsx (a tela pede isso: "mesma formatação da lista do
+// Trílogo", só sem status/prioridade/responsável, que aqui não fazem
+// sentido — o candidato ainda nem entrou na fila de verdade).
 type Candidato struct {
+	ID        string `json:"id"`
+	ChamadoID string `json:"chamado_id"`
+	Ticket    int    `json:"ticket"`
+	Loja      string `json:"loja"`
+	Conta     string `json:"conta"`
+	Descricao string `json:"descricao"`
+	Motivo    string `json:"motivo"`
+	Status    string `json:"status"`
+	CriadoEm  string `json:"criado_em"`
+}
+
+// candidatoLinha é a forma bruta que o PostgREST devolve com o embed de
+// chamados/unidades — a API pública (Candidato) fica achatada, sem o
+// aninhamento, porque é isso que a tela espera.
+type candidatoLinha struct {
 	ID        string `json:"id"`
 	ChamadoID string `json:"chamado_id"`
 	Ticket    int    `json:"ticket"`
 	Motivo    string `json:"motivo"`
 	Status    string `json:"status"`
 	CriadoEm  string `json:"criado_em"`
+	Chamados  struct {
+		Conta     string `json:"conta"`
+		Descricao string `json:"descricao"`
+		Unidades  struct {
+			Nome string `json:"nome"`
+		} `json:"unidades"`
+	} `json:"chamados"`
+}
+
+func (l candidatoLinha) achatar() Candidato {
+	return Candidato{
+		ID: l.ID, ChamadoID: l.ChamadoID, Ticket: l.Ticket,
+		Loja: l.Chamados.Unidades.Nome, Conta: l.Chamados.Conta, Descricao: l.Chamados.Descricao,
+		Motivo: l.Motivo, Status: l.Status, CriadoEm: l.CriadoEm,
+	}
 }
 
 // RodarClassificacao avalia até LimitePorRodada chamados novos. Devolve
@@ -121,11 +155,17 @@ func (s *Servico) gravarCandidato(ctx context.Context, c aClassificar, candidato
 // ListarCandidatos devolve os pendentes, do mais novo para o mais velho — é
 // o card de Candidatos.
 func (s *Servico) ListarCandidatos(ctx context.Context, clienteID string) ([]Candidato, error) {
-	candidatos := []Candidato{}
+	brutas := []candidatoLinha{}
 	caminho := "servicos_candidatos?cliente_id=eq." + banco.Escapar(clienteID) +
-		"&status=eq.pendente&select=id,chamado_id,ticket,motivo,status,criado_em&order=criado_em.desc"
-	if err := s.bd.Buscar(ctx, caminho, &candidatos); err != nil {
+		"&status=eq.pendente" +
+		"&select=id,chamado_id,ticket,motivo,status,criado_em,chamados(conta,descricao,unidades(nome))" +
+		"&order=criado_em.desc"
+	if err := s.bd.Buscar(ctx, caminho, &brutas); err != nil {
 		return nil, err
+	}
+	candidatos := make([]Candidato, len(brutas))
+	for i, l := range brutas {
+		candidatos[i] = l.achatar()
 	}
 	return candidatos, nil
 }

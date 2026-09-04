@@ -8,6 +8,9 @@ export interface Candidato {
   id: string
   chamado_id: string
   ticket: number
+  loja: string
+  conta: string
+  descricao: string
   motivo: string
   status: string
   criado_em: string

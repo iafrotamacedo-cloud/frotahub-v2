@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
 import { FichaChamado } from '../../trilogo/FichaChamado'
+import { contaPorExtenso, quando } from '../../trilogo/tipos'
 import type { Perfil } from '../../../sessao/tipos'
 import type { Candidato } from '../tipos'
 import { PromoverCandidato } from '../PromoverCandidato'
@@ -84,25 +85,35 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
         <div className="vazio">Nenhum candidato pendente no momento.</div>
       ) : (
         <div className="tabela-rolo">
-          <table className="tabela">
+          <table className="tabela tri-tabela">
             <thead>
               <tr>
-                <th>Ticket</th>
+                <th className="c-ticket">Ticket</th>
+                <th className="c-loja">Loja</th>
+                <th className="c-conta">Conta</th>
+                <th>Descrição</th>
                 <th>Por que o sistema suspeita</th>
-                <th>Desde</th>
+                <th className="c-data">Criado em</th>
                 <th className="acoes-col">Ações</th>
               </tr>
             </thead>
             <tbody>
               {linhas.map(c => (
                 <tr key={c.id}>
-                  <td>
-                    <button type="button" className="sv-ticket" onClick={() => setAberto(c.ticket)}>
-                      <code>{c.ticket}</code>
+                  <td className="c-ticket">
+                    <button type="button" className="tri-num" onClick={() => setAberto(c.ticket)}>
+                      {c.ticket}
                     </button>
                   </td>
+                  <td className="c-loja"><span title={c.loja}>{c.loja || '—'}</span></td>
+                  <td className="c-conta">
+                    <span className={'tri-conta ' + (c.conta === 'civil' ? 'ct-civil' : 'ct-inst')}>
+                      {contaPorExtenso(c.conta)}
+                    </span>
+                  </td>
+                  <td><span title={c.descricao || undefined}>{(c.descricao || '—').replace(/\s+/g, ' ').trim()}</span></td>
                   <td>{c.motivo || '—'}</td>
-                  <td>{new Date(c.criado_em).toLocaleDateString('pt-BR')}</td>
+                  <td className="c-data tri-fraco">{quando(c.criado_em)}</td>
                   <td className="acoes">
                     <button
                       type="button" className="bt bt-mini" disabled={agindo === c.id}
