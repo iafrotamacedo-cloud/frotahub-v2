@@ -1,19 +1,35 @@
-/* rev 2 — o hub de Serviço (cards) e as listas
+/* rev 3 — o hub de Serviço (cards) e as listas
    O board de colunas antigo saiu (Kanban.tsx foi substituído por Hub.tsx +
    listas/ListaDeServicos.tsx, no mesmo padrão de cards de Orçamentos — ver
    componentes/Painel.tsx e estilos/escuro.css, .pn-*). Aqui só o que é
-   genuinamente específico de Serviço: o botão de voltar das sub-telas, o
-   link do ticket na tabela, e os formulários de anexar/lançar. */
+   genuinamente específico de Serviço: o botão de voltar das sub-telas, a
+   tabela compacta no visual do Trílogo (sem copiar .tri-tabela, que nasceu
+   para 11 colunas e 500 linhas sem botão), e os formulários de anexar/lançar. */
 
 .sv-voltar{margin:0 0 14px}
 
-.sv-ticket{
-  background:none;border:0;padding:0;cursor:pointer;font-family:var(--f);
-  color:var(--ink);text-decoration:underline;text-underline-offset:2px;
-}
-.sv-ticket:hover{color:var(--red)}
-
 .sv-extrair{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Compacta como a do Trílogo (letra, ticket, ponto da conta), mas com altura
+   que cabe o botão de ação da linha. .tri-tabela trava em min-width 1150px,
+   height 30px e overflow hidden — aqui as filas têm menos colunas e duas
+   ações por linha; copiar aquilo recortava o botão no meio. */
+.sv-tabela{font-size:13px;min-width:920px;table-layout:fixed}
+.sv-tabela th{padding:8px 9px;font-size:9.5px}
+.sv-tabela td{padding:0 9px;height:38px;white-space:nowrap;overflow:hidden;vertical-align:middle}
+.sv-tabela td[data-encolhe]>span{
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sv-tabela .c-ticket{width:66px}
+.sv-tabela .c-loja{width:168px}
+.sv-tabela .c-conta{width:92px}
+.sv-tabela .c-data{width:118px}
+.sv-tabela .c-valor{width:96px;text-align:right;font-variant-numeric:tabular-nums}
+.sv-tabela .c-status{width:148px}
+.sv-tabela .c-pco,.sv-tabela .c-nf{width:88px}
+.sv-tabela .acoes-col,.sv-tabela td.acoes{width:220px;overflow:visible}
+.sv-tabela td.acoes{text-align:right}
+.sv-tabela-livro{min-width:1080px}
 
 /* ---------- formulários dentro do painel de ação da ficha (fi-acao-extra) ---------- */
 .sv-form{display:flex;flex-direction:column;gap:2px}

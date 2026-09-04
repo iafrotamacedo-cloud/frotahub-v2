@@ -1,16 +1,23 @@
-// rev 2 — a pré-triagem: "será que isto é Serviço?"
+// rev 3 — a pré-triagem: "será que isto é Serviço?"
 //
 // Só mostra PENDENTES — descartado é definitivo e resolvido já virou card no
 // funil (ver baleryan/.../servicos/candidatos.go, ListarCandidatos). Sem
 // paginação: é fila de decisão, não histórico.
+//
+// A TABELA É A DO TRÍLOGO, NÃO UMA LISTA RESUMIDA
+//
+//	Ticket, loja, conta, descrição, criado em — o mesmo desenho de
+//	trilogo/DadosTrilogo.tsx. Status, prioridade e responsável ficam de fora:
+//	o candidato ainda nem entrou na fila de verdade. O motivo do palpite e
+//	os dois botões de decisão são o que esta tela acrescenta.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
 import { FichaChamado } from '../../trilogo/FichaChamado'
-import { contaPorExtenso, quando } from '../../trilogo/tipos'
 import type { Perfil } from '../../../sessao/tipos'
 import type { Candidato } from '../tipos'
 import { PromoverCandidato } from '../PromoverCandidato'
+import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, useEncolher } from '../celulas'
 
 type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato }
 
@@ -23,6 +30,7 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
   // O ticket aberto na ficha — igual às outras listas de Serviço (ver
   // ListaDeServicos.tsx): a lista some, a ficha do Trílogo entra no lugar.
   const [aberto, setAberto] = useState<number | null>(null)
+  const corpo = useEncolher(linhas)
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -85,7 +93,7 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
         <div className="vazio">Nenhum candidato pendente no momento.</div>
       ) : (
         <div className="tabela-rolo">
-          <table className="tabela tri-tabela">
+          <table className="tabela sv-tabela">
             <thead>
               <tr>
                 <th className="c-ticket">Ticket</th>
@@ -97,24 +105,23 @@ export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => v
                 <th className="acoes-col">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody ref={corpo}>
               {linhas.map(c => (
-                <tr key={c.id}>
-                  <td className="c-ticket">
-                    <button type="button" className="tri-num" onClick={() => setAberto(c.ticket)}>
-                      {c.ticket}
-                    </button>
+                <tr
+                  key={c.id}
+                  className="tri-linha"
+                  onClick={() => setAberto(c.ticket)}
+                  title={`Abrir o chamado ${c.ticket}`}
+                >
+                  <CelulaTicket ticket={c.ticket} aoAbrir={() => setAberto(c.ticket)} />
+                  <CelulaLoja loja={c.loja} />
+                  <CelulaConta conta={c.conta} />
+                  <CelulaDescricao texto={c.descricao} />
+                  <td data-encolhe="motivo" data-base="13" data-peso="400">
+                    <span title={c.motivo || undefined}>{c.motivo || '—'}</span>
                   </td>
-                  <td className="c-loja"><span title={c.loja}>{c.loja || '—'}</span></td>
-                  <td className="c-conta">
-                    <span className={'tri-conta ' + (c.conta === 'civil' ? 'ct-civil' : 'ct-inst')}>
-                      {contaPorExtenso(c.conta)}
-                    </span>
-                  </td>
-                  <td><span title={c.descricao || undefined}>{(c.descricao || '—').replace(/\s+/g, ' ').trim()}</span></td>
-                  <td>{c.motivo || '—'}</td>
-                  <td className="c-data tri-fraco">{quando(c.criado_em)}</td>
-                  <td className="acoes">
+                  <CelulaData iso={c.criado_em} />
+                  <td className="acoes" onClick={e => e.stopPropagation()}>
                     <button
                       type="button" className="bt bt-mini" disabled={agindo === c.id}
                       onClick={() => setJanela({ tipo: 'promover', alvo: c })}

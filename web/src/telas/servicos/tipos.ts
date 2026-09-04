@@ -1,4 +1,4 @@
-// rev 2 — o que as telas de Serviço manipulam
+// rev 3 — o que as telas de Serviço manipulam
 //
 // Espelha exatamente o que o motor devolve — ver baleryan/interno/modulos/
 // servicos (painel.go, kanban.go, candidatos.go) e trilogo/servico.go para os

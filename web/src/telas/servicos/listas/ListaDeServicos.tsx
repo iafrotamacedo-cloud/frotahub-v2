@@ -1,4 +1,4 @@
-// rev 1 — a lista genérica das 9 filas de Serviço
+// rev 2 — a lista genérica das 9 filas de Serviço
 //
 // UMA TELA SÓ, PARAMETRIZADA — NÃO NOVE ARQUIVOS QUASE IDÊNTICOS
 //
@@ -8,16 +8,18 @@
 //	(status/pco) e na ação que a ficha oferece. Nove cópias do mesmo
 //	componente seriam nove lugares para um mesmo defeito se esconder.
 //
-// MESMO PADRÃO DE telas/orcamentos/Arquivos.tsx: tabela com <colgroup>,
-// paginação reaproveitada de lá (Paginacao), busca com debounce.
+// A TABELA SEGUE trilogo/DadosTrilogo.tsx (ticket, loja, conta, descrição),
+// mais valor e a ação desta fila. Paginação reaproveitada de
+// telas/orcamentos/Arquivos.tsx.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
 import { Paginacao } from '../../orcamentos/Arquivos'
 import type { Pagina } from '../../orcamentos/tipos'
 import type { Perfil } from '../../../sessao/tipos'
-import { CONTA_ROTULO, type ItemLista, type Status } from '../tipos'
+import type { ItemLista, Status } from '../tipos'
 import { FichaDoTicket, type Acao } from '../FichaDoTicket'
+import { CelulaConta, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from '../celulas'
 
 interface Props {
   titulo: string
@@ -39,6 +41,7 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, 
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
   const [aberto, setAberto] = useState<ItemLista | null>(null)
+  const corpo = useEncolher(pagina)
 
   useEffect(() => {
     const t = setTimeout(() => { setBuscaAplicada(busca.trim()); setNumeroDaPagina(1) }, 350)
@@ -117,39 +120,37 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil, 
       ) : (
         <>
           <div className="tabela-rolo">
-            <table className="tabela">
+            <table className="tabela sv-tabela">
               <thead>
                 <tr>
-                  <th>Ticket</th>
-                  <th>Loja</th>
-                  <th>Conta</th>
-                  <th>Valor</th>
-                  <th className="acoes-col">Ações</th>
+                  <th className="c-ticket">Ticket</th>
+                  <th className="c-loja">Loja</th>
+                  <th className="c-conta">Conta</th>
+                  <th>Descrição</th>
+                  <th className="c-valor">Valor</th>
+                  {status !== 'faturado' && <th className="acoes-col">Ações</th>}
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={corpo}>
                 {pagina!.linhas.map(it => (
-                  <tr key={it.id}>
-                    <td>
-                      <button type="button" className="sv-ticket" onClick={() => setAberto(it)}>
-                        <code>{it.ticket}</code>
-                      </button>
-                    </td>
-                    <td>{it.loja ?? '—'}</td>
-                    <td>{CONTA_ROTULO[it.conta] ?? it.conta}</td>
-                    <td>
-                      {it.orcamento_valor != null
-                        ? it.orcamento_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                        : '—'}
-                    </td>
-                    <td className="acoes">
-                      <button type="button" className="bt bt-mini" onClick={() => setAberto(it)}>Abrir</button>
-                      {status !== 'faturado' && (
+                  <tr
+                    key={it.id}
+                    className="tri-linha"
+                    onClick={() => setAberto(it)}
+                    title={`Abrir o chamado ${it.ticket}`}
+                  >
+                    <CelulaTicket ticket={it.ticket} aoAbrir={() => setAberto(it)} />
+                    <CelulaLoja loja={it.loja} />
+                    <CelulaConta conta={it.conta} />
+                    <CelulaDescricao texto={it.chamado_descricao} />
+                    <CelulaValor valor={it.orcamento_valor} />
+                    {status !== 'faturado' && (
+                      <td className="acoes" onClick={e => e.stopPropagation()}>
                         <button type="button" className="bt bt-mini bt-neutro" onClick={() => void voltarProContrato(it)}>
                           Voltar pro contrato
                         </button>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

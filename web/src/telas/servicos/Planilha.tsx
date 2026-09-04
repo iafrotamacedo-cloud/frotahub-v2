@@ -1,15 +1,19 @@
-// rev 1 — a Planilha de controle: todos os serviços, com filtro e exportação
+// rev 2 — a Planilha de controle: todos os serviços, com filtro e exportação
 //
 // MESMO PADRÃO DE telas/trilogo/DadosTrilogo.tsx: filtros na faixa de cima,
-// "Extrair" com PDF/Excel — a mesma fonte (servicos_lista) que a tela lê.
+// tabela no visual do Trílogo (ticket, loja, conta, descrição), "Extrair"
+// com PDF/Excel — a mesma fonte (servicos_lista) que a tela lê.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { Paginacao } from '../orcamentos/Arquivos'
 import type { Pagina } from '../orcamentos/tipos'
+import type { Perfil } from '../../sessao/tipos'
+import { FichaChamado } from '../trilogo/FichaChamado'
 import { CONTA_ROTULO, STATUS_ORDEM, STATUS_ROTULO, type ItemLista } from './tipos'
+import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from './celulas'
 
-export function Planilha({ voltar }: { voltar: () => void }) {
+export function Planilha({ perfil, voltar }: { perfil: Perfil; voltar: () => void }) {
   const [status, setStatus] = useState('')
   const [conta, setConta] = useState('')
   const [busca, setBusca] = useState('')
@@ -19,6 +23,8 @@ export function Planilha({ voltar }: { voltar: () => void }) {
   const [por, setPor] = useState(100)
   const [erro, setErro] = useState<string | null>(null)
   const [extraindo, setExtraindo] = useState<'pdf' | 'xlsx' | null>(null)
+  const [aberto, setAberto] = useState<number | null>(null)
+  const corpo = useEncolher(pagina)
 
   useEffect(() => {
     const t = setTimeout(() => { setBuscaAplicada(busca.trim()); setNumeroDaPagina(1) }, 350)
@@ -60,6 +66,16 @@ export function Planilha({ voltar }: { voltar: () => void }) {
     }
   }
 
+  if (aberto !== null) {
+    return (
+      <FichaChamado
+        numero={String(aberto)}
+        perfil={perfil}
+        voltar={() => setAberto(null)}
+      />
+    )
+  }
+
   return (
     <>
       <button type="button" className="bt bt-neutro sv-voltar" onClick={voltar}>‹ Voltar</button>
@@ -95,8 +111,8 @@ export function Planilha({ voltar }: { voltar: () => void }) {
           <span>Conta</span>
           <select value={conta} onChange={e => { setConta(e.target.value); setNumeroDaPagina(1) }}>
             <option value="">Todas</option>
-            <option value="instalacoes">Serviço Instalações</option>
-            <option value="civil">Serviço Civil</option>
+            <option value="instalacoes">{CONTA_ROTULO.instalacoes}</option>
+            <option value="civil">{CONTA_ROTULO.civil}</option>
           </select>
         </label>
       </div>
@@ -110,34 +126,37 @@ export function Planilha({ voltar }: { voltar: () => void }) {
       ) : (
         <>
           <div className="tabela-rolo">
-            <table className="tabela">
+            <table className="tabela sv-tabela sv-tabela-livro">
               <thead>
                 <tr>
-                  <th>Ticket</th>
-                  <th>Loja</th>
-                  <th>Conta</th>
-                  <th>Status</th>
-                  <th>Valor</th>
-                  <th>PCO</th>
-                  <th>Nota fiscal</th>
-                  <th>Entrou em</th>
+                  <th className="c-ticket">Ticket</th>
+                  <th className="c-loja">Loja</th>
+                  <th className="c-conta">Conta</th>
+                  <th>Descrição</th>
+                  <th className="c-status">Status</th>
+                  <th className="c-valor">Valor</th>
+                  <th className="c-pco">PCO</th>
+                  <th className="c-nf">Nota fiscal</th>
+                  <th className="c-data">Entrou em</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={corpo}>
                 {pagina!.linhas.map(it => (
-                  <tr key={it.id} className={it.removido_em ? 'inativa' : ''}>
-                    <td><code>{it.ticket}</code></td>
-                    <td>{it.loja ?? '—'}</td>
-                    <td>{CONTA_ROTULO[it.conta] ?? it.conta}</td>
-                    <td>{STATUS_ROTULO[it.status] ?? it.status}</td>
-                    <td>
-                      {it.orcamento_valor != null
-                        ? it.orcamento_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                        : '—'}
-                    </td>
-                    <td>{it.pco_numero ?? '—'}</td>
-                    <td>{it.nf_numero ?? (it.com_nf ? 'sim' : '—')}</td>
-                    <td>{new Date(it.entrou_em).toLocaleDateString('pt-BR')}</td>
+                  <tr
+                    key={it.id}
+                    className={'tri-linha' + (it.removido_em ? ' inativa' : '')}
+                    onClick={() => setAberto(it.ticket)}
+                    title={`Abrir o chamado ${it.ticket}`}
+                  >
+                    <CelulaTicket ticket={it.ticket} aoAbrir={() => setAberto(it.ticket)} />
+                    <CelulaLoja loja={it.loja} />
+                    <CelulaConta conta={it.conta} />
+                    <CelulaDescricao texto={it.chamado_descricao} />
+                    <td className="c-status">{STATUS_ROTULO[it.status] ?? it.status}</td>
+                    <CelulaValor valor={it.orcamento_valor} />
+                    <td className="c-pco">{it.pco_numero ?? '—'}</td>
+                    <td className="c-nf">{it.nf_numero ?? (it.com_nf ? 'sim' : '—')}</td>
+                    <CelulaData iso={it.entrou_em} />
                   </tr>
                 ))}
               </tbody>

@@ -1,4 +1,4 @@
-// rev 1 — a pré-triagem de Serviço
+// rev 2 — a pré-triagem de Serviço
 //
 // "SERÁ QUE ISTO É SERVIÇO?" — RESPOSTA DE MÁQUINA, PROVISÓRIA
 //
@@ -54,21 +54,28 @@ type candidatoLinha struct {
 	Motivo    string `json:"motivo"`
 	Status    string `json:"status"`
 	CriadoEm  string `json:"criado_em"`
-	Chamados  struct {
+	Chamados  *struct {
 		Conta     string `json:"conta"`
 		Descricao string `json:"descricao"`
-		Unidades  struct {
+		Unidades  *struct {
 			Nome string `json:"nome"`
 		} `json:"unidades"`
 	} `json:"chamados"`
 }
 
 func (l candidatoLinha) achatar() Candidato {
-	return Candidato{
+	c := Candidato{
 		ID: l.ID, ChamadoID: l.ChamadoID, Ticket: l.Ticket,
-		Loja: l.Chamados.Unidades.Nome, Conta: l.Chamados.Conta, Descricao: l.Chamados.Descricao,
 		Motivo: l.Motivo, Status: l.Status, CriadoEm: l.CriadoEm,
 	}
+	if l.Chamados != nil {
+		c.Conta = l.Chamados.Conta
+		c.Descricao = l.Chamados.Descricao
+		if l.Chamados.Unidades != nil {
+			c.Loja = l.Chamados.Unidades.Nome
+		}
+	}
+	return c
 }
 
 // RodarClassificacao avalia até LimitePorRodada chamados novos. Devolve
