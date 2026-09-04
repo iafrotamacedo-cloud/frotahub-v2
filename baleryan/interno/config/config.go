@@ -228,6 +228,48 @@ type Trilogo struct {
 	//	chutar: sem o id, a rota responde com a frase que diz o que falta.
 	EmpresaInstalacoes int
 	EmpresaCivil       int
+
+	// O id do FORNECEDOR (supplier) dentro do Trílogo, que a criação de
+	// orçamento de Serviço precisa mandar em `supplierId`.
+	//
+	// OUTRO ESPAÇO DE NÚMEROS — não confundir com Empresa*: aquele é o
+	// `CompanyId` do CreateTicketCost (ciclo de Materiais do contrato); este é
+	// o `supplierId` do CreateBudget (ciclo de Serviço). Descobertos em datas
+	// e telas diferentes, e nada garante que coincidam.
+	//
+	// O 23927 de Instalações foi levantado em 04/09/2026, criando e apagando
+	// um orçamento de teste (R$0,01) no ticket 135613. O da Civil nasce zero,
+	// mesma regra do EmpresaCivil: zero é "não sei", e "não sei" recusa.
+	FornecedorInstalacoes int
+	FornecedorCivil       int
+
+	// Os dois valores especiais de "Responsável Executante" que tiram um
+	// chamado da fila de manutenção do contrato e colocam na fila de Serviço.
+	//
+	// NENHUM DOS DOIS SE CHAMA "Serviço X" DENTRO DO TRÍLOGO
+	//
+	//	O de Instalações (67277) é o único com o nome literal "Serviço
+	//	Instalações". O de Civil (67264) é uma PESSOA real cadastrada como
+	//	responsável — Romario Santos, encarregado do setor — não existe
+	//	nenhum "Serviço Civil" de verdade lá dentro. A correção veio do dono
+	//	em 04/09/2026, depois do primeiro levantamento ter concluído (errado)
+	//	que Civil não existia.
+	//
+	//	O NOSSO sistema trata os dois IDs do mesmo jeito (gatilho de entrada
+	//	na fila de Serviço) e o FRONT SEMPRE mostra "Serviço Civil" pro id
+	//	67264 — nunca o nome "Romario Santos" cru, que confundiria quem
+	//	opera. Ver trilogo.RotuloResponsavelServico.
+	ResponsavelServicoInstalacoes int
+	ResponsavelServicoCivil       int
+
+	// O NOME CRU, exatamente como o Trílogo devolve e como a leitura do
+	// robô grava em `chamados.responsavel` (robo.go: `d.ServiceCompanyAssignee.Name`
+	// — a API de leitura do chamado só traz o NOME, nunca o id). É por aqui,
+	// não pelos ids acima, que o job de Candidatos (cmd/servicos) reconhece
+	// que um chamado já lido entrou na fila de Serviço: comparando texto com
+	// `chamados.responsavel`, não chamando o Trílogo de novo.
+	NomeResponsavelServicoInstalacoes string
+	NomeResponsavelServicoCivil       string
 }
 
 // EmpresaDaConta devolve o id da empresa prestadora, ou zero se não sabemos.
@@ -236,6 +278,42 @@ func (t Trilogo) EmpresaDaConta(conta string) int {
 		return t.EmpresaCivil
 	}
 	return t.EmpresaInstalacoes
+}
+
+// FornecedorDaConta devolve o supplierId para orçamento de Serviço, ou zero
+// se não sabemos (hoje, sempre zero para "civil").
+func (t Trilogo) FornecedorDaConta(conta string) int {
+	if conta == "civil" {
+		return t.FornecedorCivil
+	}
+	return t.FornecedorInstalacoes
+}
+
+// ResponsavelServicoDaConta devolve o id do responsável especial de Serviço,
+// ou zero se não sabemos (hoje, sempre zero para "civil").
+func (t Trilogo) ResponsavelServicoDaConta(conta string) int {
+	if conta == "civil" {
+		return t.ResponsavelServicoCivil
+	}
+	return t.ResponsavelServicoInstalacoes
+}
+
+// ContaDoNomeResponsavelServico devolve qual conta aquele NOME CRU de
+// responsável representa, ou "" se o texto não bate com nenhum dos dois
+// configurados — é a metade "detectar" do gatilho automático (a metade
+// "agir" é MudarResponsavel, em trilogo/servico.go).
+func (t Trilogo) ContaDoNomeResponsavelServico(nomeCru string) string {
+	if nomeCru == "" {
+		return ""
+	}
+	switch nomeCru {
+	case t.NomeResponsavelServicoInstalacoes:
+		return "instalacoes"
+	case t.NomeResponsavelServicoCivil:
+		return "civil"
+	default:
+		return ""
+	}
 }
 
 // SoLinkPadrao é a lista que vale quando ninguém disse outra coisa.
@@ -301,6 +379,31 @@ type IA struct {
 
 func (i IA) Ligada() bool { return i.Chave != "" }
 
+// Groq classifica candidato a Serviço (Manutenção › Serviços › Candidatos).
+//
+// POR QUE NÃO É O MESMO `IA` DO GEMINI
+//
+//	São dois provedores DIFERENTES, com chave e cota diferentes — e é
+//	proposital: a leitura de nota já usa toda a cota do Gemini, e classificar
+//	até 200 chamados/dia por cima dela estourava o limite. O Groq tem um
+//	tier gratuito de verdade (14.400 requisições/dia, reseta todo dia, sem
+//	cartão) — levantado em 03/09/2026.
+type Groq struct {
+	Chave  string
+	Modelo string
+	// Quantos chamados o job de Candidatos classifica numa rodada. Existe
+	// como teto de segurança, não porque a cota aperte (200/dia cabe folgado
+	// em 14.400) — é para um pico de chamados num único dia não virar uma
+	// rodada de horas.
+	LimitePorRodada int
+}
+
+func (g Groq) Ligado() bool { return g.Chave != "" }
+
+// ModeloGroqPadrao é o modelo leve — rápido e mais que suficiente para uma
+// classificação binária de uma frase.
+const ModeloGroqPadrao = "llama-3.1-8b-instant"
+
 // Runtime é como o processo roda.
 type Runtime struct {
 	Porta       int
@@ -317,6 +420,7 @@ type Config struct {
 	R2       R2
 	Trilogo  Trilogo
 	IA       IA
+	Groq     Groq
 	Runtime  Runtime
 	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
 	Papel     string
@@ -335,6 +439,7 @@ func (c Config) Resumo() map[string]any {
 		"supabase": c.Supabase.URL != "",
 		"r2":       c.R2.Ligado(),
 		"ia":       c.IA.Ligada(),
+		"groq":     c.Groq.Ligado(),
 		"trilogo":  c.Trilogo.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
@@ -377,6 +482,20 @@ func Carregar() (*Config, error) {
 		// propósito: zero é "não sei", e "não sei" recusa o lançamento.
 		EmpresaInstalacoes: l.inteiro("TRILOGO_EMPRESA_INSTALACOES", 35, 0, 1<<30),
 		EmpresaCivil:       l.inteiro("TRILOGO_EMPRESA_CIVIL", 0, 0, 1<<30),
+
+		FornecedorInstalacoes: l.inteiro("TRILOGO_FORNECEDOR_INSTALACOES", 23927, 0, 1<<30),
+		FornecedorCivil:       l.inteiro("TRILOGO_FORNECEDOR_CIVIL", 0, 0, 1<<30),
+
+		// 67277 = "Serviço Instalações" (nome literal). 67264 = Romario
+		// Santos, encarregado do setor Civil — é ELE que faz o papel de
+		// "Serviço Civil" do lado de lá; o rótulo bonito é só nosso.
+		ResponsavelServicoInstalacoes: l.inteiro("TRILOGO_RESPONSAVEL_SERVICO_INSTALACOES", 67277, 0, 1<<30),
+		ResponsavelServicoCivil:       l.inteiro("TRILOGO_RESPONSAVEL_SERVICO_CIVIL", 67264, 0, 1<<30),
+
+		// O NOME, não o id — ver o comentário do campo. Mesma dupla de contas,
+		// mesmos valores levantados em 04/09/2026.
+		NomeResponsavelServicoInstalacoes: l.texto("TRILOGO_NOME_RESPONSAVEL_SERVICO_INSTALACOES", "Serviço Instalações", false, ""),
+		NomeResponsavelServicoCivil:       l.texto("TRILOGO_NOME_RESPONSAVEL_SERVICO_CIVIL", "Romario Santos", false, ""),
 	}
 
 	// A leitura da nota, camada 3. Sem chave, o motor continua subindo: as
@@ -394,6 +513,15 @@ func Carregar() (*Config, error) {
 		IntervaloSegundos: l.inteiro("GEMINI_INTERVALO", 0, 0, 600),
 	}
 
+	// A classificação de Candidatos a Serviço. Sem chave, o job de Candidatos
+	// simplesmente não roda — não é obrigatória em lugar nenhum, nem em
+	// produção: o gatilho oficial (mudar o responsável) funciona sem ela.
+	groq := Groq{
+		Chave:           l.segredo("GROQ_API_KEY", false, 0, ""),
+		Modelo:          l.texto("GROQ_MODELO", ModeloGroqPadrao, false, ""),
+		LimitePorRodada: l.inteiro("GROQ_LIMITE_POR_RODADA", 200, 1, 5000),
+	}
+
 	// QUEM ESTÁ LIGANDO
 	//   O motor e o robô rodam o mesmo pacote de configuração, mas precisam de
 	//   coisas diferentes. Exigir do robô o tempero do PIN — que ele nunca usa —
@@ -409,7 +537,7 @@ func Carregar() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Runtime: rt,
+		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Runtime: rt,
 		Papel: papel,
 		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),

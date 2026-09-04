@@ -9,6 +9,8 @@
 //   derivado do título, de propósito: título é texto de tela e muda quando alguém
 //   acha uma palavra melhor. Se o endereço acompanhasse o título, todo favorito e
 //   todo link colado numa conversa apontariam para o vazio no dia seguinte.
+import { servicosMenu } from './modulos/servicos'
+
 export interface ItemMenu {
   t: string
   /** O pedaço deste item no endereço. Curto, sem acento, e ESTÁVEL. */
@@ -37,7 +39,7 @@ export type Icone =
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela =
   | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
-  | 'consolidacao'
+  | 'consolidacao' | 'servicos-hub'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -261,7 +263,7 @@ const ARVORE_COMPLETA: ItemMenu[] = [
           },
         ],
       },
-      { t: 'Serviços', rota: 'servicos', icone: 'servicos', desc: 'Serviços avulsos e outros contratos', breve: true },
+      servicosMenu,
     ],
   },
   {

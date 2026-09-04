@@ -11,6 +11,7 @@ import './estilos/orcamentos.css'
 // não muda nada — mas se um dia alguém tirar o invólucro, é aqui que se vê que
 // ela passou a poder pisar nas outras.
 import './estilos/estatisticas.css'
+import './estilos/servicos.css'
 import App from './App'
 
 const raiz = document.getElementById('raiz')

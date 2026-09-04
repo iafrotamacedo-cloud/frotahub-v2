@@ -21,6 +21,7 @@ import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
+import { Hub as ServicosHub } from './telas/servicos/Hub'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
@@ -334,6 +335,13 @@ function Casca() {
             <APagar voltar={() => navegar(caminho.slice(0, -1))} />
           ) : atual?.tela === 'consolidacao' ? (
             <Consolidacao voltar={() => navegar(caminho.slice(0, -1))} />
+          ) : atual?.tela === 'servicos-hub' ? (
+            <ServicosHub
+              onde={extra[0]}
+              perfil={perfil}
+              abrir={onde => navegar(caminho, [onde])}
+              voltar={() => navegar(caminho)}
+            />
           ) : atual?.tela === 'faturar' ? (
             <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />
           ) : atual?.tela === 'orcamentos' ? (
@@ -350,6 +358,7 @@ function Casca() {
             // sistema, e faz um link para um chamado abrir aquele chamado.
             <DadosTrilogo
               ticket={extra[0]}
+              perfil={perfil}
               abrir={numero => navegar(caminho, [String(numero)])}
               voltar={() => navegar(caminho)}
             />

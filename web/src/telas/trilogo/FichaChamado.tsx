@@ -14,30 +14,46 @@
 //   colunas — foi desenhada e descartada: ela faz a ficha passar de uma página e
 //   quebra a leitura ao virar de coluna. Do jeito escolhido, a ficha cabe em UMA
 //   folha tendo o chamado 5 ou 80 eventos.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
+import type { Perfil } from '../../sessao/tipos'
 import {
   classeDaPrioridade, classeDoStatus, contaPorExtenso, ehImagem, ehVideo, emReais,
   linhaDoTempo, quando, tamanhoLegivel,
   type Anexo, type Ficha,
 } from './tipos'
 
+function alcanca(perfil: Perfil, rotina: string): boolean {
+  return perfil.nivel === 'builder' || perfil.rotinas.includes(rotina)
+}
+
 interface Props {
   numero: string
+  perfil: Perfil
   voltar: () => void
   anterior?: () => void
   proximo?: () => void
   posicao?: string
+  /**
+   * Um painel de ação extra, entre o cabeçalho e a descrição — é como o
+   * módulo de Serviços (FichaDoTicket.tsx) reaproveita esta ficha inteira
+   * sem duplicar o layout de timeline/fotos/custos: passa o formulário
+   * específico da fila (inserir orçamento, lançar, PCO, nota fiscal) por
+   * aqui, em vez de reconstruir a ficha do zero.
+   */
+  acaoExtra?: ReactNode
 }
 
-export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Props) {
+export function FichaChamado({ numero, perfil, voltar, anterior, proximo, posicao, acaoExtra }: Props) {
   const [ficha, setFicha] = useState<Ficha | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [aberta, setAberta] = useState<number | null>(null)
   // O documento do custo, aberto na tela. Ver documento é na tela, sempre.
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+
+  const podeMarcarServico = alcanca(perfil, 'CONTRATO_SERVICO_GERENCIAR')
 
   useEffect(() => {
     let vivo = true
@@ -128,11 +144,14 @@ export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Pro
                   <span className="fi-rotulo">Responsável</span>
                   <b>{c!.responsavel || '—'}</b>
                 </div>
+                {podeMarcarServico && <BotaoMarcarServico numero={numero} />}
                 {c!.prioridade
                   ? <span className={'pino ' + classeDaPrioridade(c!.prioridade)}>{c!.prioridade}</span>
                   : <span className="pino pr-outra">sem prioridade</span>}
               </div>
             </div>
+
+            {acaoExtra && <div className="fi-acao-extra">{acaoExtra}</div>}
 
             <div className="fi-corpo">
               <div className="fi-esquerda">
@@ -257,6 +276,55 @@ export function FichaChamado({ numero, voltar, anterior, proximo, posicao }: Pro
 }
 
 // ---------------------------------------------------------------------------
+
+// O botão "Marcar como Serviço" — a entrada MANUAL no Kanban de Serviços,
+// direto de dentro da ficha do chamado (mesmo caminho de kanban.go,
+// MarcarComoServico: muda o responsável no Trílogo e já cria o card, sem
+// pedir "conta" — o motor já sabe pela própria conta do chamado).
+//
+// TUDO NUMA LINHA SÓ, DE PROPÓSITO
+//
+//	fi-l2 tem altura fixa (38px, ver trilogo.css) — não há onde crescer uma
+//	segunda linha de mensagem sem quebrar o cabeçalho da ficha. Por isso o
+//	resultado (sucesso ou erro) vira o próprio rótulo do botão, curto, com o
+//	detalhe completo só no `title` (o balão que aparece ao passar o mouse).
+function BotaoMarcarServico({ numero }: { numero: string }) {
+  const [estado, setEstado] = useState<'ocioso' | 'marcando' | 'feito' | 'erro'>('ocioso')
+  const [mensagem, setMensagem] = useState<string | null>(null)
+
+  async function marcar() {
+    setEstado('marcando')
+    setMensagem(null)
+    try {
+      const r = await motor<{ ok: boolean; responsavel: string; ja_estava_na_fila?: boolean }>(
+        `/servicos/chamados/${encodeURIComponent(numero)}/fila`, { metodo: 'POST' },
+      )
+      setEstado('feito')
+      setMensagem(r.ja_estava_na_fila
+        ? `Já estava na fila de Serviço — responsável: ${r.responsavel}.`
+        : `Marcado como Serviço — responsável agora é ${r.responsavel}.`)
+    } catch (e) {
+      setEstado('erro')
+      setMensagem(e instanceof ErroMotor ? e.message : 'Não consegui marcar como Serviço.')
+    }
+  }
+
+  if (estado === 'feito') {
+    return <span className="fi-servico-ok" title={mensagem ?? undefined}>✓ Marcado como Serviço</span>
+  }
+
+  return (
+    <button
+      type="button"
+      className={'bt bt-mini' + (estado === 'erro' ? ' fi-servico-erro' : '')}
+      disabled={estado === 'marcando'}
+      onClick={() => void marcar()}
+      title={estado === 'erro' ? mensagem ?? undefined : undefined}
+    >
+      {estado === 'marcando' ? 'Marcando...' : estado === 'erro' ? 'Tentar de novo' : 'Marcar como Serviço'}
+    </button>
+  )
+}
 
 function Miniatura({ anexo, aoAbrir }: { anexo: Anexo; aoAbrir: () => void }) {
   // Vídeo não foi copiado para o nosso armazém — foi decisão: eram 86% do peso.

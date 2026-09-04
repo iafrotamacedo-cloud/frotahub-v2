@@ -1,0 +1,54 @@
+name: Serviço — Candidatos e gatilho automático
+# Duas coisas por rodada: alcança quem já entrou na fila de Serviço de
+# verdade (gatilho automático) e classifica quem é chamado novo (Candidatos,
+# via Groq). Ver o cabeçalho de cmd/servicos/main.go.
+#
+# CINCO MINUTOS DEPOIS DO ROBÔ DO TRÍLOGO, DE PROPÓSITO
+#   Esta rodada só enxerga o que `robo-trilogo.yml` já leu. Rodar junto
+#   corre o risco de o chamado mais novo ainda não estar em `chamados`; um
+#   atraso pequeno garante que a leitura da vez já terminou (a rodada
+#   incremental do robô leva segundos, não minutos).
+on:
+  schedule:
+    - cron: "5 9,11,13,15,17,19,21,23 * * *"
+
+  workflow_dispatch: {}
+
+# Mesma proteção do robô do Trílogo: se a rodada de agora ainda estiver
+# rodando quando a próxima chegar, a nova ESPERA, não cancela.
+concurrency:
+  group: servicos-candidatos
+  cancel-in-progress: false
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          # O motor não tem dependência externa nenhuma — sem go.sum pra
+          # cachear (mesma nota do robo-trilogo.yml).
+          cache: false
+
+      - name: Rodar
+        working-directory: baleryan
+        env:
+          PAPEL: robo
+          CLIENTE_SLUG: frota-macedo
+
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+
+          TRILOGO_EMAIL_INSTALACOES: ${{ secrets.TRILOGO_EMAIL_INSTALACOES }}
+          TRILOGO_SENHA_INSTALACOES: ${{ secrets.TRILOGO_SENHA_INSTALACOES }}
+          TRILOGO_EMAIL_CIVIL: ${{ secrets.TRILOGO_EMAIL_CIVIL }}
+          TRILOGO_SENHA_CIVIL: ${{ secrets.TRILOGO_SENHA_CIVIL }}
+
+          # Sem esta chave o job ainda roda — só a detecção de gatilho, sem
+          # classificar candidato nenhum (ver cmd/servicos/main.go).
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: go run ./cmd/servicos

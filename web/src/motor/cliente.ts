@@ -191,6 +191,47 @@ export async function enviarArquivos<T>(caminho: string, arquivos: File[]): Prom
 }
 
 /**
+ * Envia um FormData já montado — campos e arquivos juntos.
+ *
+ * POR QUE NÃO É `enviarArquivos`
+ *   Aquela função só sabe montar `FormData` a partir de uma lista de `File`,
+ *   tudo sob a mesma chave `arquivos`. A rota de orçamento de Serviço
+ *   (mão de obra e materiais em JSON, junto dos PDFs) precisa de campos com
+ *   nomes diferentes lado a lado — quem monta o `FormData` é a tela, que sabe
+ *   os nomes dos campos; esta função só repete a autenticação e o
+ *   tratamento de erro que `enviarArquivos` já tem, sem duplicar os dois.
+ */
+export async function enviarFormulario<T>(caminho: string, forma: FormData): Promise<T> {
+  if (!BASE) {
+    throw new ErroMotor(0, 'O endereço do motor não foi configurado nesta publicação (VITE_MOTOR_URL).')
+  }
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new ErroMotor(401, 'A sua sessão expirou. Entre de novo.')
+
+  let resposta: Response
+  try {
+    resposta = await fetch(BASE + caminho, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: forma,
+    })
+  } catch {
+    throw new ErroMotor(0, 'Não consegui enviar o formulário. Confira a conexão e tente de novo.')
+  }
+
+  const bruto = await resposta.text()
+  let corpo: unknown = null
+  if (bruto) { try { corpo = JSON.parse(bruto) } catch { corpo = null } }
+
+  if (!resposta.ok) {
+    const msg = (corpo as { erro?: string } | null)?.erro
+    throw new ErroMotor(resposta.status, msg || 'Não consegui enviar o formulário.', corpo)
+  }
+  return corpo as T
+}
+
+/**
  * Traz um arquivo do motor como endereço de objeto, para MOSTRAR na tela.
  *
  * POR QUE NÃO DÁ PARA APONTAR UM `iframe` DIRETO PARA O MOTOR

@@ -30,6 +30,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/servicos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
@@ -75,8 +76,17 @@ func main() {
 	// O armazém é um só, compartilhado: o robô o usa para GRAVAR arquivo, e a
 	// tela para assinar o endereço temporário que MOSTRA esse arquivo.
 	arm := armazem.Novo(cfg)
-	trilogo.NovoModulo(trilogo.Novo(cfg, bd, arm), seg, m.perm, bd).Montar(mux)
+	trilogoSvc := trilogo.Novo(cfg, bd, arm)
+	trilogo.NovoModulo(trilogoSvc, seg, m.perm, bd).Montar(mux)
 	trilogo.NovaConsulta(bd, seg, m.perm, arm).Montar(mux)
+	// Serviço (fila, cotação, orçamento, Candidatos, Kanban) fica INTEIRO no
+	// pacote servicos, ACIMA do trilogo (servicos.Novo recebe o mesmo
+	// trilogoSvc) — toda ação de Serviço mexe no estado local
+	// (servicos_orcamentos), não só no Trílogo, então não faz sentido ter
+	// rota HTTP nenhuma dentro de trilogo para isso. Ver o cabeçalho de
+	// interno/modulos/servicos/servicos.go pra saber por quê são dois pacotes.
+	servicosSvc := servicos.Novo(cfg, bd, trilogoSvc, arm)
+	servicos.NovoModulo(servicosSvc, seg, m.perm, bd, hist).Montar(mux)
 	// Orçamentos usa o mesmo armazém do Trílogo — os arquivos são do mesmo
 	// cliente e o endereçamento por sha256 é o mesmo. Dois armazéns seriam duas
 	// verdades sobre onde um arquivo está.

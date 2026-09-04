@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { motor, baixarDoMotor, ErroMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
+import type { Perfil } from '../../sessao/tipos'
 import { ajustarCelulas } from './encolher'
 import { FichaChamado } from './FichaChamado'
 import {
@@ -38,11 +39,12 @@ const LOTES_NO_MAXIMO = 60
 interface Props {
   /** O ticket aberto, quando há um. Vem do endereço. */
   ticket?: string
+  perfil: Perfil
   abrir: (numero: number) => void
   voltar: () => void
 }
 
-export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
+export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
   const [filtros, setFiltros] = useState<Filtros | null>(null)
   const [escolhas, setEscolhas] = useState<Escolhas>(SEM_FILTRO)
   const [busca, setBusca] = useState('')
@@ -274,6 +276,7 @@ export function DadosTrilogo({ ticket, abrir, voltar }: Props) {
       {ticket && (
         <FichaChamado
           numero={ticket}
+          perfil={perfil}
           voltar={voltar}
           anterior={naPagina > 0 ? vizinho(-1) : undefined}
           proximo={naPagina >= 0 && naPagina < (dados?.linhas.length ?? 0) - 1 ? vizinho(1) : undefined}

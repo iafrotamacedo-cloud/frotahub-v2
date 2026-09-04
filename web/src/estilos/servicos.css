@@ -1,0 +1,32 @@
+/* rev 2 — o hub de Serviço (cards) e as listas
+   O board de colunas antigo saiu (Kanban.tsx foi substituído por Hub.tsx +
+   listas/ListaDeServicos.tsx, no mesmo padrão de cards de Orçamentos — ver
+   componentes/Painel.tsx e estilos/escuro.css, .pn-*). Aqui só o que é
+   genuinamente específico de Serviço: o botão de voltar das sub-telas, o
+   link do ticket na tabela, e os formulários de anexar/lançar. */
+
+.sv-voltar{margin:0 0 14px}
+
+.sv-ticket{
+  background:none;border:0;padding:0;cursor:pointer;font-family:var(--f);
+  color:var(--ink);text-decoration:underline;text-underline-offset:2px;
+}
+.sv-ticket:hover{color:var(--red)}
+
+.sv-extrair{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- formulários dentro do painel de ação da ficha (fi-acao-extra) ---------- */
+.sv-form{display:flex;flex-direction:column;gap:2px}
+.sv-form label{display:block;font-size:12.5px;font-weight:600;color:var(--txt);margin:0 0 5px}
+.sv-form input{
+  font-family:var(--f);font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:9px 11px;
+  margin:0 0 12px;background:#fff;
+}
+.sv-form input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100)}
+.sv-form input[type="file"]{padding:6px 0;border:0;background:none}
+
+.sv-itens-titulo{display:block;font-size:12.5px;font-weight:600;color:var(--txt);margin:4px 0 6px}
+.sv-item-linha{display:grid;grid-template-columns:1fr 72px 100px 30px;gap:6px;margin:0 0 6px}
+.sv-item-linha input{margin:0;padding:7px 9px;font-size:13px}
+.sv-item-linha .bt{padding:0;width:30px;height:32px}

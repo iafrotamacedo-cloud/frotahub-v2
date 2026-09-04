@@ -100,7 +100,7 @@ comment on view consolidacao_notas is
   'QUEM PERGUNTA (security_invoker). Substituiu a versão da migração 047 — '
   'ver cabeçalho da 048.';
 
-insert into public.schema_migrations (versao, arquivo)
+insert into schema_migrations (versao, arquivo)
 values ('048', '048_margem_sobre_valor.sql')
 on conflict (versao) do nothing;
 

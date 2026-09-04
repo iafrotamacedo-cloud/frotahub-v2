@@ -114,7 +114,7 @@ comment on view consolidacao_notas is
   'contar na consolidação). RODA COMO QUEM PERGUNTA (security_invoker). '
   'Substituiu a versão da migração 046 — ver cabeçalho da 047.';
 
-insert into public.schema_migrations (versao, arquivo)
+insert into schema_migrations (versao, arquivo)
 values ('047', '047_nota_intrusa.sql')
 on conflict (versao) do nothing;
 
