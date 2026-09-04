@@ -64,14 +64,6 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         desc: 'Chamados, orçamentos e preventiva',
         sub: [
           {
-            t: 'Dados do Trílogo',
-            rota: 'dados-trilogo',
-            icone: 'lista',
-            desc: 'Os chamados do contrato, como o robô os trouxe',
-            tela: 'trilogo-dados',
-            rotina: 'CONTRATO_TRILOGO_DADOS',
-          },
-          {
             t: 'Orçamentos',
             rota: 'orcamentos',
             icone: 'lista',
@@ -262,6 +254,19 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             ],
           },
         ],
+      },
+      {
+        // SUBIU UM NÍVEL (04/09/2026)
+        //
+        //	Morava dentro de "Contrato São Luiz", como o primeiro dos quatro
+        //	cards. O dono pediu pra subir: hoje é clique direto na barra
+        //	lateral, sem passar pelo painel do contrato antes.
+        t: 'Dados do Trílogo',
+        rota: 'dados-trilogo',
+        icone: 'lista',
+        desc: 'Os chamados do contrato, como o robô os trouxe',
+        tela: 'trilogo-dados',
+        rotina: 'CONTRATO_TRILOGO_DADOS',
       },
       servicosMenu,
     ],

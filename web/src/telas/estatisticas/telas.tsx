@@ -38,7 +38,7 @@ const semLoja = (s: string) => s.replace(/^LOJA /i, '')
  * link como este sobreviver à troca do título de um item — está no comentário
  * do topo daquele arquivo.
  */
-const noTrilogo = (ticket: number) => `#/manutencao/contrato-sao-luiz/dados-trilogo/${ticket}`
+const noTrilogo = (ticket: number) => `#/manutencao/dados-trilogo/${ticket}`
 
 // ---------------------------------------------------------------------------
 // os ícones de cada barra

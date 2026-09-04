@@ -38,8 +38,8 @@ export function caminhoParaEndereco(caminho: ItemMenu[]): string {
  *   do navegador sai da ficha direto para fora do sistema, e um link colado numa
  *   conversa não abre o que deveria.
  *
- *   `#/manutencao/contrato-sao-luiz/dados-trilogo/130328`
- *    └────────── caminho no menu ──────────┘ └ o que sobra
+ *   `#/manutencao/dados-trilogo/130328`
+ *    └── caminho no menu ──┘ └ o que sobra
  *
  *   O resto só é aceito DEPOIS de uma tela de verdade. Assim um endereço
  *   inventado no meio da árvore continua não resolvendo, em vez de virar um
