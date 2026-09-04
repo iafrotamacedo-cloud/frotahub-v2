@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel as PainelDeCards, type Etapa } from '../../componentes/Painel'
-import { Icone } from '../../componentes/Icone'
 import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import type { Painel } from './tipos'
@@ -113,7 +112,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'candidatos',
       titulo: 'Candidatos',
       descricao: 'Chamados que o sistema suspeita serem Serviço, aguardando decisão.',
-      icone: <Icone nome="lista" />,
+      icone: <IconeCandidato />,
       numero: d.candidatos_pendentes,
       rotulo: 'pendentes',
       rodape: 'clique para decidir',
@@ -122,7 +121,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'pendentes',
       titulo: 'Orçamentos pendentes',
       descricao: 'Na fila de Serviço, ainda sem orçamento.',
-      icone: <Icone nome="lista" />,
+      icone: <IconeAnexo />,
       numero: d.orcamentos_pendentes,
       rotulo: 'sem orçamento',
       rodape: 'clique para inserir orçamento',
@@ -131,7 +130,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'gerados',
       titulo: 'Orçamentos já gerados',
       descricao: 'O que já tem PDF anexado, feito ou lançado no Trílogo.',
-      icone: <Icone nome="lista" />,
+      icone: <IconeGerado />,
       numero: d.orcamento_feito + d.orcamento_lancado,
       rotulo: 'gerados',
       previaTitulo: 'situação',
@@ -154,7 +153,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'execucao',
       titulo: 'Execução',
       descricao: 'Aprovado pelo cliente — avança sozinho conforme o Trílogo confirma.',
-      icone: <Icone nome="chave-inglesa" />,
+      icone: <IconeExecucao />,
       numero: d.execucao_aberto + d.execucao_em_curso + d.execucao_executado,
       rotulo: 'em execução',
       previaTitulo: 'situação',
@@ -176,7 +175,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'faturamento',
       titulo: 'Faturamento',
       descricao: 'Vistoriado — aguardando PCO, faturar ou já faturado.',
-      icone: <Icone nome="dinheiro" />,
+      icone: <IconeFatura />,
       numero: d.faturamento_aguardando_pco + d.faturamento_a_faturar,
       rotulo: 'a faturar',
       previaTitulo: 'situação',
@@ -198,7 +197,7 @@ function montarEtapas(d: Painel): Etapa[] {
       chave: 'planilha',
       titulo: 'Planilha de controle',
       descricao: 'O livro-razão: todos os serviços, em qualquer fila.',
-      icone: <Icone nome="grafico" />,
+      icone: <IconeTabela />,
       // NÃO É FILA, É LIVRO-RAZÃO — mesma lógica de "Planilhas de controle"
       // em Orçamentos: mostrar "0" aqui leria como "vazio", que não é a
       // verdade quando é a soma de tudo que já existiu.
@@ -207,4 +206,69 @@ function montarEtapas(d: Painel): Etapa[] {
       rodape: 'filtros e exportação',
     },
   ]
+}
+
+/* Os ícones vivem aqui, e não no `Icone` compartilhado do menu lateral, pela
+   mesma razão de orcamentos/Orcamentos.tsx: são deste módulo, e um conjunto
+   compartilhado que cresce a cada tela vira um arquivo que ninguém consegue
+   mais ler.
+
+   A última — IconeTabela — é IGUAL, de propósito, à de Orçamentos: os dois
+   cards são o mesmo conceito (o livro-razão da fila), então usam o mesmo
+   desenho — é isso que padroniza a identidade visual entre os dois módulos,
+   não um ícone genérico do menu emprestado sem sentido próprio (o que havia
+   antes: o mesmo ícone de lista repetido em três cards diferentes). */
+
+function IconeCandidato() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m5 19 12-12" />
+      <path d="m17 3 1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+      <path d="m5 15 .6 1.4L7 17l-1.4.6L5 19l-.6-1.4L3 17l1.4-.6z" />
+    </svg>
+  )
+}
+
+function IconeAnexo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" /><path d="M12 12v6M9 15h6" />
+    </svg>
+  )
+}
+
+function IconeGerado() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 8h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+      <path d="M5 5h10a1 1 0 0 1 1 1v2" /><path d="M10 13h5M10 17h5" />
+    </svg>
+  )
+}
+
+function IconeExecucao() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 3 6 6-3 3-6-6z" /><path d="M13.5 8.5 4 18l2 2 9.5-9.5" />
+    </svg>
+  )
+}
+
+function IconeFatura() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z" />
+      <path d="M9 8h6M9 12h6" />
+      <path d="M9.5 16.2c.4.5 1 .8 1.7.8 1 0 1.8-.6 1.8-1.4s-.8-1.1-1.8-1.3c-1-.2-1.7-.6-1.7-1.3 0-.8.8-1.4 1.7-1.4.7 0 1.3.3 1.7.8" />
+    </svg>
+  )
+}
+
+function IconeTabela() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11M15 9v11" />
+    </svg>
+  )
 }
