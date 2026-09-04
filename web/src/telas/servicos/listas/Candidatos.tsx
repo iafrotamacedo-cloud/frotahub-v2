@@ -6,17 +6,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
+import { FichaChamado } from '../../trilogo/FichaChamado'
+import type { Perfil } from '../../../sessao/tipos'
 import type { Candidato } from '../tipos'
 import { PromoverCandidato } from '../PromoverCandidato'
 
 type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato }
 
-export function Candidatos({ voltar }: { voltar: () => void }) {
+export function Candidatos({ perfil, voltar }: { perfil: Perfil; voltar: () => void }) {
   const [linhas, setLinhas] = useState<Candidato[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
   const [agindo, setAgindo] = useState<string | null>(null)
   const [janela, setJanela] = useState<Janelinha>({ tipo: 'nenhuma' })
+  // O ticket aberto na ficha — igual às outras listas de Serviço (ver
+  // ListaDeServicos.tsx): a lista some, a ficha do Trílogo entra no lugar.
+  const [aberto, setAberto] = useState<number | null>(null)
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -44,6 +49,16 @@ export function Candidatos({ voltar }: { voltar: () => void }) {
     } finally {
       setAgindo(null)
     }
+  }
+
+  if (aberto !== null) {
+    return (
+      <FichaChamado
+        numero={String(aberto)}
+        perfil={perfil}
+        voltar={() => setAberto(null)}
+      />
+    )
   }
 
   return (
@@ -81,7 +96,11 @@ export function Candidatos({ voltar }: { voltar: () => void }) {
             <tbody>
               {linhas.map(c => (
                 <tr key={c.id}>
-                  <td><code>{c.ticket}</code></td>
+                  <td>
+                    <button type="button" className="sv-ticket" onClick={() => setAberto(c.ticket)}>
+                      <code>{c.ticket}</code>
+                    </button>
+                  </td>
                   <td>{c.motivo || '—'}</td>
                   <td>{new Date(c.criado_em).toLocaleDateString('pt-BR')}</td>
                   <td className="acoes">

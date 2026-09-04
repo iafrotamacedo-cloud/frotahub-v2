@@ -48,7 +48,7 @@ export function Hub({ onde, perfil, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   // ---- roteamento das 9 listas + a planilha ----
-  if (onde === 'candidatos') return <Candidatos voltar={voltar} />
+  if (onde === 'candidatos') return <Candidatos perfil={perfil} voltar={voltar} />
   if (onde === 'pendentes') {
     return lista({ titulo: 'Orçamentos pendentes', status: 'aguardando_orcamento', acao: 'inserir-orcamento' }, perfil, voltar)
   }
