@@ -97,8 +97,16 @@ function Casca() {
   //
   //	Dados do Trílogo entrou por pedido do dono em 26/08/2026; antes ela era
   //	clara de ponta a ponta e a tabela não se destacava de nada.
+  //
+  //	Serviços entra pelo mesmo motivo de Orçamentos, e não pela regra de cima
+  //	(`atual?.sub?.length`): o hub de 6 cards é uma tela-FOLHA na árvore — o
+  //	menu não sabe que ela se parte em nove listas por dentro, isso é assunto
+  //	do próprio Hub.tsx (mesmo desenho de `onde`/`abrir` de Orçamentos). Sem
+  //	entrar aqui pelo nome, a moldura ficava clara e os cards escuros boiavam
+  //	soltos em cima de um fundo branco — dois módulos iguais parecendo dois
+  //	sistemas diferentes.
   const ehEscura = caminho.length === 0 || !!atual?.sub?.length
-    || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados'
+    || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados' || atual?.tela === 'servicos-hub'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
