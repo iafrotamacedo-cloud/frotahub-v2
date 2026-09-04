@@ -30,7 +30,7 @@
    que cabe o botão de ação da linha. .tri-tabela trava em min-width 1150px,
    height 30px e overflow hidden — aqui as filas têm menos colunas e duas
    ações por linha; copiar aquilo recortava o botão no meio. */
-.sv-tabela{font-size:13px;min-width:920px;table-layout:fixed}
+.sv-tabela{font-size:13px;min-width:1000px;table-layout:fixed}
 .sv-tabela th{padding:8px 9px;font-size:9.5px}
 .sv-tabela td{padding:0 9px;height:38px;white-space:nowrap;overflow:hidden;vertical-align:middle}
 .sv-tabela td[data-encolhe]>span{
@@ -43,8 +43,8 @@
 .sv-tabela .c-valor{width:96px;text-align:right;font-variant-numeric:tabular-nums}
 .sv-tabela .c-status{width:148px}
 .sv-tabela .c-pco,.sv-tabela .c-nf{width:88px}
-.sv-tabela .acoes-col,.sv-tabela td.acoes{width:220px;overflow:visible}
-.sv-tabela td.acoes{text-align:right}
+.sv-tabela .acoes-col,.sv-tabela td.acoes{width:320px;overflow:visible}
+.sv-tabela td.acoes{text-align:right;display:flex;gap:6px;justify-content:flex-end;align-items:center}
 .sv-tabela-livro{min-width:1080px}
 
 /* ---------- formulários dentro do painel de ação da ficha (fi-acao-extra) ---------- */

@@ -13,7 +13,7 @@ import { FichaChamado } from '../trilogo/FichaChamado'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { motor, enviarFormulario, ErroMotor, avisoDe } from '../../motor/cliente'
 import type { Perfil } from '../../sessao/tipos'
-import type { ItemLista, Status } from './tipos'
+import type { ItemLista } from './tipos'
 import { FormularioDeLancamento } from './FormularioDeLancamento'
 
 export type Acao = 'inserir-orcamento' | 'lancar' | 'aprovar-rejeitar' | 'preencher-pco' | 'anexar-nf' | 'nenhuma'
@@ -207,16 +207,33 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
 
 function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recado: string) => void }) {
   const [erro, setErro] = useState<string | null>(null)
-  const [agindo, setAgindo] = useState<Status | null>(null)
+  const [agindo, setAgindo] = useState<'aprovado' | 'rejeitado' | null>(null)
 
-  async function mudar(novoStatus: Status, recado: string) {
-    setAgindo(novoStatus)
+  async function aprovar() {
+    setAgindo('aprovado')
     setErro(null)
     try {
-      const resposta = await motor(`/servicos/kanban/${item.id}/status`, { metodo: 'POST', corpo: { status: novoStatus } })
-      aoFeito(avisoDe(resposta) ?? recado)
+      const resposta = await motor(`/servicos/kanban/${item.id}/status`, {
+        metodo: 'POST', corpo: { status: 'aprovado_execucao' },
+      })
+      aoFeito(avisoDe(resposta) ?? 'Orçamento aprovado — foi para Execução.')
     } catch (e) {
-      setErro(e instanceof ErroMotor ? e.message : 'Não consegui mudar o status.')
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui aprovar.')
+      setAgindo(null)
+    }
+  }
+
+  async function rejeitar() {
+    if (!window.confirm(
+      `Rejeitar o orçamento do ticket ${item.ticket}?\n\nO ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo.`,
+    )) return
+    setAgindo('rejeitado')
+    setErro(null)
+    try {
+      const resposta = await motor(`/servicos/kanban/${item.id}/rejeitar`, { metodo: 'POST' })
+      aoFeito(avisoDe(resposta) ?? 'Orçamento rejeitado — voltou para o contrato.')
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui rejeitar.')
       setAgindo(null)
     }
   }
@@ -224,18 +241,18 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
   return (
     <div className="sv-form">
       <p className="dica">
-        Lançado no Trílogo — aguardando o cliente decidir. A detecção automática de
-        aprovação ainda não existe; marque manualmente quando souber o resultado.
+        Lançado no Trílogo — aguardando o cliente. Aprovado vai para Execução.
+        Rejeitado devolve o ticket ao contrato e guarda o PDF.
       </p>
       {erro && <div className="erro-caixa">{erro}</div>}
       <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
         <button type="button" className="bt bt-mini" disabled={!!agindo}
-          onClick={() => void mudar('orcamento_aprovado', 'Orçamento aprovado.')}>
-          {agindo === 'orcamento_aprovado' ? 'Marcando...' : 'Aprovado'}
+          onClick={() => void aprovar()}>
+          {agindo === 'aprovado' ? 'Marcando...' : 'Aprovado'}
         </button>
         <button type="button" className="bt bt-mini bt-perigo" disabled={!!agindo}
-          onClick={() => void mudar('orcamento_rejeitado', 'Orçamento rejeitado.')}>
-          {agindo === 'orcamento_rejeitado' ? 'Marcando...' : 'Rejeitado'}
+          onClick={() => void rejeitar()}>
+          {agindo === 'rejeitado' ? 'Rejeitando...' : 'Rejeitar orçamento'}
         </button>
       </div>
     </div>

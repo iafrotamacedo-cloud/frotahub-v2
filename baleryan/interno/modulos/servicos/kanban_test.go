@@ -46,17 +46,11 @@ func TestRejeitadoVoltaParaOrcamentoFeito(t *testing.T) {
 	}
 }
 
-// LANÇADO SE RAMIFICA EM DOIS, NÃO SEGUE RETO
-func TestLancadoRamificaEmAprovadoOuRejeitado(t *testing.T) {
+// LANÇADO SÓ ANDA PRA EXECUÇÃO. Rejeitar não é status — sai do Kanban.
+func TestLancadoVaiParaExecucao(t *testing.T) {
 	saidas := proximosStatus[StatusOrcamentoLancado]
-	quer := map[string]bool{StatusOrcamentoAprovado: true, StatusOrcamentoRejeitado: true}
-	if len(saidas) != 2 {
-		t.Fatalf("esperava 2 saídas de Lançado, veio %v", saidas)
-	}
-	for _, s := range saidas {
-		if !quer[s] {
-			t.Errorf("saída inesperada de Lançado: %q", s)
-		}
+	if len(saidas) != 1 || saidas[0] != StatusAprovadoExecucao {
+		t.Errorf("Lançado deveria ir só para Execução Aberto, foi para %v", saidas)
 	}
 }
 

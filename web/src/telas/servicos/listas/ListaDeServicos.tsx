@@ -77,6 +77,20 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
     }
   }
 
+  async function rejeitarOrcamento(item: ItemLista) {
+    if (!window.confirm(
+      `Rejeitar o orçamento do ticket ${item.ticket}?\n\nO ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo.`,
+    )) return
+    setErro(null)
+    try {
+      const resposta = await motor(`/servicos/kanban/${item.id}/rejeitar`, { metodo: 'POST' })
+      setRecado(avisoDe(resposta) ?? 'Orçamento rejeitado — voltou para o contrato.')
+      void carregar()
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui rejeitar o orçamento.')
+    }
+  }
+
   if (aberto) {
     return (
       <FichaDoTicket
@@ -144,6 +158,11 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
                     <CelulaValor valor={it.orcamento_valor} />
                     {status !== 'faturado' && (
                       <td className="acoes" onClick={e => e.stopPropagation()}>
+                        {status === 'orcamento_lancado' && (
+                          <button type="button" className="bt bt-mini bt-perigo" onClick={() => void rejeitarOrcamento(it)}>
+                            Rejeitar
+                          </button>
+                        )}
                         <button type="button" className="bt bt-mini bt-neutro" onClick={() => void voltarProContrato(it)}>
                           Voltar pro contrato
                         </button>

@@ -38,16 +38,13 @@ export const STATUS_ROTULO: Record<Status, string> = {
   faturado: 'Faturado',
 }
 
-// O MESMO MAPA DE baleryan/interno/modulos/servicos/kanban.go (proximosStatus)
-//
-//	Só usado hoje pela fila "Orçamentos lançados", pra aprovar/rejeitar
-//	manualmente (a detecção automática de aprovação depende de um teste ao
-//	vivo no Trílogo ainda não feito — ver o plano). O resto do funil avança
-//	sozinho e não chama isto.
+// Lançado → Execução Aberto (aprovado). Rejeitar não é status: o card
+// sai do Kanban (ver Rejeitar). orcamento_aprovado / orcamento_rejeitado
+// ficam no mapa só para linhas antigas que ainda estejam nesses status.
 export const PROXIMOS_STATUS: Record<Status, Status[]> = {
   aguardando_orcamento: ['orcamento_feito'],
   orcamento_feito: ['orcamento_lancado'],
-  orcamento_lancado: ['orcamento_aprovado', 'orcamento_rejeitado'],
+  orcamento_lancado: ['aprovado_execucao'],
   orcamento_aprovado: ['aprovado_execucao'],
   orcamento_rejeitado: ['orcamento_feito'],
   aprovado_execucao: ['em_execucao'],

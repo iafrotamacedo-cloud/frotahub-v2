@@ -38,14 +38,14 @@ const (
 // proximosStatus é o mapa de transições válidas — a régua inteira do
 // "fluxo tem que fechar sempre" num lugar só.
 //
-// StatusOrcamentoRejeitado -> StatusOrcamentoFeito (REFAZER) é a única volta
-// atrás da tabela: rejeitado não anda sozinho (decisão do dono — "fica
-// parado até ação manual"), mas também não é beco sem saída — alguém refaz
-// o orçamento e o card volta a andar.
+// Lançado → Execução Aberto (aprovado). Rejeitar NÃO é mudança de
+// status: o card sai do Kanban e o ticket volta pro contrato (Rejeitar,
+// mais abaixo). orcamento_aprovado / orcamento_rejeitado continuam no
+// mapa só para linhas antigas que ainda estejam nesses status.
 var proximosStatus = map[string][]string{
 	StatusAguardandoOrcamento:   {StatusOrcamentoFeito},
 	StatusOrcamentoFeito:        {StatusOrcamentoLancado},
-	StatusOrcamentoLancado:      {StatusOrcamentoAprovado, StatusOrcamentoRejeitado},
+	StatusOrcamentoLancado:      {StatusAprovadoExecucao},
 	StatusOrcamentoAprovado:     {StatusAprovadoExecucao},
 	StatusOrcamentoRejeitado:    {StatusOrcamentoFeito},
 	StatusAprovadoExecucao:      {StatusEmExecucao},
@@ -54,6 +54,11 @@ var proximosStatus = map[string][]string{
 	StatusAguardandoFaturamento: {StatusFaturado},
 	StatusFaturado:              {},
 }
+
+// MotivoOrcamentoRejeitado — gravado em removido_motivo. Distingue o
+// "classificar como rejeitado" (PDF fica no R2, ressuscita em Feitos) do
+// "voltar pro contrato" (PDF some).
+const MotivoOrcamentoRejeitado = "orcamento_rejeitado"
 
 // ItemKanban é uma linha de servicos_orcamentos, como a tela lê.
 type ItemKanban struct {
@@ -128,8 +133,11 @@ func (s *Servico) MudarStatus(ctx context.Context, clienteID, itemID, novoStatus
 	if !permitido {
 		return &ErrTransicaoInvalida{De: atual.Status, Para: novoStatus}
 	}
-	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID),
-		map[string]any{"status": novoStatus})
+	campos := map[string]any{"status": novoStatus}
+	if novoStatus == StatusAprovadoExecucao {
+		campos["orcamento_aprovado_em"] = time.Now().UTC().Format(time.RFC3339)
+	}
+	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos)
 }
 
 func (s *Servico) itemAtivo(ctx context.Context, clienteID, itemID string) (ItemKanban, error) {
@@ -159,14 +167,17 @@ var ErrJaFaturado = fmt.Errorf("este serviço já foi faturado — não dá para
 //
 // ORDEM
 //
-//	1. Apaga o Budget no Trílogo enquanto o chamado ainda é Serviço.
-//	2. Apaga o PDF no R2 enquanto o card ainda está ativo — se o armazém
-//	   recusar, o usuário aperta de novo e itemAtivo ainda acha a linha.
-//	3. Tira o responsável (o chamado volta pra fila do contrato).
-//	4. Fecha a linha (removido_em) e zera os vínculos do orçamento.
+//  1. Apaga o Budget no Trílogo enquanto o chamado ainda é Serviço.
 //
-//	A fonte da verdade do "é Serviço?" continua sendo o Trílogo: se 4
-//	falhar depois de 3, a próxima leitura do robô corrige a nossa tabela.
+//  2. Apaga o PDF no R2 enquanto o card ainda está ativo — se o armazém
+//     recusar, o usuário aperta de novo e itemAtivo ainda acha a linha.
+//
+//  3. Tira o responsável (o chamado volta pra fila do contrato).
+//
+//  4. Fecha a linha (removido_em) e zera os vínculos do orçamento.
+//
+//     A fonte da verdade do "é Serviço?" continua sendo o Trílogo: se 4
+//     falhar depois de 3, a próxima leitura do robô corrige a nossa tabela.
 func (s *Servico) Reclassificar(ctx context.Context, clienteID, itemID, autorID, motivo string) error {
 	item, err := s.itemAtivo(ctx, clienteID, itemID)
 	if err != nil {
@@ -219,6 +230,113 @@ func (s *Servico) Reclassificar(ctx context.Context, clienteID, itemID, autorID,
 		s.soltarRegistroDeArquivo(ctx, shaDoArquivo)
 	}
 	return nil
+}
+
+// ErrNaoEstaLancado — rejeitar só faz sentido na fila de Lançados: o
+// orçamento já existe no Trílogo e o cliente recusou. Antes disso não há
+// o que classificar; depois (execução/fatura) a saída é outra.
+var ErrNaoEstaLancado = fmt.Errorf("só dá para rejeitar um orçamento que ainda está lançado")
+
+// Rejeitar classifica o orçamento como recusado pelo cliente: o ticket
+// volta pra fila do contrato, o Budget some no Trílogo, e o PDF fica no
+// R2 (e na linha fechada). Não é o mesmo que Reclassificar — lá o arquivo
+// some de verdade. Aqui o arquivo entra em soft-delete: some da fila
+// ativa, mas se o chamado voltar pra Serviço o card nasce em Feitos com
+// o mesmo PDF, e o lançamento no Trílogo tem que ser feito de novo.
+func (s *Servico) Rejeitar(ctx context.Context, clienteID, itemID, autorID string) error {
+	item, err := s.itemAtivo(ctx, clienteID, itemID)
+	if err != nil {
+		return err
+	}
+	if item.Status != StatusOrcamentoLancado {
+		return ErrNaoEstaLancado
+	}
+
+	sessao, err := s.tri.SessaoDaConta(ctx, item.Conta)
+	if err != nil {
+		return fmt.Errorf("entrando no Trílogo: %w", err)
+	}
+
+	if item.OrcamentoTrilogoID != nil {
+		if err := sessao.ExcluirOrcamentoServico(ctx, *item.OrcamentoTrilogoID); err != nil {
+			return fmt.Errorf("excluindo o orçamento no Trílogo: %w", err)
+		}
+	}
+
+	if err := sessao.RemoverResponsavel(ctx, item.Ticket); err != nil {
+		return fmt.Errorf("removendo o responsável no Trílogo: %w", err)
+	}
+
+	agora := time.Now().UTC().Format(time.RFC3339)
+	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), map[string]any{
+		"removido_em":            agora,
+		"removido_por":           nuloSeVazio(autorID),
+		"removido_motivo":        MotivoOrcamentoRejeitado,
+		"orcamento_rejeitado_em": agora,
+		"orcamento_trilogo_id":   nil,
+		"orcamento_valor":        nil,
+	})
+}
+
+// herdancaDeOrcamento é o PDF que um card fechado por rejeição ainda
+// aponta — o sha continua em `arquivos` e o objeto continua no R2.
+type herdancaDeOrcamento struct {
+	SHA  string `json:"orcamento_arquivo_sha256"`
+	Nome string `json:"orcamento_arquivo_nome"`
+}
+
+// orcamentoHerdavel acha o último card fechado deste chamado que ainda
+// guarda o PDF. Voltar-pro-contrato zera o sha, então não herda; rejeitar
+// deixa o sha, então herda. Sem linha em `arquivos`, o objeto já não está
+// ressuscitável — nasce em Aguardando orçamento, como um chamado novo.
+func (s *Servico) orcamentoHerdavel(ctx context.Context, clienteID, chamadoID string) (*herdancaDeOrcamento, error) {
+	var linhas []herdancaDeOrcamento
+	caminho := "servicos_orcamentos?chamado_id=eq." + banco.Escapar(chamadoID) +
+		"&cliente_id=eq." + banco.Escapar(clienteID) +
+		"&removido_em=not.is.null&orcamento_arquivo_sha256=not.is.null" +
+		"&select=orcamento_arquivo_sha256,orcamento_arquivo_nome" +
+		"&order=removido_em.desc&limit=1"
+	if err := s.bd.Buscar(ctx, caminho, &linhas); err != nil {
+		return nil, err
+	}
+	if len(linhas) == 0 || linhas[0].SHA == "" {
+		return nil, nil
+	}
+
+	var arquivos []struct {
+		SHA string `json:"sha256"`
+	}
+	q := "arquivos?sha256=eq." + banco.Escapar(linhas[0].SHA) + "&select=sha256&limit=1"
+	if err := s.bd.Buscar(ctx, q, &arquivos); err != nil {
+		return nil, err
+	}
+	if len(arquivos) == 0 {
+		return nil, nil
+	}
+	return &linhas[0], nil
+}
+
+// linhaDeEntrada monta o INSERT no Kanban. Se este chamado já teve um
+// orçamento rejeitado com PDF guardado, o card já nasce em Feitos — o
+// lançamento no Trílogo é que tem que ser feito de novo, não o anexo.
+func (s *Servico) linhaDeEntrada(ctx context.Context, clienteID, chamadoID string, ticket int, conta, origem string) map[string]any {
+	linha := map[string]any{
+		"cliente_id": clienteID,
+		"chamado_id": chamadoID,
+		"ticket":     ticket,
+		"conta":      conta,
+		"status":     StatusAguardandoOrcamento,
+		"origem":     origem,
+	}
+	herdado, err := s.orcamentoHerdavel(ctx, clienteID, chamadoID)
+	if err != nil || herdado == nil {
+		return linha
+	}
+	linha["status"] = StatusOrcamentoFeito
+	linha["orcamento_arquivo_sha256"] = herdado.SHA
+	linha["orcamento_arquivo_nome"] = nuloSeVazio(herdado.Nome)
+	linha["orcamento_arquivo_em"] = time.Now().UTC().Format(time.RFC3339)
+	return linha
 }
 
 // PreencherPCO grava o pedido de compra que o cliente abriu pra este ticket
@@ -336,14 +454,7 @@ func (s *Servico) MarcarComoServico(ctx context.Context, clienteID string, ticke
 		return "", false, err
 	}
 
-	linha := map[string]any{
-		"cliente_id": clienteID,
-		"chamado_id": chamadoID,
-		"ticket":     ticket,
-		"conta":      conta,
-		"status":     StatusAguardandoOrcamento,
-		"origem":     "manual",
-	}
+	linha := s.linhaDeEntrada(ctx, clienteID, chamadoID, ticket, conta, "manual")
 	if err := s.bd.Inserir(ctx, "servicos_orcamentos", []map[string]any{linha}, nil); err != nil {
 		if banco.Duplicado(err) {
 			// A varredura automática venceu a corrida entre o clique e o
@@ -432,14 +543,7 @@ func (s *Servico) RodarDeteccaoDeGatilho(ctx context.Context, clienteID string) 
 		if jaAtivo[c.ID] {
 			continue
 		}
-		linha := map[string]any{
-			"cliente_id": clienteID,
-			"chamado_id": c.ID,
-			"ticket":     c.Ticket,
-			"conta":      c.Conta,
-			"status":     StatusAguardandoOrcamento,
-			"origem":     "gatilho",
-		}
+		linha := s.linhaDeEntrada(ctx, clienteID, c.ID, c.Ticket, c.Conta, "gatilho")
 		if err := s.bd.Inserir(ctx, "servicos_orcamentos", []map[string]any{linha}, nil); err != nil {
 			if banco.Duplicado(err) {
 				// Alguém marcou este chamado manualmente (MarcarComoServico)
@@ -486,14 +590,7 @@ func (s *Servico) PromoverCandidato(ctx context.Context, clienteID, candidatoID,
 	}
 
 	agora := time.Now().UTC().Format(time.RFC3339)
-	linha := map[string]any{
-		"cliente_id": clienteID,
-		"chamado_id": cand.ChamadoID,
-		"ticket":     cand.Ticket,
-		"conta":      conta,
-		"status":     StatusAguardandoOrcamento,
-		"origem":     "candidato",
-	}
+	linha := s.linhaDeEntrada(ctx, clienteID, cand.ChamadoID, cand.Ticket, conta, "candidato")
 	if err := s.bd.Inserir(ctx, "servicos_orcamentos", []map[string]any{linha}, nil); err != nil && !banco.Duplicado(err) {
 		// O Trílogo JÁ mudou — não desfaz sozinho (ver Reclassificar: a fonte
 		// da verdade é o Trílogo, e a próxima varredura de gatilho alcança

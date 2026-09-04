@@ -62,6 +62,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /servicos/kanban", m.listarKanban)
 	mux.HandleFunc("POST /servicos/kanban/{id}/status", m.mudarStatus)
 	mux.HandleFunc("POST /servicos/kanban/{id}/reclassificar", m.reclassificar)
+	mux.HandleFunc("POST /servicos/kanban/{id}/rejeitar", m.rejeitar)
 
 	mux.HandleFunc("GET /servicos/kanban/{id}/cotacoes", m.listarCotacoes)
 	mux.HandleFunc("POST /servicos/kanban/{id}/cotacoes", m.criarCotacao)
@@ -117,7 +118,8 @@ func (m *Modulo) erro(w http.ResponseWriter, frase string, err error) {
 	switch {
 	case err == ErrCandidatoNaoEstaPendente, err == ErrJaFaturado,
 		err == ErrSemCotacao, err == ErrSemOrcamento,
-		err == ErrSemPCO, err == ErrSemArquivoDeOrcamento:
+		err == ErrSemPCO, err == ErrSemArquivoDeOrcamento,
+		err == ErrNaoEstaLancado:
 		web.Falhar(w, http.StatusConflict, err.Error())
 		return
 	case err == ErrArquivoVazio:
@@ -359,6 +361,26 @@ func (m *Modulo) reclassificar(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = m.hist.Registrar(r.Context(), p, "servicos", id, "reclassificar_para_contrato",
 		map[string]historico.Mudanca{"motivo": {De: nil, Para: pedido.Motivo}})
+	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// POST /servicos/kanban/{id}/rejeitar
+//
+// Lançados: o cliente recusou o orçamento. Sai da fila de Serviço, volta
+// pro contrato, apaga o Budget no Trílogo e guarda o PDF no R2. Voltar
+// pra Serviço depois ressuscita o card em Feitos.
+func (m *Modulo) rejeitar(w http.ResponseWriter, r *http.Request) {
+	p := m.quem(w, r)
+	if p == nil {
+		return
+	}
+	id := r.PathValue("id")
+	if err := m.svc.Rejeitar(r.Context(), p.ClienteID, id, p.UserID); err != nil {
+		m.erro(w, "rejeitar o orçamento", err)
+		return
+	}
+	_ = m.hist.Registrar(r.Context(), p, "servicos", id, "rejeitar_orcamento",
+		map[string]historico.Mudanca{"status": {De: StatusOrcamentoLancado, Para: "contrato"}})
 	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
 }
 
