@@ -131,7 +131,7 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
         </div>
       ) : (
         <>
-          <div className="tabela-rolo">
+          <div className="tabela-rolo tri-painel">
             <table className="tabela sv-tabela">
               <thead>
                 <tr>

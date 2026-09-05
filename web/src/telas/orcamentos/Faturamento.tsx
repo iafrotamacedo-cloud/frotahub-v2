@@ -22,34 +22,29 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
-import { BarraDeVolta } from './Arquivos'
 import {
   emReais, emData, contaPorExtenso,
   type Faturamento as Dados, type Faturas as DadosDeFaturas, type Fatura,
   type RelatorioMensalDados,
 } from './tipos'
 
-export function Faturamento({ voltar }: { voltar: () => void }) {
+export function Faturamento() {
   const [aba, setAba] = useState<'fila' | 'emitidas' | 'relatorio'>('fila')
   return (
     <div className="orc-tela">
-      <BarraDeVolta
-        voltar={voltar}
-        titulo="Faturar ao cliente"
-        direita={
-          <span className="fat-abas">
-            <button type="button" className={aba === 'fila' ? 'ativa' : ''} onClick={() => setAba('fila')}>
-              A faturar
-            </button>
-            <button type="button" className={aba === 'emitidas' ? 'ativa' : ''} onClick={() => setAba('emitidas')}>
-              Faturas
-            </button>
-            <button type="button" className={aba === 'relatorio' ? 'ativa' : ''} onClick={() => setAba('relatorio')}>
-              Relatório mensal
-            </button>
-          </span>
-        }
-      />
+      <div className="orc-barra-acoes">
+        <span className="fat-abas">
+          <button type="button" className={aba === 'fila' ? 'ativa' : ''} onClick={() => setAba('fila')}>
+            A faturar
+          </button>
+          <button type="button" className={aba === 'emitidas' ? 'ativa' : ''} onClick={() => setAba('emitidas')}>
+            Faturas
+          </button>
+          <button type="button" className={aba === 'relatorio' ? 'ativa' : ''} onClick={() => setAba('relatorio')}>
+            Relatório mensal
+          </button>
+        </span>
+      </div>
       {aba === 'fila' ? <Fila /> : aba === 'emitidas' ? <Emitidas /> : <RelatorioMensal />}
     </div>
   )

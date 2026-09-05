@@ -35,7 +35,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motor, enviarArquivos, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
-import { BarraDeVolta } from '../orcamentos/Arquivos'
 import { emReais } from '../orcamentos/tipos'
 
 interface Nota {
@@ -104,7 +103,7 @@ type Aba = 'notas' | 'tickets'
 //   texto não responde nunca.
 type FiltroSN = 'todos' | 'sim' | 'nao'
 
-export function Consolidacao({ voltar }: { voltar: () => void }) {
+export function Consolidacao() {
   const [dados, setDados] = useState<Consolidado | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('notas')
@@ -229,12 +228,11 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
   }, [dados, notaAberta])
 
   return (
-    <div className="tela">
-      <BarraDeVolta voltar={voltar} titulo="Financeiro › Consolidação" />
-      <div className="orc-lista-cab">
-        <h2>Consolidação</h2>
-        <em>O que se comprou contra o que se cobrou — nota e ticket, nos dois sentidos</em>
-      </div>
+    <div className="orc-tela">
+      <header className="hero">
+        <h1>Consolidação</h1>
+        <p>O que se comprou contra o que se cobrou — nota e ticket, nos dois sentidos</p>
+      </header>
 
       {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
 
@@ -242,11 +240,11 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
         <>
           <div className="orc-barra-acoes">
             {/* AS ABAS SÃO OS DOIS SENTIDOS DA MESMA CONFERÊNCIA */}
-            <button type="button" className={aba === 'notas' ? 'forte' : ''}
+            <button type="button" className={'orc-bt' + (aba === 'notas' ? ' forte' : '')}
               onClick={() => { setAba('notas'); setNotaAberta(null) }}>
               Obra Prima × FrotaHub
             </button>
-            <button type="button" className={aba === 'tickets' ? 'forte' : ''}
+            <button type="button" className={'orc-bt' + (aba === 'tickets' ? ' forte' : '')}
               onClick={() => { setAba('tickets'); setNotaAberta(null) }}>
               FrotaHub × Obra Prima
             </button>
@@ -276,7 +274,7 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
                     e.target.value = '' // permite escolher o MESMO arquivo de novo (reimportar)
                     if (arquivo) void importarCSV(arquivo)
                   }} />
-                <span className="forte" style={{ display: 'inline-block', padding: '4px 10px' }}>
+                <span className="orc-bt">
                   {importando ? 'importando…' : 'importar CSV do Obra Prima'}
                 </span>
               </label>
@@ -297,7 +295,7 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
               tela própria ainda) — uma nota recém-importada legitimamente não
               tem ticket nenhum até alguém dizer quais são. */}
           {aba === 'notas' && somaNotas.semTicket > 0 && (
-            <p className="orc-detalhe aviso" style={{ margin: '0 16px 10px', maxWidth: '94ch' }}>
+            <p className="orc-aviso-fila">
               {somaNotas.semTicket} nota{somaNotas.semTicket > 1 ? 's ainda não têm' : ' ainda não tem'} ticket
               associado — <b>orçado</b> e <b>margem</b> ficam em branco até alguém dizer a quais
               tickets ela{somaNotas.semTicket > 1 ? 's' : ''} pertence{somaNotas.semTicket > 1 ? 'm' : ''}.
@@ -305,7 +303,7 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
           )}
 
           {aba === 'notas' && somaNotas.intrusas > 0 && (
-            <p className="orc-detalhe aviso" style={{ margin: '0 16px 10px', maxWidth: '94ch' }}>
+            <p className="orc-aviso-fila">
               {somaNotas.intrusas} nota{somaNotas.intrusas > 1 ? 's marcadas' : ' marcada'} como <b>intrusa</b>
               {somaNotas.intrusas > 1 ? ' não entram' : ' não entra'} no total — continua{somaNotas.intrusas > 1 ? 'm' : ''} na
               lista para poder{somaNotas.intrusas > 1 ? 'em' : ''} ser desmarcada{somaNotas.intrusas > 1 ? 's' : ''} a qualquer hora.
@@ -313,13 +311,14 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
           )}
 
           {aba === 'tickets' && somaTickets.orfaos > 0 && (
-            <p className="orc-detalhe aviso" style={{ margin: '0 16px 10px', maxWidth: '94ch' }}>
+            <p className="orc-aviso-fila">
               {somaTickets.orfaos} orçamento{somaTickets.orfaos > 1 ? 's saíram' : ' saiu'} de
               nota que foi <b>excluída depois</b>. {somaTickets.orfaos > 1 ? 'Eles não aparecem' : 'Ele não aparece'} na
               aba das notas, mas a cobrança ao cliente continua de pé.
             </p>
           )}
 
+          <div className="orc-lista">
           {aba === 'notas' ? (
             <div className="orc-rolagem">
               <table className="orc-tabela">
@@ -512,6 +511,7 @@ export function Consolidacao({ voltar }: { voltar: () => void }) {
               </div>
             </div>
           )}
+          </div>
         </>
       )}
     </div>

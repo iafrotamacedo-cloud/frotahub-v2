@@ -321,7 +321,7 @@ function BotaoMarcarServico({ numero }: { numero: string }) {
   return (
     <button
       type="button"
-      className={'bt bt-mini' + (estado === 'erro' ? ' fi-servico-erro' : '')}
+      className={'bt bt-mini fi-servico' + (estado === 'erro' ? ' fi-servico-erro' : '')}
       disabled={estado === 'marcando'}
       onClick={() => void marcar()}
       title={estado === 'erro' ? mensagem ?? undefined : undefined}

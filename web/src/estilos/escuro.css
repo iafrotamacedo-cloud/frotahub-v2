@@ -12,7 +12,7 @@
  * ONDE A FRONTEIRA PASSA
  *   escuro: a barra de topo, o painel dos cinco botões, a barra de inserção,
  *           os avisos flutuantes
- *   claro:  o painel da tabela, do cabeçalho ao rodapé de paginação
+ *   claro:  o painel da tabela. A paginação fica abaixo, no padrão do Trílogo.
  */
 :root {
   --d-bg: #100D0E;

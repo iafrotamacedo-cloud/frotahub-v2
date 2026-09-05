@@ -2,7 +2,8 @@
  *
  * A FRONTEIRA DOS DOIS TEMAS
  *   O que é MENU e o que é CHROME (barra de topo, barra de inserção, avisos)
- *   fica escuro. O que é LISTA fica claro, do cabeçalho ao rodapé de paginação.
+ *   fica escuro. O que é LISTA fica claro. A paginação é a do Trílogo:
+ *   abaixo do cartão branco, na base da página.
  *   Menu é lugar de escolher; lista é lugar de ler.
  *
  * AS MEDIDAS EM CENTÍMETRO
@@ -25,6 +26,7 @@
 .orc-painel, .orc-tela {
   display: flex; flex-direction: column; min-height: 0; flex: 1;
 }
+.orc-tela > .hero { flex: 0 0 auto; }
 .orc-painel { gap: var(--folga); }
 
 /* ---------- barra de topo (escura) ---------- */
@@ -222,16 +224,8 @@
 .orc-marca { color: var(--ok); font-weight: 700; }
 .orc-traco { color: var(--mut); }
 
-.orc-rodape {
-  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line);
-  background: #FBFBFC; font-size: 11.5px; color: var(--gray);
-}
-.orc-paginas { display: flex; align-items: center; gap: 10px; }
-.orc-paginas button { border: 0; background: none; cursor: pointer; color: var(--red); font-size: 11.5px; }
-.orc-paginas button:disabled { color: var(--mut); cursor: default; }
-.orc-paginas b { font-variant-numeric: tabular-nums; color: var(--ink); }
-.orc-paginas select { height: 24px; border-radius: 6px; border: 1px solid var(--line); font-size: 11.5px; }
+/* Paginação das listas: o mesmo `.tri-rodape` de Dados do Trílogo
+   (fora do cartão branco, na base da página). */
 
 /* ---------- filtros ---------- */
 
@@ -652,8 +646,21 @@
 
 /* ---------- a barra de atualizar / reprocessar ---------- */
 .orc-barra-acoes {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 0 12px; flex: 0 0 auto;
+}
+.lay.escura .orc-barra-acoes input,
+.lay.escura .orc-barra-acoes select {
+  height: 34px; border-radius: 9px; padding: 0 10px;
+  border: 1px solid var(--d-line2); background: var(--d-card2); color: var(--d-txt2);
+  font-size: 12.5px;
+}
+.lay.escura .orc-barra-acoes label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--d-mut);
+}
+.lay.escura .pg-fechar {
+  background: var(--d-card3); color: var(--d-txt); border: 1px solid var(--d-line2);
 }
 .orc-barra-acoes button.forte {
   border: 0; cursor: pointer; border-radius: 8px; padding: 8px 16px;
@@ -661,6 +668,7 @@
 }
 .orc-barra-acoes button.forte:disabled { opacity: .45; cursor: default; }
 .orc-recado { font-size: 12px; color: var(--mut); }
+.lay.escura .orc-recado { color: var(--d-txt2); }
 
 /* VERDE E VERMELHO SÃO O RESULTADO DE UM `atualizar`, NÃO UM ESTADO ETERNO
  *   A linha só ganha cor depois de alguém olhar. Sem isso, uma tela aberta
@@ -692,7 +700,7 @@
  *   é cobrado do cliente. Quem abrir a tela pela primeira vez precisa ler isso
  *   antes de inserir a primeira nota, não depois de faturar errado. */
 .orc-aviso-fila {
-  margin: 0 16px 12px; padding: 10px 14px; border-radius: 8px;
+  margin: 0 0 8px; padding: 10px 14px; border-radius: 8px;
   background: var(--warn-bg); color: var(--warn);
   font-size: 12.5px; line-height: 1.5;
 }

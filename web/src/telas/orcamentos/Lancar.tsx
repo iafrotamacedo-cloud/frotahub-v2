@@ -433,8 +433,8 @@ export function Lancar({ voltar }: { voltar: () => void }) {
           </div>
         )}
 
-        <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />
       </div>
+      <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />
     </div>
   )
 }

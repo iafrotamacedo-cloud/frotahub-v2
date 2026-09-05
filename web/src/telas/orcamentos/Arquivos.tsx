@@ -464,13 +464,14 @@ export function Arquivos({ fila, voltar }: Props) {
           </div>
         )}
 
-        <Paginacao
-          pagina={pagina}
-          por={por}
-          aoTrocarPagina={setNumero}
-          aoTrocarPor={n => { setPor(n); setNumero(1) }}
-        />
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        por={por}
+        aoTrocarPagina={setNumero}
+        aoTrocarPor={n => { setPor(n); setNumero(1) }}
+      />
 
       {desfazer && (
         <div className="orc-desfaz" role="status">
@@ -960,18 +961,27 @@ export function Paginacao({ pagina, por, aoTrocarPagina, aoTrocarPor }: {
   const inicio = pagina.total === 0 ? 0 : (p - 1) * pagina.por_pagina + 1
   const fim = Math.min(p * pagina.por_pagina, pagina.total)
   return (
-    <div className="orc-rodape">
-      <span>{inicio.toLocaleString('pt-BR')}–{fim.toLocaleString('pt-BR')} de {pagina.total.toLocaleString('pt-BR')}</span>
-      <span className="orc-paginas">
-        <button type="button" disabled={p <= 1} onClick={() => aoTrocarPagina(1)}>primeira</button>
-        <button type="button" disabled={p <= 1} onClick={() => aoTrocarPagina(p - 1)}>anterior</button>
-        <b>{p}/{pagina.paginas}</b>
-        <button type="button" disabled={p >= pagina.paginas} onClick={() => aoTrocarPagina(p + 1)}>próxima</button>
-        <button type="button" disabled={p >= pagina.paginas} onClick={() => aoTrocarPagina(pagina.paginas)}>última</button>
-        <select value={por} onChange={e => aoTrocarPor(Number(e.target.value))}>
-          {[100, 250, 500].map(n => <option key={n} value={n}>{n} por página</option>)}
-        </select>
+    <div className="tri-rodape">
+      <span className="tri-mostrando">
+        Mostrando <b>{inicio.toLocaleString('pt-BR')}</b>
+        –<b>{fim.toLocaleString('pt-BR')}</b>
+        {' '}de <b>{pagina.total.toLocaleString('pt-BR')}</b>
       </span>
+      <label className="tri-porpagina">
+        Por página
+        <select value={por} onChange={e => aoTrocarPor(Number(e.target.value))}>
+          {[100, 250, 500].map(n => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+      </label>
+      <div className="tri-navega">
+        <button type="button" disabled={p <= 1} onClick={() => aoTrocarPagina(1)} title="Primeira página" aria-label="Primeira página">«</button>
+        <button type="button" disabled={p <= 1} onClick={() => aoTrocarPagina(p - 1)} title="Página anterior" aria-label="Página anterior">‹</button>
+        <span className="tri-pagina">Página {p} de {pagina.paginas}</span>
+        <button type="button" disabled={p >= pagina.paginas} onClick={() => aoTrocarPagina(p + 1)} title="Próxima página" aria-label="Próxima página">›</button>
+        <button type="button" disabled={p >= pagina.paginas} onClick={() => aoTrocarPagina(pagina.paginas)} title="Última página" aria-label="Última página">»</button>
+      </div>
     </div>
   )
 }

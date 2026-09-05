@@ -21,7 +21,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
-import { BarraDeVolta } from '../orcamentos/Arquivos'
 import { emReais, emData, emDataHora } from '../orcamentos/tipos'
 
 interface DAV {
@@ -52,7 +51,7 @@ interface Aberto {
   pedidos: Pedido[]
 }
 
-export function APagar({ voltar }: { voltar: () => void }) {
+export function APagar() {
   const [dados, setDados] = useState<Aberto | null>(null)
   const [ate, setAte] = useState(hoje())
   const [erro, setErro] = useState('')
@@ -113,20 +112,18 @@ export function APagar({ voltar }: { voltar: () => void }) {
 
   return (
     <div className="orc-tela">
-      <BarraDeVolta voltar={voltar} titulo="A pagar › Pedido de faturamento" />
-
       <p className="orc-aviso-fila">
         A Rodrigues emite <b>DAV</b> e acumula. Aqui você junta as que ainda não foram
         pedidas e manda a relação — ela emite <b>uma nota</b> cobrindo todas.
       </p>
 
-      {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
-      {recado && <p className="orc-recado" style={{ margin: '0 16px 8px' }}>{recado}</p>}
+      {erro && <p className="erro">{erro}</p>}
+      {recado && <p className="orc-recado">{recado}</p>}
 
       {!dados ? <Carregando /> : (
         <>
           <div className="orc-barra-acoes">
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <label>
               emitidas até
               <input type="date" value={ate} onChange={e => setAte(e.target.value)} />
             </label>
@@ -136,7 +133,7 @@ export function APagar({ voltar }: { voltar: () => void }) {
               <u>{emReais(dados.valor)}</u>
             </span>
 
-            <button type="button" className="forte" disabled={!dados.quantas}
+            <button type="button" className="orc-bt forte" disabled={!dados.quantas}
               onClick={() => void baixarDoMotor('/orcamentos/pedido.xlsx?ate=' + ate)}>
               baixar a relação (Excel)
             </button>
@@ -144,7 +141,7 @@ export function APagar({ voltar }: { voltar: () => void }) {
                 O Excel é matéria-prima: ninguém "vê" uma planilha, leva-se ela
                 para outro programa. O PDF é o documento que vai ao fornecedor —
                 e documento se confere na tela antes de sair. */}
-            <button type="button" className="forte" disabled={!dados.quantas}
+            <button type="button" className="orc-bt forte" disabled={!dados.quantas}
               onClick={() => setVendoPedido(true)}>
               ver o pedido (PDF)
             </button>
@@ -161,43 +158,45 @@ export function APagar({ voltar }: { voltar: () => void }) {
           </div>
 
           {dados.sem_data > 0 && (
-            <p className="orc-detalhe aviso" style={{ margin: '0 16px 10px' }}>
+            <p className="orc-aviso-fila">
               {dados.sem_data} DAV{dados.sem_data > 1 ? 's' : ''} sem data de emissão lida —
               {dados.sem_data > 1 ? ' elas entram' : ' ela entra'} no pedido de qualquer corte,
               porque são devidas do mesmo jeito.
             </p>
           )}
 
-          <div className="orc-rolagem">
-            <table className="orc-tabela">
-              <thead>
-                <tr>
-                  <th>DAV</th><th>Emissão</th><th style={{ textAlign: 'right' }}>Valor</th>
-                  <th>Arquivo</th><th>Inserida em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!dados.davs.length && (
-                  <tr><td colSpan={5}><p className="orc-vazio">
-                    Nenhuma DAV em aberto até esta data.
-                  </p></td></tr>
-                )}
-                {dados.davs.map(d => (
-                  <tr key={d.id}>
-                    <td><span className="orc-nome">{d.dav_numero ?? d.numero ?? '—'}</span></td>
-                    <td>{d.emissao ? emData(d.emissao) : <span className="mut">sem data</span>}</td>
-                    <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
-                    <td>{d.nome_arquivo}</td>
-                    <td>{emDataHora(d.inserido_em)}</td>
+          <div className="orc-lista">
+            <div className="orc-rolagem">
+              <table className="orc-tabela">
+                <thead>
+                  <tr>
+                    <th>DAV</th><th>Emissão</th><th style={{ textAlign: 'right' }}>Valor</th>
+                    <th>Arquivo</th><th>Inserida em</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {!dados.davs.length && (
+                    <tr><td colSpan={5}><p className="orc-vazio">
+                      Nenhuma DAV em aberto até esta data.
+                    </p></td></tr>
+                  )}
+                  {dados.davs.map(d => (
+                    <tr key={d.id}>
+                      <td><span className="orc-nome">{d.dav_numero ?? d.numero ?? '—'}</span></td>
+                      <td>{d.emissao ? emData(d.emissao) : <span className="mut">sem data</span>}</td>
+                      <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
+                      <td>{d.nome_arquivo}</td>
+                      <td>{emDataHora(d.inserido_em)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {dados.pedidos.length > 0 && (
-            <>
-              <div className="orc-lista-cab" style={{ marginTop: 18 }}>
+            <div className="orc-lista">
+              <div className="orc-lista-cab">
                 <h2>Pedidos anteriores</h2>
                 <em>O que já foi mandado à Rodrigues — e o que ela ainda não faturou</em>
               </div>
@@ -242,7 +241,7 @@ export function APagar({ voltar }: { voltar: () => void }) {
                   </tbody>
                 </table>
               </div>
-            </>
+            </div>
           )}
         </>
       )}

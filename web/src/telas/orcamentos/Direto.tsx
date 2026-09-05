@@ -108,8 +108,9 @@ export function Direto({ voltar }: { voltar: () => void }) {
 
       {!pagina ? <Carregando /> : (
         <>
-          <div className="orc-rolagem">
-            <table className="orc-tabela">
+          <div className="orc-lista">
+            <div className="orc-rolagem">
+              <table className="orc-tabela">
               <thead>
                 <tr>
                   <th>Arquivo</th><th>Nota</th><th>Loja</th><th>Ticket</th>
@@ -170,6 +171,7 @@ export function Direto({ voltar }: { voltar: () => void }) {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
           <Paginacao pagina={pagina} por={por}
             aoTrocarPagina={setPag} aoTrocarPor={n => { setPor(n); setPag(1) }} />

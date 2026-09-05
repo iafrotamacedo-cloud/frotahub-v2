@@ -124,7 +124,7 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
         <div className="vazio">Nenhum serviço com esses filtros.</div>
       ) : (
         <>
-          <div className="tabela-rolo">
+          <div className="tabela-rolo tri-painel">
             <table className="tabela sv-tabela sv-tabela-livro">
               <thead>
                 <tr>

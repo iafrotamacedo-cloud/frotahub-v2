@@ -105,8 +105,13 @@ function Casca() {
   //	entrar aqui pelo nome, a moldura ficava clara e os cards escuros boiavam
   //	soltos em cima de um fundo branco — dois módulos iguais parecendo dois
   //	sistemas diferentes.
+  //
+  //	Consolidação, A pagar e Faturar ao cliente são o mesmo caso: telas-folha
+  //	com lista. Sem entrar pelo nome, a página inteira nascia cinza-clara e a
+  //	tabela não se destacava.
   const ehEscura = caminho.length === 0 || !!atual?.sub?.length
     || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados' || atual?.tela === 'servicos-hub'
+    || atual?.tela === 'consolidacao' || atual?.tela === 'a-pagar' || atual?.tela === 'faturar'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -341,9 +346,9 @@ function Casca() {
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
           ) : atual?.tela === 'a-pagar' ? (
-            <APagar voltar={() => navegar(caminho.slice(0, -1))} />
+            <APagar />
           ) : atual?.tela === 'consolidacao' ? (
-            <Consolidacao voltar={() => navegar(caminho.slice(0, -1))} />
+            <Consolidacao />
           ) : atual?.tela === 'servicos-hub' ? (
             <ServicosHub
               onde={extra[0]}
@@ -351,7 +356,7 @@ function Casca() {
               abrir={onde => navegar(caminho, [onde])}
             />
           ) : atual?.tela === 'faturar' ? (
-            <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />
+            <Faturamento />
           ) : atual?.tela === 'orcamentos' ? (
             // A sub-tela também vem do endereço, pelo mesmo motivo do ticket
             // abaixo: voltar tem que fechar a sub-tela, não sair do sistema.
