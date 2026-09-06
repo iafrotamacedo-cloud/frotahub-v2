@@ -43,6 +43,12 @@ func TestListaDeNumerosAceitaComoAGenteCola(t *testing.T) {
 // Ignorar seria o comportamento "amigável" — e leria uma lista menor do que a
 // que o dono digitou, sem dizer. No modo `alvos` a lista é a única coisa que
 // decide o que vai ser gravado; ler de menos é tão errado quanto ler de mais.
+func TestModeloGroqPadraoNaoEOQueAGroqDesligou(t *testing.T) {
+	if ModeloGroqPadrao == "llama-3.1-8b-instant" || ModeloGroqPadrao == "llama-3.3-70b-versatile" {
+		t.Fatalf("o padrão ainda é o modelo que a Groq desligou em 16/08/2026: %s", ModeloGroqPadrao)
+	}
+}
+
 func TestNumeroTortoDerrubaAConfiguracao(t *testing.T) {
 	for _, bruto := range []string{"121413,abc", "121413,-5", "121413,0", "12.34"} {
 		t.Setenv("TRILOGO_ALVOS", bruto)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -103,8 +104,13 @@ func (g *clienteGroq) interpretar(ctx context.Context, pergunta string) (interpr
 	if err := json.Unmarshal(bruto, &fora); err != nil || len(fora.Choices) == 0 {
 		return interpretacaoGroq{}, fmt.Errorf("groq: resposta sem os choices esperados")
 	}
+	conteudo := strings.TrimSpace(fora.Choices[0].Message.Content)
+	conteudo = strings.TrimPrefix(conteudo, "```json")
+	conteudo = strings.TrimPrefix(conteudo, "```")
+	conteudo = strings.TrimSuffix(conteudo, "```")
+	conteudo = strings.TrimSpace(conteudo)
 	var r interpretacaoGroq
-	if err := json.Unmarshal([]byte(fora.Choices[0].Message.Content), &r); err != nil {
+	if err := json.Unmarshal([]byte(conteudo), &r); err != nil {
 		return interpretacaoGroq{}, fmt.Errorf("groq: o conteúdo não é o JSON esperado: %w", err)
 	}
 	return r, nil
@@ -127,7 +133,8 @@ func (m *Modulo) cairNoGroq(r *http.Request, p *seguranca.Principal, pergunta st
 	}
 	interp, err := m.groq.interpretar(r.Context(), pergunta)
 	if err != nil {
-		return Resposta{Texto: "Não reconheci o pedido e não consegui consultar a conversa livre agora. Tente de outro jeito."}
+		log.Printf("rogueworker: groq falhou (%s): %v", m.groq.modelo, err)
+		return Resposta{Texto: "Não reconheci o pedido e a conversa livre não respondeu agora. Tente de outro jeito, ou pergunte de novo em instantes."}
 	}
 	comando := strings.TrimSpace(interp.Comando)
 	if comando != "" && comando != cmdDesconhecido && comandoConhecido(comando) {

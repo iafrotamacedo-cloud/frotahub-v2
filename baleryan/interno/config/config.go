@@ -400,9 +400,15 @@ type Groq struct {
 
 func (g Groq) Ligado() bool { return g.Chave != "" }
 
-// ModeloGroqPadrao é o modelo leve — rápido e mais que suficiente para uma
-// classificação binária de uma frase.
-const ModeloGroqPadrao = "llama-3.1-8b-instant"
+// ModeloGroqPadrao é o modelo leve do Groq.
+//
+// TROCOU EM 06/09/2026
+//	`llama-3.1-8b-instant` era o aprovado, e parou de responder no plano
+//	grátis/developer em 16/08/2026 (decommission da Groq). Pedido que não
+//	casa num comando da Rogue Worker caía no Groq e voltava "não reconheci"
+//	— a chave estava lá, o modelo é que tinha sido desligado. O substituto
+//	oficial da Groq para esse ID é `openai/gpt-oss-20b`.
+const ModeloGroqPadrao = "openai/gpt-oss-20b"
 
 // Runtime é como o processo roda.
 type Runtime struct {
@@ -516,9 +522,15 @@ func Carregar() (*Config, error) {
 	// A classificação de Candidatos a Serviço. Sem chave, o job de Candidatos
 	// simplesmente não roda — não é obrigatória em lugar nenhum, nem em
 	// produção: o gatilho oficial (mudar o responsável) funciona sem ela.
+	modeloGroq := l.texto("GROQ_MODELO", ModeloGroqPadrao, false, "")
+	// Quem ainda tem o ID antigo no Render continua falhando em silêncio.
+	// Trocar só o padrão não chega lá — a variável preenchida vence.
+	if modeloGroq == "llama-3.1-8b-instant" || modeloGroq == "llama-3.3-70b-versatile" {
+		modeloGroq = ModeloGroqPadrao
+	}
 	groq := Groq{
 		Chave:           l.segredo("GROQ_API_KEY", false, 0, ""),
-		Modelo:          l.texto("GROQ_MODELO", ModeloGroqPadrao, false, ""),
+		Modelo:          modeloGroq,
 		LimitePorRodada: l.inteiro("GROQ_LIMITE_POR_RODADA", 200, 1, 5000),
 	}
 
