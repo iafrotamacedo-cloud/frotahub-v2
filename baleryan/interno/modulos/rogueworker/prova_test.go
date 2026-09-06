@@ -46,6 +46,7 @@ func TestReconhecerRelatorios(t *testing.T) {
 	casos := map[string]string{
 		"quanto pagamos a fornecedores este mês?":                 cmdPagamos,
 		"quanto de material já foi lançado no contrato este mês?": cmdMaterial,
+		"quanto gastamos de material mes passado?":                cmdMaterial,
 		"quanto já foi faturado ao cliente?":                      cmdFaturado,
 		"quanto falta faturar?":                                   cmdFaturado,
 		"fechamento do mês":                                       cmdFechamento,
@@ -80,6 +81,9 @@ func TestReconhecerChamadosAtendidos(t *testing.T) {
 	}
 	if reconhecer("me mostra a estatística de chamados de todas as lojas").comando != cmdNavegar {
 		t.Fatal("navegar para a tela de chamados tinha que continuar ganhando da contagem")
+	}
+	if reconhecer("quanto gastamos de material mes passado?").comando == cmdNavegar {
+		t.Fatal("gasto de material não é pedido de tela")
 	}
 }
 

@@ -167,6 +167,9 @@ func (m *Modulo) cairNoGroq(r *http.Request, p *seguranca.Principal, pergunta st
 	}
 	comando := strings.TrimSpace(interp.Comando)
 	if comando != "" && comando != cmdDesconhecido && comandoConhecido(comando) {
+		if comando == cmdNavegar && telaPorNome(interp.Parametros.Tela) == nil {
+			return m.consultarComDados(r, p, pergunta, interp)
+		}
 		rec := reconhecimento{
 			comando: comando,
 			ticket:  interp.Parametros.Ticket,

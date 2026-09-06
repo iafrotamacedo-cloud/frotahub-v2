@@ -147,6 +147,8 @@ func inferirFontes(frase string) []string {
 	case strings.Contains(s, "robo") || strings.Contains(s, "sincron") ||
 		strings.Contains(s, "ultima leitura") || strings.Contains(s, "rodada"):
 		poe("robos_trilogo")
+	case strings.Contains(s, "material") || strings.Contains(s, "gasta"):
+		poe("orcamentos_painel")
 	case strings.Contains(s, "chamado") || strings.Contains(s, "ticket") ||
 		strings.Contains(s, "atend") || strings.Contains(s, "execut"):
 		poe("estatisticas_resumo")

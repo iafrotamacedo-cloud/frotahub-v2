@@ -59,7 +59,9 @@ func reconhecer(frase string) reconhecimento {
 		strings.Contains(s, "faturado ao cliente") || strings.Contains(s, "quanto falta") ||
 		(strings.Contains(s, "fatur") && strings.Contains(s, "quanto")):
 		return reconhecimento{comando: cmdFaturado}
-	case strings.Contains(s, "material") && (strings.Contains(s, "lancad") || strings.Contains(s, "lançad") || strings.Contains(s, "contrato")):
+	case strings.Contains(s, "material") && (strings.Contains(s, "lancad") || strings.Contains(s, "lançad") ||
+		strings.Contains(s, "contrato") || strings.Contains(s, "gasta") || strings.Contains(s, "quanto") ||
+		strings.Contains(s, "custo")):
 		return reconhecimento{comando: cmdMaterial}
 	}
 
@@ -93,6 +95,12 @@ func reconhecerNavegar(s string) reconhecimento {
 		strings.Contains(s, "vai para") || strings.Contains(s, "vai pra") ||
 		strings.Contains(s, "leva pra") || strings.Contains(s, "leva para") ||
 		strings.Contains(s, "quero ir") || strings.Contains(s, "onde fica")
+	// "quanto gastamos de material" não é pedido de tela. Sem essa trava o Groq
+	// (e um nome curto no catálogo, tipo "orcamento") mandava a conversa para
+	// o menu em vez do número.
+	if perguntaDeDado(s) && !pede {
+		return reconhecimento{}
+	}
 	if !pede && !strings.Contains(s, "tela de") && !strings.Contains(s, "estatistica") {
 		return reconhecimento{}
 	}
@@ -113,6 +121,11 @@ func reconhecerNavegar(s string) reconhecimento {
 		return reconhecimento{comando: cmdNavegar}
 	}
 	return reconhecimento{}
+}
+
+func perguntaDeDado(s string) bool {
+	return strings.Contains(s, "quant") || strings.Contains(s, "gasta") ||
+		strings.Contains(s, "pagamos") || strings.Contains(s, "custo")
 }
 
 func contemTodos(s string, partes ...string) bool {

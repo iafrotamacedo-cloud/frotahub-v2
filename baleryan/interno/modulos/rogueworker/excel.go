@@ -3,6 +3,7 @@ package rogueworker
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
@@ -39,6 +40,14 @@ func (m *Modulo) excelMaterial(w http.ResponseWriter, r *http.Request, p *segura
 		return
 	}
 	inicio, fim := mesCorrente()
+	rotulo := inicio.Format("01/2006")
+	if mes := strings.TrimSpace(r.URL.Query().Get("mes")); len(mes) == 7 {
+		if t, err := time.ParseInLocation("2006-01", mes, relatorio.FusoDaCasa()); err == nil {
+			inicio = t
+			fim = t.AddDate(0, 1, 0)
+			rotulo = t.Format("01/2006")
+		}
+	}
 	corpo := make([][]any, 0)
 	var soma float64
 	for _, l := range linhas {
@@ -59,11 +68,10 @@ func (m *Modulo) excelMaterial(w http.ResponseWriter, r *http.Request, p *segura
 		})
 	}
 	agora := time.Now().In(relatorio.FusoDaCasa())
-	mes := agora.Format("01/2006")
 	tab := relatorio.Tabela{
 		Titulo:    "Material lançado no contrato",
 		Aba:       "Lançados",
-		Subtitulo: fmt.Sprintf("%d orçamentos · R$ %s · %s", len(corpo), emReais(soma), mes),
+		Subtitulo: fmt.Sprintf("%d orçamentos · R$ %s · %s", len(corpo), emReais(soma), rotulo),
 		Colunas: []relatorio.Coluna{
 			{Titulo: "Ticket", Peso: 1, Tipo: relatorio.Numero},
 			{Titulo: "Loja", Peso: 2.4, Tipo: relatorio.Texto},
@@ -74,7 +82,7 @@ func (m *Modulo) excelMaterial(w http.ResponseWriter, r *http.Request, p *segura
 		Gerado: agora,
 		Capa: &relatorio.Capa{
 			Chapeu:     "FROTA MACEDO ENGENHARIA  ·  CONTRATO DE MANUTENÇÃO PREDIAL",
-			Periodo:    "Lançados em " + mes,
+			Periodo:    "Lançados em " + rotulo,
 			Assinatura: "Gerado em " + agora.Format("02/01/2006 15:04") + " por " + p.Nome + " através do FrotaHub",
 			Resumo:     fmt.Sprintf("%d orçamentos", len(corpo)),
 			Destaque:   "R$ " + emReais(soma),

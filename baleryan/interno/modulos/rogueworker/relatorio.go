@@ -13,14 +13,9 @@ import (
 
 func (m *Modulo) proporOuEntregarRelatorio(r *http.Request, p *seguranca.Principal, rec reconhecimento, frase string) Resposta {
 	s := normalizar(frase)
-	sabeEscopo := ehManutencao(s) || ehServicos(s)
-	if !sabeEscopo && rec.comando != cmdFechamento {
-		return Resposta{
-			Texto:    "Manutenção ou Serviços?",
-			Pendente: &Pendente{Tipo: "escopo", Comando: rec.comando},
-			Opcoes:   []string{"Manutenção", "Serviços"},
-		}
-	}
+	// Só existe conta de Manutenção nestes relatórios. Perguntar "Manutenção
+	// ou Serviços?" e depois recusar Serviços era dois turnos para um número
+	// que já dava para devolver.
 	if ehServicos(s) {
 		return Resposta{
 			Texto:    "Nesta versão eu só consulto o módulo de Orçamentos (Manutenção). Quer que eu calcule pela Manutenção?",
@@ -28,15 +23,15 @@ func (m *Modulo) proporOuEntregarRelatorio(r *http.Request, p *seguranca.Princip
 			Opcoes:   []string{"Manutenção", "Agora não"},
 		}
 	}
-	return m.entregarRelatorio(r, p, rec.comando)
+	return m.entregarRelatorio(r, p, rec.comando, frase)
 }
 
-func (m *Modulo) entregarRelatorio(r *http.Request, p *seguranca.Principal, comando string) Resposta {
+func (m *Modulo) entregarRelatorio(r *http.Request, p *seguranca.Principal, comando, frase string) Resposta {
 	switch comando {
 	case cmdPagamos:
 		return m.relPagamos(r, p)
 	case cmdMaterial:
-		return m.relMaterial(r, p)
+		return m.relMaterial(r, p, frase)
 	case cmdFaturado:
 		return m.relFaturado(r, p)
 	case cmdFechamento:
@@ -66,7 +61,7 @@ func (m *Modulo) relPagamos(r *http.Request, p *seguranca.Principal) Resposta {
 	return m.comExcel(texto, "/orcamentos/pedido.xlsx")
 }
 
-func (m *Modulo) relMaterial(r *http.Request, p *seguranca.Principal) Resposta {
+func (m *Modulo) relMaterial(r *http.Request, p *seguranca.Principal, frase string) Resposta {
 	if !m.pode(r, p, orcamentos.RotinaLancar) {
 		return Resposta{Texto: "Não achei material lançado com o que este login alcança."}
 	}
@@ -74,7 +69,7 @@ func (m *Modulo) relMaterial(r *http.Request, p *seguranca.Principal) Resposta {
 	if err != nil {
 		return Resposta{Texto: "Não consegui listar os orçamentos lançados agora."}
 	}
-	inicio, fim := mesCorrente()
+	inicio, fim, rotulo := periodoDoPedido(frase)
 	var soma float64
 	quantos := 0
 	for _, l := range linhas {
@@ -88,10 +83,9 @@ func (m *Modulo) relMaterial(r *http.Request, p *seguranca.Principal) Resposta {
 		soma += numeroDe(l["valor"])
 		quantos++
 	}
-	mes := time.Now().In(relatorio.FusoDaCasa()).Format("01/2006")
-	texto := fmt.Sprintf("Neste mês (%s) foram lançados %d orçamento(s) no contrato, somando R$ %s de material.",
-		mes, quantos, emReais(soma))
-	return m.comExcel(texto, "/rogueworker/excel?o=material")
+	texto := fmt.Sprintf("Em %s foram lançados %d orçamento(s) no contrato, somando R$ %s de material.",
+		rotulo, quantos, emReais(soma))
+	return m.comExcel(texto, "/rogueworker/excel?o=material&mes="+inicio.Format("2006-01"))
 }
 
 func (m *Modulo) relFaturado(r *http.Request, p *seguranca.Principal) Resposta {
