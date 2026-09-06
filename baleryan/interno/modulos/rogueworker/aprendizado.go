@@ -115,6 +115,8 @@ func rotinaDoComando(comando string) string {
 		return "CONTRATO_FINANCEIRO_PAGAR"
 	case cmdFaturado, cmdFechamento:
 		return "CONTRATO_ORCAMENTOS_FATURAR"
+	case cmdChamadosAtendidos:
+		return "CONTRATO_ESTATISTICAS"
 	default:
 		return "rogueworker"
 	}

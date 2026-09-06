@@ -27,35 +27,40 @@ func novoClienteGroq(cfg config.Groq) *clienteGroq {
 	return &clienteGroq{
 		chave:  cfg.Chave,
 		modelo: cfg.Modelo,
-		http:   &http.Client{Timeout: 30 * time.Second},
+		http:   &http.Client{Timeout: 45 * time.Second},
 	}
 }
 
 func (g *clienteGroq) ligado() bool { return g != nil && g.chave != "" }
 
-const promptFallback = `Você é a Rogue Worker, assistente de dentro do FrotaHub (manutenção predial da Frota Macedo, cliente Mercadinhos São Luiz). Escopo desta versão: só o módulo Orçamentos.
+const promptFallback = `Você é a Rogue Worker, assistente de dentro do FrotaHub (manutenção predial da Frota Macedo, cliente Mercadinhos São Luiz). Você responde sobre QUALQUER módulo que o login alcance: orçamentos, chamados/Trílogo, estatísticas, serviços, consolidação, funcionários/SESMT, usuários.
 
-Os comandos que o sistema já executa sozinho:
-- pendencias: quantas notas/tickets estão pendentes
-- status_nota: status de uma nota ou ticket (parametros.ticket ou parametros.id)
-- extrapoladas: orçamentos/notas que passaram do teto
-- bloqueadas: notas bloqueadas ou repetidas
-- gerar: gerar orçamento de UMA nota (parametros.ticket ou id)
-- gerar_lote: gerar orçamento de todas as notas da fila
-- lancar: lançar UM orçamento no Trílogo
-- lancar_lote: lançar todos da fila de lançamento
-- pagamos_fornecedores: quanto pagamos / DAVs em aberto
-- material_lancado: material lançado no contrato neste mês
-- faturado: quanto já foi faturado / quanto falta faturar
-- fechamento: fechamento do mês / relatório mensal
-- navegar: levar o usuário a uma tela (parametros.tela: consolidacao, orcamentos, a-pagar, faturar, est-chamados, trilogo-dados, servicos-hub, funcionarios, minha-conta)
-- desconhecido: não é nenhum desses
+Os comandos que o sistema já executa sozinho (use um destes quando casar):
+- pendencias, status_nota, extrapoladas, bloqueadas
+- gerar, gerar_lote, lancar, lancar_lote (ações: o motor confirma antes)
+- pagamos_fornecedores, material_lancado, faturado, fechamento
+- chamados_atendidos
+- navegar (parametros.tela: consolidacao, orcamentos, a-pagar, faturar, est-chamados, trilogo-dados, servicos-hub, funcionarios, minha-conta)
+- desconhecido: não é um comando acima — aí preencha fontes
 
-Responda SÓ com um objeto JSON, sem texto antes ou depois:
-{"comando":"...","parametros":{"ticket":0,"id":"","tela":""},"formato_canonico":"frase curta canônica do pedido","resposta":"se comando=desconhecido, responda em português, curta, sem inventar número"}`
+fontes (1 a 4, só leitura, GET que o sistema já tem):
+orcamentos_painel, orcamentos_pendencias, orcamentos_pedido, orcamentos_faturamento, orcamentos_fechamento,
+servicos_painel, servicos_lista, servicos_kanban,
+trilogo_chamados, trilogo_chamado,
+estatisticas_resumo, consolidacao,
+funcionarios_conformidade, funcionarios_vencendo, funcionarios_lista,
+robos_trilogo, usuarios
+
+Responda SÓ com um objeto JSON:
+{"comando":"...","fontes":["..."],"parametros":{"ticket":0,"id":"","tela":""},"formato_canonico":"frase curta canônica","resposta":""}`
+
+const promptNarrar = `Você é a Rogue Worker. Responda em português, curto (no máximo 8 frases), só com o que está em DADOS. Não invente número, nome, status nem data. Se DADOS não cobre a pergunta, diga o que falta e ofereça ir à tela certa. Sem markdown, sem lista de fontes.
+
+Responda SÓ com JSON: {"resposta":"..."}`
 
 type interpretacaoGroq struct {
-	Comando    string `json:"comando"`
+	Comando    string   `json:"comando"`
+	Fontes     []string `json:"fontes"`
 	Parametros struct {
 		Ticket int    `json:"ticket"`
 		ID     string `json:"id"`
@@ -66,11 +71,35 @@ type interpretacaoGroq struct {
 }
 
 func (g *clienteGroq) interpretar(ctx context.Context, pergunta string) (interpretacaoGroq, error) {
+	return g.jsonChat(ctx, promptFallback, pergunta)
+}
+
+func (g *clienteGroq) narrar(ctx context.Context, pergunta string, dados map[string]any) (string, error) {
+	bruto, err := json.Marshal(dados)
+	if err != nil {
+		return "", err
+	}
+	if len(bruto) > tetoDoRetrato {
+		bruto = bruto[:tetoDoRetrato]
+	}
+	user := "PERGUNTA:\n" + pergunta + "\n\nDADOS:\n" + string(bruto)
+	interp, err := g.jsonChat(ctx, promptNarrar, user)
+	if err != nil {
+		return "", err
+	}
+	texto := strings.TrimSpace(interp.Resposta)
+	if texto == "" || pareceQueNaoEntendeu(texto) {
+		return "", fmt.Errorf("groq: narração vazia")
+	}
+	return texto, nil
+}
+
+func (g *clienteGroq) jsonChat(ctx context.Context, sistema, usuario string) (interpretacaoGroq, error) {
 	corpo, err := json.Marshal(map[string]any{
 		"model": g.modelo,
 		"messages": []map[string]string{
-			{"role": "system", "content": promptFallback},
-			{"role": "user", "content": pergunta},
+			{"role": "system", "content": sistema},
+			{"role": "user", "content": usuario},
 		},
 		"temperature":     0,
 		"response_format": map[string]string{"type": "json_object"},
@@ -129,12 +158,12 @@ func primeiraLinha(b []byte) string {
 
 func (m *Modulo) cairNoGroq(r *http.Request, p *seguranca.Principal, pergunta string) Resposta {
 	if !m.groq.ligado() {
-		return Resposta{Texto: "Não reconheci este pedido, e a conversa livre não está ligada neste servidor. Tente com uma das perguntas de orçamentos — pendências, teto, gerar, lançar, faturamento."}
+		return Resposta{Texto: "Não reconheci este pedido, e a conversa livre não está ligada neste servidor. Tente de outro jeito, ou avise o responsável pela chave do Groq."}
 	}
 	interp, err := m.groq.interpretar(r.Context(), pergunta)
 	if err != nil {
 		log.Printf("rogueworker: groq falhou (%s): %v", m.groq.modelo, err)
-		return Resposta{Texto: "Não reconheci o pedido e a conversa livre não respondeu agora. Tente de outro jeito, ou pergunte de novo em instantes."}
+		return m.consultarComDados(r, p, pergunta, interpretacaoGroq{})
 	}
 	comando := strings.TrimSpace(interp.Comando)
 	if comando != "" && comando != cmdDesconhecido && comandoConhecido(comando) {
@@ -148,20 +177,50 @@ func (m *Modulo) cairNoGroq(r *http.Request, p *seguranca.Principal, pergunta st
 		m.oferecerAprendizado(r, p, pergunta, rec, interp.FormatoCanonico, &saida)
 		return saida
 	}
-	texto := strings.TrimSpace(interp.Resposta)
-	if texto == "" {
-		texto = "Não reconheci este pedido. Posso responder sobre pendências, notas, teto, gerar/lançar orçamento, faturamento e te levar até uma tela do menu."
+	return m.consultarComDados(r, p, pergunta, interp)
+}
+
+func (m *Modulo) consultarComDados(r *http.Request, p *seguranca.Principal, pergunta string, interp interpretacaoGroq) Resposta {
+	ids := juntarFontes(interp.Fontes, inferirFontes(pergunta))
+	if len(ids) == 0 {
+		ids = fontesDoRetratoGeral()
 	}
-	saida := Resposta{Texto: texto + "\n\nIsso ajudou? posso lembrar da próxima vez?"}
+	dados := m.buscarFontes(r, p, pergunta, ids)
+	texto, err := m.groq.narrar(r.Context(), pergunta, dados)
+	if err != nil {
+		log.Printf("rogueworker: groq não narrou: %v", err)
+		texto = textoSemModelo(dados)
+	}
+	saida := Resposta{Texto: texto}
 	m.oferecerAprendizado(r, p, pergunta, reconhecimento{comando: cmdDesconhecido}, interp.FormatoCanonico, &saida)
 	return saida
+}
+
+func textoSemModelo(dados map[string]any) string {
+	ok := 0
+	for _, v := range dados {
+		m, eh := v.(map[string]any)
+		if !eh {
+			ok++
+			continue
+		}
+		if _, tem := m["erro"]; tem && len(m) == 1 {
+			continue
+		}
+		ok++
+	}
+	if ok == 0 {
+		return "Não achei isso com o que este login alcança, ou o sistema não devolveu o dado agora."
+	}
+	return "Consultei o sistema, mas não consegui redigir a resposta agora. Pergunte de novo em instantes, ou abra a tela no menu."
 }
 
 func comandoConhecido(c string) bool {
 	switch c {
 	case cmdPendencias, cmdStatusNota, cmdExtrapoladas, cmdBloqueadas,
 		cmdGerar, cmdGerarLote, cmdLancar, cmdLancarLote,
-		cmdPagamos, cmdMaterial, cmdFaturado, cmdFechamento, cmdNavegar:
+		cmdPagamos, cmdMaterial, cmdFaturado, cmdFechamento,
+		cmdChamadosAtendidos, cmdNavegar:
 		return true
 	}
 	return false

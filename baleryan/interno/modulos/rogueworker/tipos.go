@@ -43,20 +43,21 @@ type OfertaExcel struct {
 }
 
 const (
-	cmdPendencias   = "pendencias"
-	cmdStatusNota   = "status_nota"
-	cmdExtrapoladas = "extrapoladas"
-	cmdBloqueadas   = "bloqueadas"
-	cmdGerar        = "gerar"
-	cmdGerarLote    = "gerar_lote"
-	cmdLancar       = "lancar"
-	cmdLancarLote   = "lancar_lote"
-	cmdPagamos      = "pagamos_fornecedores"
-	cmdMaterial     = "material_lancado"
-	cmdFaturado     = "faturado"
-	cmdFechamento   = "fechamento"
-	cmdNavegar      = "navegar"
-	cmdDesconhecido = "desconhecido"
+	cmdPendencias        = "pendencias"
+	cmdStatusNota        = "status_nota"
+	cmdExtrapoladas      = "extrapoladas"
+	cmdBloqueadas        = "bloqueadas"
+	cmdGerar             = "gerar"
+	cmdGerarLote         = "gerar_lote"
+	cmdLancar            = "lancar"
+	cmdLancarLote        = "lancar_lote"
+	cmdPagamos           = "pagamos_fornecedores"
+	cmdMaterial          = "material_lancado"
+	cmdFaturado          = "faturado"
+	cmdFechamento        = "fechamento"
+	cmdChamadosAtendidos = "chamados_atendidos"
+	cmdNavegar           = "navegar"
+	cmdDesconhecido      = "desconhecido"
 )
 
 type reconhecimento struct {

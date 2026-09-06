@@ -45,7 +45,7 @@ type Bolha = {
 
 const boasVindas: Bolha = {
   quem: 'rw',
-  texto: 'Oi. Posso responder sobre orçamentos, gerar ou lançar (sempre confirmo antes), montar relatório e te levar até uma tela do menu.',
+  texto: 'Oi. Posso responder sobre o que este login alcança no FrotaHub — chamados, orçamentos, serviços, consolidação, funcionários. Para gerar ou lançar, eu sempre confirmo antes. Também te levo até uma tela do menu.',
 }
 
 export function ChatRogue({

@@ -93,6 +93,8 @@ func (m *Modulo) executarComando(r *http.Request, p *seguranca.Principal, rec re
 		return m.proporAcao(r, p, rec)
 	case cmdPagamos, cmdMaterial, cmdFaturado, cmdFechamento:
 		return m.proporOuEntregarRelatorio(r, p, rec, frase)
+	case cmdChamadosAtendidos:
+		return m.cmdChamadosAtendidos(r, p, frase)
 	case cmdNavegar:
 		return m.executarNavegar(r, p, rec)
 	default:

@@ -1,7 +1,10 @@
 // rev 1 — a Rogue Worker: assistente dentro do FrotaHub
 //
 // Três capacidades, nesta ordem de peso: responder, agir, gerar relatório.
-// Uma quarta, navegar, entra junto. Escopo desta leva: só o módulo Orçamentos.
+// Uma quarta, navegar, entra junto. Pergunta de leitura alcança qualquer
+// módulo que este login já veria no menu — a conversa livre consulta os
+// mesmos GET. Ação que muda dado (gerar, lançar) continua só em Orçamentos
+// e sempre pede confirmação.
 //
 // ELA NÃO É UM SEGUNDO SISTEMA DE PERMISSÃO
 //

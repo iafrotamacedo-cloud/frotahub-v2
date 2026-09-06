@@ -63,7 +63,28 @@ func reconhecer(frase string) reconhecimento {
 		return reconhecimento{comando: cmdMaterial}
 	}
 
+	if r := reconhecerChamados(s); r.comando != "" {
+		return r
+	}
+
 	return reconhecimento{comando: cmdDesconhecido}
+}
+
+// reconhecerChamados pega "quantos chamados atendemos mês passado" e afins.
+// Navegar para a tela de estatística já rodou antes — aqui só entra contagem.
+func reconhecerChamados(s string) reconhecimento {
+	if !strings.Contains(s, "chamado") && !strings.Contains(s, "ticket") {
+		return reconhecimento{}
+	}
+	if strings.Contains(s, "status") {
+		return reconhecimento{}
+	}
+	pede := strings.Contains(s, "quant") || strings.Contains(s, "atend") ||
+		strings.Contains(s, "execut") || strings.Contains(s, "abrimos")
+	if !pede {
+		return reconhecimento{}
+	}
+	return reconhecimento{comando: cmdChamadosAtendidos}
 }
 
 func reconhecerNavegar(s string) reconhecimento {
