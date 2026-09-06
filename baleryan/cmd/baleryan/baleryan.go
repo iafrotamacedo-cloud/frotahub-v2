@@ -30,6 +30,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/rogueworker"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/servicos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
@@ -99,6 +100,10 @@ func main() {
 	// Ela cruza o que já existe — nota, orçamento, fatura — e por isso não
 	// precisa de nada que grave.
 	consolidacao.Novo(bd, seg, m.perm).Montar(mux)
+	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
+	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
+	// escrever nas tabelas deles.
+	rogueworker.Novo(cfg, bd, seg, m.perm, hist, mux).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".

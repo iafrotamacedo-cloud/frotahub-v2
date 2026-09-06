@@ -113,6 +113,14 @@ const CAMINHOS: Record<NomeIcone, JSX.Element> = {
       <path d="M20.2 19.4h-18" />
     </>
   ),
+  // Balão de conversa. Traço 1.7, sem preenchimento — o mesmo vocabulário
+  // dos outros, para a Rogue Worker não nascer com um SVG de outra família.
+  'balao': (
+    <>
+      <path d="M5 6.2h14a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.2L4.4 21V8a1.8 1.8 0 0 1 1.8-1.8Z" />
+      <path d="M8.4 10.6h7.2M8.4 13.8h4.6" />
+    </>
+  ),
 }
 
 export function Icone({ nome }: { nome: NomeIcone }) {

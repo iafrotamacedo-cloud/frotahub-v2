@@ -12,6 +12,7 @@ import './estilos/orcamentos.css'
 // ela passou a poder pisar nas outras.
 import './estilos/estatisticas.css'
 import './estilos/servicos.css'
+import './estilos/rogueworker.css'
 import App from './App'
 
 const raiz = document.getElementById('raiz')

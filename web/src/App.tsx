@@ -1,4 +1,4 @@
-// rev 9 — a casca do FrotaHub
+// rev 10 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -27,6 +27,7 @@ import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { Estatisticas, type TelaEstatistica } from './telas/estatisticas/Estatisticas'
 import { useExpiracao } from './sessao/inatividade'
+import { ChatRogue } from './telas/rogueworker/ChatRogue'
 
 // A CASCA MORA DENTRO DO PROVEDOR
 //   `useFocado` só funciona abaixo de `ProvedorDeFoco`. Envolver aqui, e não em
@@ -77,6 +78,9 @@ function Casca() {
     try { localStorage.setItem('fh-menu-recolhido', recolhida ? '1' : '0') } catch { /* navegador sem armazenamento: só não lembra */ }
   }, [recolhida])
   const [expirou, setExpirou] = useState(false)
+  // O miolo da barra vira chat. Logo e rodapé ficam. Recolhida, abrir a
+  // Worker traz a barra de volta — senão o chat nasceria invisível.
+  const [chatAberto, setChatAberto] = useState(false)
 
   // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
   // alguém dentro — na tela de login não há sessão para expirar.
@@ -176,6 +180,17 @@ function Casca() {
           </button>
         </div>
 
+        {chatAberto ? (
+          <ChatRogue
+            aoVoltar={() => setChatAberto(false)}
+            aoNavegar={rotas => {
+              const caminho = caminhoPorRotas(arvore, rotas)
+              if (!caminho) return
+              setChatAberto(false)
+              navegar(caminho)
+            }}
+          />
+        ) : (
         <nav className="sd-nav">
           <div className="nv-sec">Menu</div>
 
@@ -216,6 +231,24 @@ function Casca() {
             )
           })}
         </nav>
+        )}
+
+        {!chatAberto && (
+          <div className="sd-rogue-wrap">
+            <button
+              className="sd-rogue"
+              type="button"
+              onClick={() => {
+                if (recolhida) setRecolhida(false)
+                setChatAberto(true)
+              }}
+            >
+              <Icone nome="balao" />
+              <span className="lb">Rogue Worker</span>
+              <span className="hint">perguntar</span>
+            </button>
+          </div>
+        )}
 
         <div className="sd-user">
           {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
@@ -383,4 +416,16 @@ function Casca() {
 
     </div>
   )
+}
+
+function caminhoPorRotas(arvore: ItemMenu[], rotas: string[]): ItemMenu[] | null {
+  const caminho: ItemMenu[] = []
+  let nivel = arvore
+  for (const rota of rotas) {
+    const item = nivel.find(i => i.rota === rota)
+    if (!item) return null
+    caminho.push(item)
+    nivel = item.sub ?? []
+  }
+  return caminho.length ? caminho : null
 }

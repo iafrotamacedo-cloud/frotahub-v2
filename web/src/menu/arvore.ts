@@ -34,7 +34,7 @@ export interface ItemMenu {
 
 export type Icone =
   | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
-  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico'
+  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico' | 'balao'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela =
