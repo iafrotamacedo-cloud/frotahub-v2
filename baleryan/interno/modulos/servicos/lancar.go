@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
@@ -75,6 +76,24 @@ func (s *Servico) LancarNoTrilogo(ctx context.Context, clienteID, itemID, descri
 		cotacaoID, err = sessao.CriarCotacao(ctx, item.Ticket, descricaoCotacao)
 		if err != nil {
 			return 0, 0, 0, err
+		}
+		// GRAVA JÁ, ANTES DE TENTAR O ORÇAMENTO — NÃO NO FINAL
+		//
+		//	O BUG: se CriarOrcamentoServico falhar daqui pra frente, a
+		//	cotação JÁ EXISTE de verdade no Trílogo — mas como o card só
+		//	era atualizado no final (junto com o orçamento), a próxima
+		//	tentativa não achava `CotacaoTrilogoID` nenhum e criava OUTRA
+		//	cotação, deixando a primeira órfã pra sempre (Trílogo não deixa
+		//	apagar cotação). Confirmado ao vivo em 08/09/2026: o ticket
+		//	135698 acumulou duas cotações "TESTE" sem orçamento nenhum
+		//	depois de duas tentativas que recusaram no passo seguinte.
+		//
+		//	Gravar aqui — mesmo que o resto falhe — faz a PRÓXIMA tentativa
+		//	reaproveitar esta cotação em vez de criar mais uma.
+		if err := s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID),
+			map[string]any{"cotacao_trilogo_id": cotacaoID}); err != nil {
+			log.Printf("servicos: criei a cotação %d no Trílogo (ticket %d) mas não gravei no card: %v — a próxima tentativa vai criar outra",
+				cotacaoID, item.Ticket, err)
 		}
 	}
 
