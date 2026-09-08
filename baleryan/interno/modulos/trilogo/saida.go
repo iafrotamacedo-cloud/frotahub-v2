@@ -23,19 +23,50 @@
 //	esse caminho não existe: cada carimbo é uma resposta do Trílogo sobre
 //	AQUELE chamado, não uma dedução sobre uma lista inteira.
 //
+// O CONTRATO DE `GetTicketDetail` NÃO FOI ADIVINHADO
+//
+//	Medido contra o Trílogo de verdade em 08/09/2026, nas duas contas, com o
+//	ticket 132242 (que os Mercadinhos tinham acabado de tirar da nossa
+//	prestadora), o 132243 (que continua nosso, na Instalações) e um número
+//	inventado:
+//
+//	  200 + JSON do chamado ....... é da conta
+//	  400 {"message":"Você não possui permissão para acessar este ticket"}
+//	  400 {"message":"Ticket não encontrado"}
+//
+//	A PRIMEIRA VERSÃO DESTE ARQUIVO ERRAVA AQUI, e errava do jeito silencioso:
+//	acreditou no comentário do `colher` — "chamado de outra conta responde
+//	VAZIO, com 200" — e tratou todo erro como "não sei". Como a resposta real
+//	é 400, todo chamado que saiu de verdade caía em "não sei", e o carimbo
+//	nunca vinha. O robô rodaria bonito, sem erro nenhum, sem marcar UM
+//	chamado. Foi pego rodando a pergunta na mão antes da primeira rodada.
+//
+//	(O corpo vazio com 200 continua tratado, logo abaixo, como "não alcança".
+//	Ele acontece em outros endereços do Trílogo e não custa nada cobrir.)
+//
 // TRÊS RESPOSTAS, NÃO DUAS
 //
-//	`GetTicketDetail` de um chamado que não é da conta responde VAZIO, sem
-//	erro (é o mesmo achado que obrigou o `colher` a conferir `d.ID`). Já um
-//	erro de rede ou um 500 deles não dizem nada sobre o chamado. Por isso a
-//	pergunta tem três respostas — é nossa, não é dessa conta, e não sei — e o
-//	"não sei" NUNCA carimba: fica para a próxima rodada.
+//	é nossa · esta conta não alcança · não sei. E o "não sei" NUNCA carimba:
+//	fica para a próxima rodada. Os dois 400 acima são "não alcança" — tanto
+//	faz se perdemos a permissão ou se o chamado sumiu do Trílogo inteiro: nos
+//	dois casos ele não é mais nosso, que é a pergunta que este arquivo faz.
+//	Já 401, 403, 5xx e erro de rede não dizem NADA sobre o chamado, e viram
+//	"não sei".
+//
+// A DECISÃO É PELO CÓDIGO HTTP, NUNCA PELA FRASE
+//
+//	`api.go` avisa, com razão, que a frase do Trílogo mente por omissão e não
+//	serve para o programa ramificar. Aqui não se lê frase nenhuma: 400 é 400,
+//	com qualquer texto dentro. As duas mensagens acima estão escritas só para
+//	quem for ler este arquivo depois entender o que se mediu.
 package trilogo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,9 +106,9 @@ type espelho struct {
 type resposta int
 
 const (
-	aindaENossa    resposta = iota // o chamado respondeu: continua na conta
-	naoEDessaConta                 // respondeu vazio: não é desta conta
-	naoSei                         // rede, 500, token — não diz nada sobre o chamado
+	aindaENossa    resposta = iota // 200 com o chamado: continua na conta
+	naoEDessaConta                 // 400 (sem permissão / não encontrado), ou corpo vazio
+	naoSei                         // rede, 401, 5xx — não diz nada sobre o chamado
 )
 
 // marcarQuemSaiu carimba `saiu_em` em quem sumiu da lista e o limpa em quem
@@ -217,20 +248,39 @@ func (s *Servico) confirmarSumico(ctx context.Context, sessoes []*Sessao, suspei
 func aindaDeAlguem(ctx context.Context, sessoes []*Sessao, numero int) resposta {
 	duvida := false
 	for _, sessao := range sessoes {
-		d, err := sessao.Detalhe(ctx, numero)
-		switch {
-		case err != nil:
-			duvida = true
-		case d != nil && d.ID == numero:
+		switch respostaDaConta(ctx, sessao, numero) {
+		case aindaENossa:
 			return aindaENossa
+		case naoSei:
+			duvida = true
 		}
-		// `d.ID != numero` com erro nulo é a resposta vazia do Trílogo: este
-		// chamado não é desta conta. Segue para a próxima.
 	}
 	if duvida {
 		return naoSei
 	}
 	return naoEDessaConta
+}
+
+// respostaDaConta traduz o que UMA conta respondeu sobre UM chamado.
+func respostaDaConta(ctx context.Context, sessao *Sessao, numero int) resposta {
+	d, err := sessao.Detalhe(ctx, numero)
+	if err == nil {
+		if d != nil && d.ID == numero {
+			return aindaENossa
+		}
+		// Erro nulo sem o chamado dentro: corpo vazio. Esta conta não alcança.
+		return naoEDessaConta
+	}
+
+	// 400 é a recusa do Trílogo a entregar o chamado para ESTA conta — sem
+	// permissão, ou não existe mais. Nos dois casos ele não é mais nosso por
+	// aqui. Qualquer outro erro (401 com o token vencido, 5xx deles, rede que
+	// caiu) não fala do chamado, fala de nós: não decide nada.
+	var doTrilogo *ErroDoTrilogo
+	if errors.As(err, &doTrilogo) && doTrilogo.Codigo == http.StatusBadRequest {
+		return naoEDessaConta
+	}
+	return naoSei
 }
 
 // ordemDeConsulta põe a conta do chamado na frente, mantendo as outras atrás.

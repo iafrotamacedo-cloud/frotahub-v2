@@ -114,7 +114,23 @@ func novoMundo(t *testing.T) *mundo {
 	})
 	tri.HandleFunc("GET /api/Ticket/GetTicketDetail", func(w http.ResponseWriter, r *http.Request) {
 		id := inteiroDe(r.URL.Query().Get("id"))
-		json.NewEncoder(w).Encode(m.detalhes[id])
+		// COMO O DE VERDADE RECUSA — medido em 08/09/2026, nas duas contas.
+		//
+		// Chamado que a conta não alcança NÃO volta vazio com 200: volta 400,
+		// com "Você não possui permissão para acessar este ticket" (ou "Ticket
+		// não encontrado", quando o número não existe em lugar nenhum).
+		//
+		// Este dublê já respondeu `null` com 200 aqui, e foi por isso que a
+		// primeira versão de saida.go passou nos testes e não teria carimbado
+		// UM chamado em produção. Dublê frouxo dá teste verde e produção
+		// vermelha; este cobra o que o de verdade cobra.
+		d, temos := m.detalhes[id]
+		if !temos {
+			w.WriteHeader(400)
+			w.Write([]byte(`{"message":"Você não possui permissão para acessar este ticket"}`))
+			return
+		}
+		json.NewEncoder(w).Encode(d)
 	})
 	tri.HandleFunc("GET /api/Ticket/GetTicketCosts/", func(w http.ResponseWriter, r *http.Request) {
 		id := inteiroDe(r.URL.Query().Get("ticketId"))

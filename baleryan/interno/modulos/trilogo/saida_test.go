@@ -174,12 +174,13 @@ func TestListaVaziaNaoCarimbaNinguem(t *testing.T) {
 // As três respostas
 // ---------------------------------------------------------------------------
 
-// trilogoMudo é o que não diz nada sobre o chamado: erro do lado deles.
-func trilogoMudo(t *testing.T) *Sessao {
+// trilogoQueResponde monta uma conta que responde SEMPRE o mesmo — código e
+// corpo ditados pelo teste.
+func trilogoQueResponde(t *testing.T, codigo int, corpo string) *Sessao {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(500)
-		w.Write([]byte(`{"message":"deu ruim aqui"}`))
+		w.WriteHeader(codigo)
+		w.Write([]byte(corpo))
 	}))
 	t.Cleanup(srv.Close)
 	anterior := base
@@ -188,12 +189,67 @@ func trilogoMudo(t *testing.T) *Sessao {
 	return &Sessao{Conta: "instalacoes", token: "faz-de-conta", http: srv.Client()}
 }
 
+// ESTE É O TESTE QUE A PRIMEIRA VERSÃO NÃO TINHA, E QUE TERIA PEGO O DEFEITO.
+//
+// O chamado que a conta não alcança volta 400, e não 200 vazio — medido no
+// Trílogo de verdade em 08/09/2026 (ticket 132242, nas duas contas). Tratar
+// esse 400 como "não sei" fazia o robô rodar limpo, sem erro nenhum, e não
+// carimbar UM chamado. As duas frases que eles mandam entram aqui como estão,
+// para o dia em que alguém trocar o texto: quem decide é o 400.
+func TestARecusaDoTrilogoEUmSumico(t *testing.T) {
+	for _, frase := range []string{
+		`{"message":"Você não possui permissão para acessar este ticket"}`,
+		`{"message":"Ticket não encontrado"}`,
+	} {
+		sessao := trilogoQueResponde(t, 400, frase)
+		if r := aindaDeAlguem(context.Background(), []*Sessao{sessao}, 132242); r != naoEDessaConta {
+			t.Errorf("400 %s não virou sumiço: %v", frase, r)
+		}
+	}
+}
+
 // Erro do Trílogo não é resposta sobre o chamado. Confundir os dois carimbaria
-// no escuro a cada tosse da rede deles.
+// no escuro a cada tosse da rede deles — ou, pior, a cada token vencido, que
+// derrubaria a base inteira de uma vez.
 func TestTrilogoQueNaoRespondeNaoViraSumico(t *testing.T) {
-	sessao := trilogoMudo(t)
-	if r := aindaDeAlguem(context.Background(), []*Sessao{sessao}, 121413); r != naoSei {
-		t.Fatalf("erro do Trílogo virou veredicto: %v", r)
+	for _, codigo := range []int{401, 403, 500, 502} {
+		sessao := trilogoQueResponde(t, codigo, `{"message":"não foi dessa vez"}`)
+		if r := aindaDeAlguem(context.Background(), []*Sessao{sessao}, 121413); r != naoSei {
+			t.Errorf("HTTP %d virou veredicto sobre o chamado: %v", codigo, r)
+		}
+	}
+}
+
+// Uma conta recusando e outra tossindo dá "não sei" — não se carimba sem ter
+// ouvido todas.
+//
+// `base` é global, então as duas sessões falam com o MESMO servidor; quem
+// separa as contas aqui é o token, como no Trílogo de verdade.
+func TestUmaContaMudaSeguraOCarimbo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.Header.Get("Authorization"), "mudo") {
+			w.WriteHeader(500)
+			w.Write([]byte(`{"message":"deu ruim aqui"}`))
+			return
+		}
+		w.WriteHeader(400)
+		w.Write([]byte(`{"message":"Você não possui permissão para acessar este ticket"}`))
+	}))
+	t.Cleanup(srv.Close)
+	anterior := base
+	base = srv.URL
+	t.Cleanup(func() { base = anterior })
+
+	recusa := &Sessao{Conta: "instalacoes", token: "recusa", http: srv.Client()}
+	mudo := &Sessao{Conta: "civil", token: "mudo", http: srv.Client()}
+
+	if r := aindaDeAlguem(context.Background(), []*Sessao{recusa, mudo}, 132242); r != naoSei {
+		t.Fatalf("uma conta sem resposta e mesmo assim carimbou: %v", r)
+	}
+	// E só com as duas recusando é que se carimba.
+	outra := &Sessao{Conta: "civil", token: "recusa-tambem", http: srv.Client()}
+	if r := aindaDeAlguem(context.Background(), []*Sessao{recusa, outra}, 132242); r != naoEDessaConta {
+		t.Fatalf("as duas contas recusaram e não deu sumiço: %v", r)
 	}
 }
 
