@@ -209,11 +209,13 @@ function montarEtapas(d: Painel): Etapa[] {
     {
       chave: 'planilha',
       titulo: 'Planilha de controle',
-      descricao: 'O livro-razão: todos os serviços, em qualquer fila.',
+      descricao: 'Quem já é Serviço e está no funil. Candidato e quem voltou pro contrato não entram.',
       icone: <IconeTabela />,
-      // NÃO É FILA, É LIVRO-RAZÃO — mesma lógica de "Planilhas de controle"
-      // em Orçamentos: mostrar "0" aqui leria como "vazio", que não é a
-      // verdade quando é a soma de tudo que já existiu.
+      // O NÚMERO É O KANBAN VIVO — total_ativos, o mesmo recorte da planilha
+      // (servicos_orcamentos sem removido_em). Candidatos moram em outra
+      // tabela e nem chegam aqui. Voltar pro contrato / Rejeitar tira o card
+      // daqui e da tabela; reentrar cria linha nova. Mostrar "0" quando não
+      // há ninguém no funil é a verdade, não um vazio enganoso.
       numero: d.total_ativos,
       rotulo: 'no total',
       rodape: 'filtros e exportação',

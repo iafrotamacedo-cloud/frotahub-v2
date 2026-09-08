@@ -572,6 +572,12 @@ func (m *Modulo) lerPainel(w http.ResponseWriter, r *http.Request) {
 
 // filtroDaQuery lê os parâmetros comuns às 9 telas de lista e à exportação —
 // um lugar só, pra tela e PDF/Excel nunca discordarem do que foi pedido.
+//
+// PADRÃO É SÓ ATIVOS DO KANBAN. Candidato não tem linha em
+// servicos_orcamentos — não aparece. `todos=1` ainda existe pra quem
+// precisar do histórico (linhas com removido_em), mas a Planilha de
+// controle NÃO manda: Voltar pro contrato e Rejeitar têm que tirar o
+// ticket da tabela, não deixá-lo congelado no último status.
 func filtroDaQuery(q url.Values) FiltroLista {
 	f := FiltroLista{
 		Status:   strings.TrimSpace(q.Get("status")),

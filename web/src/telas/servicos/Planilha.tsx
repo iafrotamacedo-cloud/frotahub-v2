@@ -1,8 +1,17 @@
-// rev 2 — a Planilha de controle: todos os serviços, com filtro e exportação
+// rev 3 — a Planilha de controle: o funil vivo, com filtro e exportação
 //
 // MESMO PADRÃO DE telas/trilogo/DadosTrilogo.tsx: filtros na faixa de cima,
 // tabela no visual do Trílogo (ticket, loja, conta, descrição), "Extrair"
 // com PDF/Excel — a mesma fonte (servicos_lista) que a tela lê.
+//
+// SÓ O QUE AINDA É SERVIÇO DE VERDADE
+//
+//	Candidato não entra: ainda está na fila de decisão, sem linha no Kanban.
+//	Voltar pro contrato e Rejeitar fecham a linha (`removido_em`). Mandar
+//	`todos=1` trazia esse histórico com o último status — um ticket que já
+//	voltou ao contrato (ou que só foi candidato) continuava na planilha como
+//	"Orçamento feito". A planilha acompanha as idas e voltas: sai quando sai
+//	do Kanban, e se o mesmo ticket reentrar nasce uma linha nova.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
@@ -32,7 +41,7 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
   }, [busca])
 
   const paramsDoFiltro = useCallback(() => {
-    const p = new URLSearchParams({ todos: '1' })
+    const p = new URLSearchParams()
     if (status) p.set('status', status)
     if (conta) p.set('conta', conta)
     if (buscaAplicada) p.set('busca', buscaAplicada)
@@ -82,7 +91,7 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
       <header className="hero hero-linha">
         <div>
           <h1>Planilha de controle</h1>
-          <p>Todos os serviços, em qualquer fila — o livro-razão.</p>
+          <p>Quem já é Serviço e está no funil — candidato e quem voltou pro contrato não entram.</p>
         </div>
         <div className="sv-extrair">
           <button type="button" className="bt bt-neutro" disabled={!!extraindo} onClick={() => void extrair('xlsx')}>
