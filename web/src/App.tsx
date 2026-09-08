@@ -12,6 +12,7 @@ import { Icone, Seta, Menu } from './componentes/Icone'
 import { Marca } from './componentes/Marca'
 import { ProvedorDeFoco, useFocado } from './componentes/Foco'
 import { Login } from './telas/Login'
+import { VerificacaoFacial } from './telas/VerificacaoFacial'
 import { Inicio } from './telas/Inicio'
 import { EmBreve } from './telas/EmBreve'
 import { Usuarios } from './telas/usuarios/Usuarios'
@@ -43,7 +44,7 @@ export default function App() {
 }
 
 function Casca() {
-  const { carregando, perfil, entrar, sair } = useSessao()
+  const { carregando, perfil, pendenteFacial, entrar, confirmarBiometria, sair } = useSessao()
 
   // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
   // Fica memorizado porque a navegação depende dele: uma árvore nova a cada
@@ -90,6 +91,7 @@ function Casca() {
   useExpiracao(!!perfil, expirar)
 
   if (carregando) return <div className="auth" />
+  if (pendenteFacial) return <VerificacaoFacial pendente={pendenteFacial} confirmar={confirmarBiometria} />
   if (!perfil) return <Login entrar={entrar} expirou={expirou} />
 
   const atual = caminho[caminho.length - 1]

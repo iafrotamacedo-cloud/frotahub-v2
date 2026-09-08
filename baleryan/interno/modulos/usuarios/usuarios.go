@@ -1,4 +1,4 @@
-// rev 3 — usuários e logins
+// rev 4 — usuários e logins
 //
 // A primeira função de verdade do baleryan, e ela existe aqui por um motivo técnico:
 // criar login exige a API de administração do Supabase, que exige a chave de serviço.
@@ -32,6 +32,14 @@
 //  2. Nasceu POST /minha-conta/senha — a única rota deste arquivo que NÃO é
 //     exclusiva do builder. Ela exige a senha atual, e grava histórico igual:
 //     trocar a própria senha não é exceção à MOD-USUARIOS-01.
+//
+// O QUE MUDOU NA REVISÃO 4 --------------------------------------------------
+//
+//  1. Nasceram POST e DELETE /minha-conta/biometria-facial — o primeiro passo
+//     do reconhecimento facial pedido pelo dono do sistema: um segundo fator
+//     opcional no login, autoatendido. O molde do rosto (128 números, nunca a
+//     foto) é calculado no navegador; aqui só chega o número pronto, para
+//     gravar e deixar rastro — a mesma régua de trocar a própria senha.
 package usuarios
 
 import (
@@ -55,6 +63,12 @@ import (
 
 // Tamanho mínimo de senha. O Supabase também tem o seu; este é o nosso piso.
 const senhaMinima = 8
+
+// O molde do rosto (rev "face-recognition-net") sempre tem 128 números — é a
+// rede que o navegador roda, não uma escolha nossa. Servidor confere o mesmo
+// tamanho que o banco já restringe (P-04): dado ruim não chega nem perto do
+// banco recusar.
+const tamanhoDescritorFacial = 128
 
 // Quantas linhas uma página traz. Nenhuma lista devolve tudo (CORE-10) — nem hoje,
 // com três usuários, nem daqui a três anos.
@@ -89,6 +103,8 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 
 	// Não é builder-only: é a conta da própria pessoa.
 	mux.HandleFunc("POST /minha-conta/senha", m.trocarMinhaSenha)
+	mux.HandleFunc("POST /minha-conta/biometria-facial", m.cadastrarMinhaBiometria)
+	mux.HandleFunc("DELETE /minha-conta/biometria-facial", m.removerMinhaBiometria)
 }
 
 // quemEBuilder resolve as duas perguntas de toda rota daqui: quem é, e se pode.
@@ -642,6 +658,80 @@ func (m *Modulo) trocarMinhaSenha(w http.ResponseWriter, r *http.Request) {
 	// "foi a própria pessoa": o valor do rastro está justamente em ele ser completo.
 	resposta := map[string]any{"ok": true}
 	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, p.UserID, "trocou_senha", nil); err != nil {
+		resposta["aviso"] = historico.Aviso
+	}
+	web.Responder(w, http.StatusOK, resposta)
+}
+
+// ---------------------------------------------------------------------------
+// minha conta — biometria facial (segundo fator opcional do login)
+//
+// Mesma régua da senha: só a PRÓPRIA pessoa mexe na própria biometria, e a
+// gravação passa por aqui — nunca direto do navegador — para deixar rastro
+// (MOD-USUARIOS-01). A leitura do molde, para comparar no navegador contra a
+// captura da câmera, não passa por aqui: vai direto ao Supabase, protegida
+// pela política de linha (ver a migração 057).
+// ---------------------------------------------------------------------------
+
+func (m *Modulo) cadastrarMinhaBiometria(w http.ResponseWriter, r *http.Request) {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return
+	}
+	if p.Tipo != seguranca.TipoUsuario {
+		web.Falhar(w, http.StatusForbidden, "Esta ação é de usuário, não de robô.")
+		return
+	}
+
+	var pedido struct {
+		Descritor []float32 `json:"descritor"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&pedido); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não entendi os dados enviados.")
+		return
+	}
+	if len(pedido.Descritor) != tamanhoDescritorFacial {
+		web.Falhar(w, http.StatusBadRequest, "O rosto capturado veio incompleto. Tente de novo, com boa luz e olhando para a câmera.")
+		return
+	}
+
+	linha := map[string]any{
+		"perfil_id":  p.UserID,
+		"cliente_id": p.ClienteID,
+		"descritor":  pedido.Descritor,
+	}
+	if err := m.bd.Upsert(r.Context(), "perfil_biometria_facial?on_conflict=perfil_id", []map[string]any{linha}, nil); err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui salvar o reconhecimento facial. Tente de novo.")
+		return
+	}
+
+	// Registra o FATO, nunca os 128 números — mesma regra da senha.
+	resposta := map[string]any{"ok": true}
+	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, p.UserID, "cadastrou_biometria_facial", nil); err != nil {
+		resposta["aviso"] = historico.Aviso
+	}
+	web.Responder(w, http.StatusOK, resposta)
+}
+
+func (m *Modulo) removerMinhaBiometria(w http.ResponseWriter, r *http.Request) {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return
+	}
+	if p.Tipo != seguranca.TipoUsuario {
+		web.Falhar(w, http.StatusForbidden, "Esta ação é de usuário, não de robô.")
+		return
+	}
+
+	if err := m.bd.Apagar(r.Context(), "perfil_biometria_facial", "perfil_id=eq."+banco.Escapar(p.UserID)); err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui desativar o reconhecimento facial. Tente de novo.")
+		return
+	}
+
+	resposta := map[string]any{"ok": true}
+	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, p.UserID, "removeu_biometria_facial", nil); err != nil {
 		resposta["aviso"] = historico.Aviso
 	}
 	web.Responder(w, http.StatusOK, resposta)

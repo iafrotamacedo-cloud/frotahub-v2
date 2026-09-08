@@ -23,13 +23,15 @@ const (
 )
 
 type falso struct {
-	srv          *httptest.Server
-	gravados     []map[string]any // tudo que caiu na tabela historico
-	historicoErr bool
-	alvoExiste   bool
-	alvoNome     string
-	alvoAtivo    bool
-	alvoCat      string
+	srv              *httptest.Server
+	gravados         []map[string]any // tudo que caiu na tabela historico
+	historicoErr     bool
+	alvoExiste       bool
+	alvoNome         string
+	alvoAtivo        bool
+	alvoCat          string
+	biometrias       []map[string]any // tudo que caiu na tabela perfil_biometria_facial
+	biometriaApagada string            // perfil_id do último DELETE, se algum
 }
 
 func novoFalso() *falso {
@@ -112,6 +114,20 @@ func novoFalso() *falso {
 		json.NewEncoder(w).Encode([]map[string]any{
 			{"id": 1, "acao": "criou", "autor_usuario": "builder", "quando": "2026-08-23T20:00:00Z"},
 		})
+	})
+
+	mux.HandleFunc("POST /rest/v1/perfil_biometria_facial", func(w http.ResponseWriter, r *http.Request) {
+		bruto, _ := io.ReadAll(r.Body)
+		var linhas []map[string]any
+		json.Unmarshal(bruto, &linhas)
+		f.biometrias = append(f.biometrias, linhas...)
+		w.WriteHeader(201)
+	})
+	mux.HandleFunc("DELETE /rest/v1/perfil_biometria_facial", func(w http.ResponseWriter, r *http.Request) {
+		// O filtro chega como "perfil_id=eq.<id>" na query — é só isso que a
+		// rota precisa provar: que apagou o dono certo.
+		f.biometriaApagada = strings.TrimPrefix(r.URL.Query().Get("perfil_id"), "eq.")
+		w.WriteHeader(204)
 	})
 
 	f.srv = httptest.NewServer(mux)
@@ -405,5 +421,94 @@ func TestMinhaContaSemTokenNaoEntra(t *testing.T) {
 	cod, _ := f.chamar(t, "POST", "/minha-conta/senha", `{"senha_atual":"a","senha_nova":"b"}`, "")
 	if cod != 401 {
 		t.Fatalf("esperava 401, veio %d", cod)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// minha conta — biometria facial
+// ---------------------------------------------------------------------------
+
+func descritorFalso() string {
+	// 128 números — o tamanho de verdade que a rede de reconhecimento produz.
+	// O valor em si não importa para o servidor: ele só conta.
+	valores := make([]string, tamanhoDescritorFacial)
+	for i := range valores {
+		valores[i] = "0.1"
+	}
+	return "[" + strings.Join(valores, ",") + "]"
+}
+
+func TestCadastrarBiometriaGravaHistoricoSemONumero(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+
+	cod, resp := f.chamar(t, "POST", "/minha-conta/biometria-facial",
+		`{"descritor":`+descritorFalso()+`}`, "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d: %v", cod, resp)
+	}
+	if len(f.biometrias) != 1 {
+		t.Fatalf("esperava 1 linha gravada em perfil_biometria_facial, vieram %d", len(f.biometrias))
+	}
+	if f.biometrias[0]["perfil_id"] != uidBuilder || f.biometrias[0]["cliente_id"] != idCliente {
+		t.Fatalf("a linha gravada não é do próprio login: %v", f.biometrias[0])
+	}
+	if len(f.gravados) != 1 {
+		t.Fatalf("esperava 1 linha de histórico, vieram %d", len(f.gravados))
+	}
+	h := f.ultimo()
+	if h["acao"] != "cadastrou_biometria_facial" || h["registro_id"] != uidBuilder {
+		t.Fatalf("a linha de histórico devia ser cadastrou_biometria_facial do próprio: %v", h)
+	}
+	if _, tem := h["mudancas"]; tem {
+		t.Fatalf("o molde do rosto não pode entrar no histórico: %v", h)
+	}
+}
+
+func TestCadastrarBiometriaRecusaDescritorDeTamanhoErrado(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+
+	cod, resp := f.chamar(t, "POST", "/minha-conta/biometria-facial", `{"descritor":[0.1,0.2]}`, "bom")
+	if cod != 400 {
+		t.Fatalf("esperava 400, veio %d: %v", cod, resp)
+	}
+	if len(f.biometrias) != 0 || len(f.gravados) != 0 {
+		t.Fatalf("não podia ter gravado nada: biometrias=%v historico=%v", f.biometrias, f.gravados)
+	}
+}
+
+func TestRemoverBiometriaGravaHistorico(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+
+	cod, resp := f.chamar(t, "DELETE", "/minha-conta/biometria-facial", "", "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d: %v", cod, resp)
+	}
+	if f.biometriaApagada != uidBuilder {
+		t.Fatalf("esperava apagar a biometria do próprio login, apagou %q", f.biometriaApagada)
+	}
+	h := f.ultimo()
+	if h["acao"] != "removeu_biometria_facial" || h["registro_id"] != uidBuilder {
+		t.Fatalf("a linha de histórico devia ser removeu_biometria_facial do próprio: %v", h)
+	}
+}
+
+func TestBiometriaFacialSemTokenNaoEntra(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+
+	for _, caso := range []struct{ metodo, caminho string }{
+		{"POST", "/minha-conta/biometria-facial"},
+		{"DELETE", "/minha-conta/biometria-facial"},
+	} {
+		cod, _ := f.chamar(t, caso.metodo, caso.caminho, `{"descritor":[]}`, "")
+		if cod != 401 {
+			t.Fatalf("%s %s sem token devia dar 401, deu %d", caso.metodo, caso.caminho, cod)
+		}
+	}
+	if len(f.biometrias) != 0 {
+		t.Fatalf("nada podia ter sido gravado: %v", f.biometrias)
 	}
 }

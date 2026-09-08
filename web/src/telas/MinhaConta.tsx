@@ -1,4 +1,4 @@
-// rev 2 — a própria conta
+// rev 3 — a própria conta
 //
 // A única tela de Configurações que NÃO é do builder. Todo login chega aqui, e é
 // daqui que cada um cuida da própria senha sem depender de ninguém (P-29).
@@ -19,9 +19,20 @@
 //
 // Quem confere a senha atual é o Supabase, não o motor — o motor não guarda senha
 // nenhuma (CORE-09).
-import { useState, type FormEvent } from 'react'
+//
+// A REVISÃO 3 TROUXE A VERIFICAÇÃO FACIAL
+//   Segundo fator opcional no login, autoatendido igual à senha: cada um ativa
+//   ou desativa a própria (migração 057). O status ("ativa?") é lido direto do
+//   Supabase — é o mesmo caso de "ler o próprio perfil" do comentário acima —
+//   e ativar/desativar passa pelo motor, para deixar rastro (MOD-USUARIOS-01).
+import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from 'react'
 import { motor, ErroMotor, avisoDe } from '../motor/cliente'
+import { supabase } from '../supabase/cliente'
 import type { Perfil } from '../sessao/tipos'
+
+// Adiado: a `face-api.js` só é baixada por quem realmente abre o cadastro do
+// rosto — ninguém paga esse peso só por visitar Minha conta (CORE-01).
+const CapturaFacial = lazy(() => import('../reconhecimento/CapturaFacial').then(m => ({ default: m.CapturaFacial })))
 
 const SENHA_MINIMA = 8
 
@@ -56,6 +67,61 @@ export function MinhaConta({ perfil }: { perfil: Perfil }) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui trocar a senha.')
     } finally {
       setSalvando(false)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // verificação facial
+  // ---------------------------------------------------------------------------
+  const [facialAtiva, setFacialAtiva] = useState<boolean | null>(null) // null = ainda não sei
+  const [cadastrando, setCadastrando] = useState(false)
+  const [facialErro, setFacialErro] = useState<string | null>(null)
+  const [facialPronto, setFacialPronto] = useState<string | null>(null)
+  const [facialAgindo, setFacialAgindo] = useState(false)
+
+  const carregarStatusFacial = useCallback(async () => {
+    const { data } = await supabase
+      .from('perfil_biometria_facial')
+      .select('perfil_id')
+      .eq('perfil_id', perfil.id)
+      .maybeSingle()
+    setFacialAtiva(!!data)
+  }, [perfil.id])
+
+  useEffect(() => { carregarStatusFacial() }, [carregarStatusFacial])
+
+  async function cadastrarRosto(descritor: Float32Array) {
+    setFacialAgindo(true)
+    setFacialErro(null)
+    setFacialPronto(null)
+    try {
+      const r = await motor('/minha-conta/biometria-facial', {
+        metodo: 'POST',
+        corpo: { descritor: Array.from(descritor) },
+      })
+      setFacialPronto(avisoDe(r) ?? 'Verificação facial ativada. Da próxima vez que entrar, vou pedir para confirmar o seu rosto.')
+      setCadastrando(false)
+      await carregarStatusFacial()
+    } catch (e) {
+      setFacialErro(e instanceof ErroMotor ? e.message : 'Não consegui ativar a verificação facial.')
+    } finally {
+      setFacialAgindo(false)
+    }
+  }
+
+  async function desativarRosto() {
+    if (!window.confirm('Desativar a verificação facial? Da próxima vez que entrar, só a senha será pedida.')) return
+    setFacialAgindo(true)
+    setFacialErro(null)
+    setFacialPronto(null)
+    try {
+      const r = await motor('/minha-conta/biometria-facial', { metodo: 'DELETE' })
+      setFacialPronto(avisoDe(r) ?? 'Verificação facial desativada.')
+      await carregarStatusFacial()
+    } catch (e) {
+      setFacialErro(e instanceof ErroMotor ? e.message : 'Não consegui desativar a verificação facial.')
+    } finally {
+      setFacialAgindo(false)
     }
   }
 
@@ -119,6 +185,48 @@ export function MinhaConta({ perfil }: { perfil: Perfil }) {
               </button>
             </div>
           </form>
+        </section>
+
+        <section className="cartao">
+          <h2>Verificação facial</h2>
+          <p className="dica">
+            {facialAtiva
+              ? 'Ativada. Da próxima vez que você entrar com a senha, vou pedir para confirmar o seu rosto pela câmera.'
+              : 'Um segundo passo opcional no login: depois da senha, confirmar o rosto pela câmera. Ninguém é obrigado — quem não ativar continua entrando só com usuário e senha.'}
+          </p>
+
+          {facialErro && <div className="erro-caixa">{facialErro}</div>}
+          {facialPronto && <div className="recado" role="status">{facialPronto}</div>}
+
+          {facialAtiva === null ? null : cadastrando ? (
+            <>
+              <Suspense fallback={<p className="dica">Preparando a câmera…</p>}>
+                <CapturaFacial rotuloBotao="Cadastrar este rosto" desabilitado={facialAgindo} aoCapturar={cadastrarRosto} />
+              </Suspense>
+              <div className="jn-pe">
+                <button type="button" className="bt bt-neutro" onClick={() => setCadastrando(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="jn-pe">
+              {facialAtiva ? (
+                <>
+                  <button type="button" className="bt bt-neutro" disabled={facialAgindo} onClick={() => setCadastrando(true)}>
+                    Recadastrar o rosto
+                  </button>
+                  <button type="button" className="bt bt-perigo" disabled={facialAgindo} onClick={desativarRosto}>
+                    Desativar
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="bt bt-forte" disabled={facialAgindo} onClick={() => setCadastrando(true)}>
+                  Ativar verificação facial
+                </button>
+              )}
+            </div>
+          )}
         </section>
       </div>
     </>
