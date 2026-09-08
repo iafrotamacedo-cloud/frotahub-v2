@@ -91,6 +91,27 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
     }
   }
 
+  // RETIRAR COTAÇÃO ≠ REJEITAR
+  //
+  //	Rejeitar tira o ticket de Serviço inteiro, de volta pro contrato.
+  //	Retirar cotação só desfaz O LANÇAMENTO — apaga a cotação/orçamento no
+  //	Trílogo e devolve o card pra "Feitos", com o MESMO PDF ainda anexado,
+  //	pronto pra lançar de novo (ver cotacoes.go, ExcluirOrcamento — mesma
+  //	ação que já existia dentro da ficha, agora também aqui na lista).
+  async function retirarCotacao(item: ItemLista) {
+    if (!window.confirm(
+      `Retirar a cotação do ticket ${item.ticket} no Trílogo?\n\nApaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
+    )) return
+    setErro(null)
+    try {
+      const resposta = await motor(`/servicos/kanban/${item.id}/orcamentos`, { metodo: 'DELETE' })
+      setRecado(avisoDe(resposta) ?? 'Cotação retirada — voltou para "Feitos".')
+      void carregar()
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui retirar a cotação.')
+    }
+  }
+
   if (aberto) {
     return (
       <FichaDoTicket
@@ -158,14 +179,20 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
                     <CelulaValor valor={it.orcamento_valor} />
                     {status !== 'faturado' && (
                       <td className="acoes" onClick={e => e.stopPropagation()}>
-                        {status === 'orcamento_lancado' && (
-                          <button type="button" className="bt bt-mini bt-perigo" onClick={() => void rejeitarOrcamento(it)}>
-                            Rejeitar
+                        {status === 'orcamento_lancado' ? (
+                          <>
+                            <button type="button" className="bt bt-mini bt-neutro" onClick={() => void retirarCotacao(it)}>
+                              Retirar cotação
+                            </button>
+                            <button type="button" className="bt bt-mini bt-perigo" onClick={() => void rejeitarOrcamento(it)}>
+                              Rejeitar
+                            </button>
+                          </>
+                        ) : (
+                          <button type="button" className="bt bt-mini bt-neutro" onClick={() => void voltarProContrato(it)}>
+                            Voltar pro contrato
                           </button>
                         )}
-                        <button type="button" className="bt bt-mini bt-neutro" onClick={() => void voltarProContrato(it)}>
-                          Voltar pro contrato
-                        </button>
                       </td>
                     )}
                   </tr>

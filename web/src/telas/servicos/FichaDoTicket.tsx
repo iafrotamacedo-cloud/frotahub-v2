@@ -291,24 +291,25 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
     }
   }
 
-  // EXCLUIR ≠ REJEITAR
+  // RETIRAR COTAÇÃO ≠ REJEITAR
   //
   //	Rejeitar tira o ticket de Serviço inteiro, de volta pro contrato.
-  //	Excluir só desfaz O LANÇAMENTO — apaga a cotação/orçamento errados no
+  //	Retirar cotação só desfaz O LANÇAMENTO — apaga a cotação/orçamento no
   //	Trílogo e devolve o card pra "Feitos", com o MESMO PDF ainda anexado,
   //	pronto pra lançar de novo com os itens certos (ver cotacoes.go,
-  //	ExcluirOrcamento — já existia no motor, só nunca tinha botão).
-  async function excluir() {
+  //	ExcluirOrcamento — mesma ação exposta também na lista de Lançados,
+  //	ListaDeServicos.tsx).
+  async function retirarCotacao() {
     if (!window.confirm(
-      `Excluir o orçamento lançado do ticket ${item.ticket}?\n\nApaga a cotação e o orçamento no Trílogo. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
+      `Retirar a cotação do ticket ${item.ticket} no Trílogo?\n\nApaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
     )) return
     setAgindo('excluindo')
     setErro(null)
     try {
       const resposta = await motor(`/servicos/kanban/${item.id}/orcamentos`, { metodo: 'DELETE' })
-      aoFeito(avisoDe(resposta) ?? 'Orçamento excluído — voltou para "Feitos".')
+      aoFeito(avisoDe(resposta) ?? 'Cotação retirada — voltou para "Feitos".')
     } catch (e) {
-      setErro(e instanceof ErroMotor ? e.message : 'Não consegui excluir o orçamento.')
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui retirar a cotação.')
       setAgindo(null)
     }
   }
@@ -317,8 +318,8 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
     <div className="sv-form">
       <p className="dica">
         Lançado no Trílogo — aguardando o cliente. Aprovado vai para Execução.
-        Rejeitado devolve o ticket ao contrato. Excluir desfaz só o lançamento,
-        pra corrigir e lançar de novo.
+        Rejeitado devolve o ticket ao contrato. Retirar cotação desfaz só o
+        lançamento, pra corrigir e lançar de novo.
       </p>
       {erro && <div className="erro-caixa">{erro}</div>}
       <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
@@ -327,8 +328,8 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
           {agindo === 'aprovado' ? 'Marcando...' : 'Aprovado'}
         </button>
         <button type="button" className="bt bt-mini bt-neutro" disabled={!!agindo}
-          onClick={() => void excluir()}>
-          {agindo === 'excluindo' ? 'Excluindo...' : 'Excluir orçamento'}
+          onClick={() => void retirarCotacao()}>
+          {agindo === 'excluindo' ? 'Retirando...' : 'Retirar cotação'}
         </button>
         <button type="button" className="bt bt-mini bt-perigo" disabled={!!agindo}
           onClick={() => void rejeitar()}>
