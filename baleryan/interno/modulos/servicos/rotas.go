@@ -77,6 +77,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 
 	// O orçamento em duas etapas: anexar (rascunho local) e lançar (Trílogo).
 	mux.HandleFunc("POST /servicos/kanban/{id}/arquivo-orcamento", m.inserirArquivoDeOrcamento)
+	mux.HandleFunc("DELETE /servicos/kanban/{id}/arquivo-orcamento", m.excluirArquivoDeOrcamento)
 	mux.HandleFunc("GET /servicos/kanban/{id}/arquivo", m.linkDoArquivo)
 	mux.HandleFunc("POST /servicos/kanban/{id}/lancar", m.lancarNoTrilogo)
 
@@ -119,7 +120,7 @@ func (m *Modulo) erro(w http.ResponseWriter, frase string, err error) {
 	case err == ErrCandidatoNaoEstaPendente, err == ErrJaFaturado,
 		err == ErrSemCotacao, err == ErrSemOrcamento,
 		err == ErrSemPCO, err == ErrSemArquivoDeOrcamento,
-		err == ErrNaoEstaLancado:
+		err == ErrNaoEstaLancado, err == ErrNaoEstaEmFeitos:
 		web.Falhar(w, http.StatusConflict, err.Error())
 		return
 	case err == ErrArquivoVazio:
@@ -666,6 +667,24 @@ func (m *Modulo) inserirArquivoDeOrcamento(w http.ResponseWriter, r *http.Reques
 	}
 	_ = m.hist.Registrar(r.Context(), p, "servicos", id, "anexar_orcamento",
 		map[string]historico.Mudanca{"arquivo": {De: nil, Para: cabecalho.Filename}})
+	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// DELETE /servicos/kanban/{id}/arquivo-orcamento
+//
+// Feitos -> Pendentes. Só o rascunho do PDF — o orçamento lançado tem a
+// exclusão própria (DELETE /orcamentos, m.excluirOrcamento).
+func (m *Modulo) excluirArquivoDeOrcamento(w http.ResponseWriter, r *http.Request) {
+	p := m.quem(w, r)
+	if p == nil {
+		return
+	}
+	id := r.PathValue("id")
+	if err := m.svc.ExcluirArquivoDeOrcamento(r.Context(), p.ClienteID, id); err != nil {
+		m.erro(w, "excluir o arquivo do orçamento", err)
+		return
+	}
+	_ = m.hist.Registrar(r.Context(), p, "servicos", id, "excluir_arquivo_orcamento", nil)
 	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
 }
 

@@ -157,7 +157,9 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
   aoVerOrcamento: () => Promise<void>
 }) {
   const [abriu, setAbriu] = useState(false)
+  const [trocando, setTrocando] = useState(false)
   const [abrindo, setAbrindo] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   async function ver() {
@@ -172,11 +174,51 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
     }
   }
 
+  // EXCLUIR O PDF ≠ TROCAR O PDF
+  //
+  //	Trocar mantém o card em Feitos, só o arquivo muda. Excluir tira o
+  //	rascunho inteiro e devolve o card pra Pendentes — mesma dupla
+  //	apagarArquivoDeOrcamento/soltarRegistroDeArquivo de Reclassificar (ver
+  //	documentos.go, ExcluirArquivoDeOrcamento), só que sem sair de Serviço.
+  async function excluirArquivo() {
+    if (!window.confirm(
+      `Excluir o PDF anexado do ticket ${item.ticket}?\n\nO card volta para "Pendentes", sem orçamento nenhum.`,
+    )) return
+    setExcluindo(true)
+    setErro(null)
+    try {
+      const resposta = await motor(`/servicos/kanban/${item.id}/arquivo-orcamento`, { metodo: 'DELETE' })
+      aoFeito(avisoDe(resposta) ?? 'PDF excluído — voltou para "Pendentes".')
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui excluir o arquivo.')
+      setExcluindo(false)
+    }
+  }
+
   const verOrcamento = (
     <button type="button" className="bt bt-neutro" disabled={abrindo} onClick={() => void ver()}>
       {abrindo ? 'Abrindo...' : 'Visualizar orçamento'}
     </button>
   )
+
+  // TROCAR O PDF É REANEXAR — o motor já aceita (InserirArquivoDeOrcamento
+  // permite reescrever enquanto o card está em orcamento_feito). Reaproveita
+  // o MESMO AnexarArquivo da fila "Pendentes", só muda o título.
+  if (trocando) {
+    return (
+      <>
+        <AnexarArquivo
+          titulo="Trocar o PDF do orçamento" campo="arquivo"
+          caminho={`/servicos/kanban/${item.id}/arquivo-orcamento`}
+          aoFeito={() => aoFeito('PDF do orçamento trocado.')}
+        />
+        <button type="button" className="bt bt-mini bt-neutro" style={{ marginTop: 8 }}
+          onClick={() => setTrocando(false)}>
+          Cancelar
+        </button>
+      </>
+    )
+  }
 
   if (!abriu) {
     return (
@@ -185,7 +227,11 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
         {erro && <div className="erro-caixa">{erro}</div>}
         <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
           {verOrcamento}
-          <button type="button" className="bt bt-forte" onClick={() => setAbriu(true)}>Lançar no Trílogo</button>
+          <button type="button" className="bt bt-neutro" disabled={excluindo} onClick={() => setTrocando(true)}>Trocar PDF</button>
+          <button type="button" className="bt bt-neutro" disabled={excluindo} onClick={() => void excluirArquivo()}>
+            {excluindo ? 'Excluindo...' : 'Excluir PDF'}
+          </button>
+          <button type="button" className="bt bt-forte" disabled={excluindo} onClick={() => setAbriu(true)}>Lançar no Trílogo</button>
         </div>
       </div>
     )

@@ -111,6 +111,58 @@ func (s *Servico) InserirArquivoDeOrcamento(ctx context.Context, clienteID, item
 	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos)
 }
 
+// ErrNaoEstaEmFeitos — só faz sentido excluir o rascunho do orçamento
+// enquanto ele ainda é só isso, um rascunho: card em orcamento_feito, sem
+// nada lançado no Trílogo ainda. Já lançado, o caminho é o outro (excluir o
+// ORÇAMENTO — cotacoes.go, ExcluirOrcamento — que devolve o card pra
+// orcamento_feito primeiro; daí sim este aqui completa a volta até Pendentes).
+var ErrNaoEstaEmFeitos = errors.New("este card não está em Feitos — não há rascunho de orçamento pra excluir")
+
+// ExcluirArquivoDeOrcamento tira o PDF do rascunho — Feitos -> Pendentes de
+// volta. MESMO PADRÃO de kanban.go, Reclassificar (a mesma dupla
+// apagarArquivoDeOrcamento + soltarRegistroDeArquivo): o card não fica sem o
+// arquivo, e o arquivo continua vivo se outro card ainda apontar pra ele.
+//
+// A COTAÇÃO NÃO SE MEXE
+//
+//	Se este card já teve uma cotação criada num ciclo anterior (lançou,
+//	excluiu o orçamento, e agora exclui o PDF também), `cotacao_trilogo_id`
+//	fica — o Trílogo não deixa apagar cotação, e reaproveitar a mesma no
+//	próximo lançamento é melhor que deixar uma órfã lá (mesma decisão de
+//	Reclassificar, que também não mexe nela).
+func (s *Servico) ExcluirArquivoDeOrcamento(ctx context.Context, clienteID, itemID string) error {
+	item, err := s.itemAtivo(ctx, clienteID, itemID)
+	if err != nil {
+		return err
+	}
+	if item.Status != StatusOrcamentoFeito {
+		return ErrNaoEstaEmFeitos
+	}
+	if item.OrcamentoArquivoSHA256 == nil {
+		return ErrSemArquivoDeOrcamento
+	}
+
+	sha := *item.OrcamentoArquivoSHA256
+	apagou, err := s.apagarArquivoDeOrcamento(ctx, item.ID, sha)
+	if err != nil {
+		return fmt.Errorf("apagando o orçamento do armazém: %w", err)
+	}
+
+	campos := map[string]any{
+		"orcamento_arquivo_sha256": nil,
+		"orcamento_arquivo_nome":   nil,
+		"orcamento_arquivo_em":     nil,
+		"status":                   StatusAguardandoOrcamento,
+	}
+	if err := s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos); err != nil {
+		return err
+	}
+	if apagou {
+		s.soltarRegistroDeArquivo(ctx, sha)
+	}
+	return nil
+}
+
 // ErrSemPCO — nota fiscal sem PCO preenchido não tem pra onde amarrar
 // (a ordem do funil é sempre: PCO primeiro, nota fiscal depois).
 var ErrSemPCO = errors.New("este card ainda não tem PCO — preencha o PCO primeiro")
