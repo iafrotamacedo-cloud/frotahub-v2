@@ -103,6 +103,12 @@ func (g *clienteGroq) jsonChat(ctx context.Context, sistema, usuario string) (in
 		},
 		"temperature":     0,
 		"response_format": map[string]string{"type": "json_object"},
+		// gpt-oss é modelo de raciocínio: sem isto ele gasta os tokens de
+		// saída "pensando" e devolve conteúdo vazio — confirmado em teste
+		// real (08/09/2026), Groq responde 400 json_validate_failed com
+		// failed_generation vazio em prompt não trivial.
+		"reasoning_effort":      "low",
+		"max_completion_tokens": 4000,
 	})
 	if err != nil {
 		return interpretacaoGroq{}, err
