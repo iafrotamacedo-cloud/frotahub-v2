@@ -23,9 +23,12 @@
 package servicos
 
 import (
+	"time"
+
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitor"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 )
 
@@ -35,12 +38,29 @@ type Servico struct {
 	tri  *trilogo.Servico
 	arm  *armazem.Cliente
 	groq *clienteGroq
+	ia   *leitor.IA
 }
 
 // arm é o MESMO armazém que trilogo.Servico já usa (ver cmd/baleryan/baleryan.go
 // e cmd/servicos/main.go) — um R2 só, um dedupe só por sha256 (migração 007).
+//
+// A IA É OUTRA INSTÂNCIA, NÃO A MESMA DE orcamentos
+//
+//	Mesmo padrão de orcamentos/rotas.go (leitura.NovoDaConfig): cada módulo
+//	monta a sua, com a MESMA chave/modelo/intervalo do ambiente — não existe
+//	instância única compartilhada hoje neste código, então isto não piora
+//	nada que já não fosse assim. Usada só pra ler o valor do PDF do
+//	orçamento de Serviço (documentos.go, lerValorDoArquivo) — bem menos
+//	trabalho que a leitura completa de nota fiscal, que fica em interno/leitura.
 func Novo(cfg *config.Config, bd *banco.Cliente, tri *trilogo.Servico, arm *armazem.Cliente) *Servico {
-	return &Servico{cfg: cfg, bd: bd, tri: tri, arm: arm, groq: novoClienteGroq(cfg.Groq)}
+	ia := leitor.NovaIA(cfg.IA.Chave)
+	if cfg.IA.Modelo != "" {
+		ia.Modelo = cfg.IA.Modelo
+	}
+	if cfg.IA.IntervaloSegundos > 0 {
+		ia.Intervalo = time.Duration(cfg.IA.IntervaloSegundos) * time.Second
+	}
+	return &Servico{cfg: cfg, bd: bd, tri: tri, arm: arm, groq: novoClienteGroq(cfg.Groq), ia: ia}
 }
 
 // CorteServico — chamado de antes desta data nunca vira Candidato (a

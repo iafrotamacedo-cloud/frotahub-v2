@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { FichaChamado } from '../trilogo/FichaChamado'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { motor, enviarFormulario, ErroMotor, avisoDe } from '../../motor/cliente'
+import { emReais } from '../orcamentos/tipos'
 import type { Perfil } from '../../sessao/tipos'
 import type { ItemLista } from './tipos'
 import { FormularioDeLancamento } from './FormularioDeLancamento'
@@ -223,7 +224,12 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
   if (!abriu) {
     return (
       <div className="sv-form">
-        <p className="dica">Orçamento anexado — falta lançar a cotação e o orçamento no Trílogo.</p>
+        <p className="dica">
+          Orçamento anexado — falta lançar a cotação e o orçamento no Trílogo.
+          {item.orcamento_arquivo_valor != null && (
+            <span className="sv-valor-lido"> O PDF indica {emReais(item.orcamento_arquivo_valor)}.</span>
+          )}
+        </p>
         {erro && <div className="erro-caixa">{erro}</div>}
         <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
           {verOrcamento}
@@ -244,6 +250,7 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
       </div>
       <FormularioDeLancamento
         itemID={item.id}
+        valorLido={item.orcamento_arquivo_valor}
         aoFeito={aoFeito}
         aoCancelar={() => setAbriu(false)}
       />

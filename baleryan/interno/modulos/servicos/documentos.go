@@ -1,11 +1,17 @@
-// rev 2 — o arquivo do orçamento e da nota fiscal
+// rev 3 — o arquivo do orçamento e da nota fiscal
 //
 // O MESMO PADRÃO DE orcamentos/documentos.go (guardarUm)
 //
 //	sha256 do conteúdo -> chave no R2 espalhada por armazem.Caminho -> upsert
 //	em `arquivos` por sha256 (migração 007) -> o card guarda só a referência.
-//	Sem fila, sem leitura automática (XML/OCR) — aqui o arquivo é só prova
-//	documental, ninguém extrai dado dele.
+//	Sem fila, sem duplicidade, sem XML/OCR, sem item por item — o arquivo
+//	continua sendo prova documental, ninguém guarda os itens dele.
+//
+//	A ÚNICA leitura automática (migração 057, lerValorDoArquivo) pede pra IA
+//	só o `valor_total`, best-effort, pra mostrar como referência discreta na
+//	tela de lançar — bem menos que a leitura completa de nota fiscal do
+//	contrato (interno/leitura), que também confere duplicidade e amarra
+//	ticket. Aqui não tem nada disso: é só uma pista, não uma fonte de verdade.
 package servicos
 
 import (
@@ -23,6 +29,7 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitor"
 )
 
 // TamanhoMaximoDeArquivo — mesmo teto de orcamentos (20 MB): PDF de orçamento
@@ -104,11 +111,41 @@ func (s *Servico) InserirArquivoDeOrcamento(ctx context.Context, clienteID, item
 		"orcamento_arquivo_sha256": sha,
 		"orcamento_arquivo_nome":   nome,
 		"orcamento_arquivo_em":     time.Now().UTC().Format(time.RFC3339),
+		// Sempre grava, mesmo nil: reanexar (trocar o PDF) tem que apagar o
+		// valor lido do arquivo ANTERIOR — um número órfão do PDF trocado
+		// seria pior do que não ter nenhum (migração 057).
+		"orcamento_arquivo_valor": s.lerValorDoArquivo(ctx, nome, conteudo),
 	}
 	if item.Status == StatusAguardandoOrcamento || item.Status == StatusOrcamentoRejeitado {
 		campos["status"] = StatusOrcamentoFeito
 	}
 	return s.bd.Atualizar(ctx, "servicos_orcamentos", "id=eq."+banco.Escapar(itemID), campos)
+}
+
+// lerValorDoArquivo pede pra IA o valor total do PDF — SÓ REFERÊNCIA
+// DISCRETA na tela de lançar (migração 057), nunca a fonte de verdade: quem
+// lança digita os itens, e é a soma DELES que vira orcamento_valor.
+//
+// BEST-EFFORT, NUNCA TRAVA O ANEXO
+//
+//	Sem chave de IA configurada, IA fora do ar, ou PDF sem valor claro: nil,
+//	e o anexo segue normal. Isso NUNCA vira erro pra quem está anexando —
+//	diferente da leitura de nota fiscal (interno/leitura), aqui não existe
+//	fila, não existe "falhou, tenta de novo": é melhor pista nenhuma do que
+//	travar o card por causa de uma chamada que é só um extra.
+func (s *Servico) lerValorDoArquivo(ctx context.Context, nome string, conteudo []byte) *float64 {
+	if s.ia == nil || !s.ia.Ligada() {
+		return nil
+	}
+	lida, err := s.ia.LerArquivo(ctx, leitor.MimeDoNome(nome), conteudo)
+	if err != nil {
+		log.Printf("servicos: não li o valor do PDF %q pela IA (seguindo sem ele): %v", nome, err)
+		return nil
+	}
+	if lida == nil || lida.ValorTotal <= 0 {
+		return nil
+	}
+	return &lida.ValorTotal
 }
 
 // ErrNaoEstaEmFeitos — só faz sentido excluir o rascunho do orçamento

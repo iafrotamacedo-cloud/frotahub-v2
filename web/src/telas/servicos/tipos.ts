@@ -101,6 +101,8 @@ export interface ItemLista {
   orcamento_arquivo_sha256: string | null
   orcamento_arquivo_nome: string | null
   orcamento_arquivo_em: string | null
+  // O que a IA leu no PDF, só referência discreta — não é orcamento_valor.
+  orcamento_arquivo_valor: number | null
   orcamento_aprovado_em: string | null
   orcamento_rejeitado_em: string | null
 

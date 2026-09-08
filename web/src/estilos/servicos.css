@@ -69,3 +69,9 @@
 .sv-subtotal{font-weight:400;color:var(--gray);font-size:12px}
 .sv-total{font-size:13px;color:var(--txt);margin:2px 0 12px}
 .sv-total b{color:var(--ink)}
+
+/* O que a IA leu no PDF — pista discreta, não afirmação. Menor e mais claro
+   que o resto do texto, de propósito: quem digita os itens é a fonte de
+   verdade, isto é só uma conferência a mais (mesmo espírito do "e os N itens
+   somam X" de ConferirValor.tsx). */
+.sv-valor-lido{color:var(--gray);font-size:12px}

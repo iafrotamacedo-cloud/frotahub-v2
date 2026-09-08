@@ -71,6 +71,9 @@ type ItemLista struct {
 	OrcamentoArquivoEm     *string  `json:"orcamento_arquivo_em"`
 	OrcamentoAprovadoEm    *string  `json:"orcamento_aprovado_em"`
 	OrcamentoRejeitadoEm   *string  `json:"orcamento_rejeitado_em"`
+	// O que a IA leu no PDF, só referência discreta (migração 057) — não é
+	// o valor lançado (OrcamentoValor, acima).
+	OrcamentoArquivoValor *float64 `json:"orcamento_arquivo_valor"`
 
 	PCONumero       *string `json:"pco_numero"`
 	PCOPreenchidoEm *string `json:"pco_preenchido_em"`

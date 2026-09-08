@@ -23,6 +23,9 @@ import type { ItemDeOrcamento } from './tipos'
 
 interface Props {
   itemID: string
+  /** O que a IA leu no PDF anexado — só referência discreta (migração 057),
+   *  não é o valor de verdade. `undefined`/`null` quando não leu nada. */
+  valorLido?: number | null
   aoFeito: (recado: string) => void
   aoCancelar: () => void
 }
@@ -59,7 +62,7 @@ function total(rascunhos: ItemRascunho[]): number {
   return paraItens(rascunhos).reduce((soma, it) => soma + it.qtd * it.valor, 0)
 }
 
-export function FormularioDeLancamento({ itemID, aoFeito, aoCancelar }: Props) {
+export function FormularioDeLancamento({ itemID, valorLido, aoFeito, aoCancelar }: Props) {
   const [descricao, setDescricao] = useState('')
   const [maoDeObra, setMaoDeObra] = useState<ItemRascunho[]>([{ ...ITEM_VAZIO }])
   const [materiais, setMateriais] = useState<ItemRascunho[]>([])
@@ -107,7 +110,12 @@ export function FormularioDeLancamento({ itemID, aoFeito, aoCancelar }: Props) {
         titulo="Materiais" itens={materiais} aoMudar={setMateriais} enviando={enviando}
       />
 
-      <p className="sv-total">Total do orçamento: <b>{emReais(totalGeral)}</b></p>
+      <p className="sv-total">
+        Total do orçamento: <b>{emReais(totalGeral)}</b>
+        {valorLido != null && (
+          <span className="sv-valor-lido"> — o PDF indica {emReais(valorLido)}</span>
+        )}
+      </p>
 
       {erro && <div className="erro-caixa">{erro}</div>}
 
