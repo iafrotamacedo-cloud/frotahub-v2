@@ -22,6 +22,8 @@ import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Hub as ServicosHub } from './telas/servicos/Hub'
+import { Funcionarios } from './telas/funcionarios/Funcionarios'
+import { Obras } from './telas/engenharia/Obras'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
@@ -406,6 +408,16 @@ function Casca() {
               ticket={extra[0]}
               perfil={perfil}
               abrir={numero => navegar(caminho, [String(numero)])}
+              voltar={() => navegar(caminho)}
+            />
+          ) : atual?.tela === 'funcionarios' ? (
+            <Funcionarios perfil={perfil} />
+          ) : atual?.tela === 'obras' ? (
+            // A obra aberta também vem do endereço — mesmo motivo do ticket
+            // do Trílogo: voltar fecha o cronograma, não sai do sistema.
+            <Obras
+              obraId={extra[0]}
+              abrir={id => navegar(caminho, [id])}
               voltar={() => navegar(caminho)}
             />
           ) : (

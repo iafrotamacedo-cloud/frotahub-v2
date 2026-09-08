@@ -1,0 +1,30 @@
+/* rev 1 — Engenharia > Obras: a árvore da EAP
+   Duas colunas: a árvore à esquerda, o detalhe do item selecionado à direita —
+   mesmo desenho de duas colunas que Dados do Trílogo já usa para ficha de chamado. */
+
+.eap-layout{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:14px;align-items:start}
+@media (max-width:860px){.eap-layout{grid-template-columns:1fr}}
+
+.eap-arvore{max-height:70vh;overflow-y:auto}
+.eap-detalhe{min-height:200px}
+
+.eap-lista{list-style:none;margin:0;padding:0}
+.eap-lista .eap-lista{margin-top:2px}
+
+.eap-no{
+  width:100%;display:flex;align-items:center;gap:8px;text-align:left;
+  background:none;border:0;border-radius:8px;padding:7px 10px;margin:1px 0;
+  font-family:inherit;font-size:13px;color:var(--txt);cursor:pointer;
+}
+.eap-no:hover{background:var(--bg)}
+.eap-no.on{background:var(--red-050);color:var(--ink);font-weight:600}
+
+.eap-codigo{font-variant-numeric:tabular-nums;color:var(--mut);font-size:12px;min-width:38px}
+.eap-no.on .eap-codigo{color:var(--red)}
+.eap-nome{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eap-meta{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.eap-dur{font-size:11.5px;color:var(--gray);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.eap-dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:14px 0}
+.eap-dl dt{color:var(--mut);font-size:12.5px}
+.eap-dl dd{margin:0;font-size:13px;color:var(--ink)}

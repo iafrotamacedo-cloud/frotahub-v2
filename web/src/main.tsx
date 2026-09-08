@@ -11,6 +11,8 @@ import './estilos/orcamentos.css'
 // não muda nada — mas se um dia alguém tirar o invólucro, é aqui que se vê que
 // ela passou a poder pisar nas outras.
 import './estilos/estatisticas.css'
+import './estilos/funcionarios.css'
+import './estilos/engenharia.css'
 import './estilos/servicos.css'
 import './estilos/rogueworker.css'
 import App from './App'

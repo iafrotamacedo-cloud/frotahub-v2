@@ -29,7 +29,9 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/funcionarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/planejamento"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/rogueworker"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/servicos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
@@ -100,6 +102,15 @@ func main() {
 	// Ela cruza o que já existe — nota, orçamento, fatura — e por isso não
 	// precisa de nada que grave.
 	consolidacao.Novo(bd, seg, m.perm).Montar(mux)
+	// SESMT e DP (migração 044): funcionário da obra e a documentação dele.
+	// Usa o mesmo armazém dos outros dois módulos que guardam arquivo — um
+	// balde, um endereçamento por sha256, uma verdade sobre onde cada
+	// arquivo está.
+	funcionarios.Novo(bd, seg, m.perm, hist, arm).Montar(mux)
+	// Engenharia > Planejamento (migração 056): contratante, obra, calendário,
+	// cronograma e EAP. Sem armazém — este módulo ainda não guarda arquivo
+	// nenhum (RDO e as fotos de diário de obra ficam para a Fase 3).
+	planejamento.Novo(bd, seg, m.perm, hist).Montar(mux)
 	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
 	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
 	// escrever nas tabelas deles.

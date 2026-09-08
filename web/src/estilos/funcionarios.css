@@ -1,0 +1,25 @@
+/* rev 1 — SESMT e DP: os três acréscimos que Usuários/Categorias não precisavam
+   .pino já tinha ok/off; aqui entra warn/err, para "aguardando" e "reprovado/vencido"
+   terem cor própria em vez de dividir o cinza neutro com "pendente". */
+
+.pino-warn{background:var(--warn-bg);color:var(--warn)}
+.pino-err{background:var(--err-bg);color:var(--err)}
+
+/* Os três números do topo — total, em dia, com pendência — são o retrato da
+   conformidade antes de abrir qualquer ficha. */
+.cartao-numero{display:flex;flex-direction:column;gap:2px;align-items:flex-start;min-width:0}
+.cartao-numero b{font-size:28px;line-height:1.1;color:var(--ink)}
+.cartao-numero span{font-size:12.5px;color:var(--mut)}
+.cartao-numero.cartao-ok b{color:var(--ok)}
+.cartao-numero.cartao-alerta b{color:var(--warn)}
+
+/* O separador de rubrica dentro da tabela de documentos (Pessoal, Saúde, NR...) */
+.grupo-linha td{
+  background:var(--bg);color:var(--gray);font-size:11.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.04em;padding:7px 10px;
+}
+
+/* O par data+arquivo de cada linha de envio. */
+.campo-envio{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.campo-envio input[type="date"]{width:132px}
+.campo-envio input[type="file"]{font-size:12px;max-width:190px}
