@@ -211,14 +211,24 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
     setErro(null)
     setRecado(null)
     let lidos = 0
+    let sairam = 0
     try {
       for (let lote = 1; lote <= LOTES_NO_MAXIMO; lote++) {
         const r = await motor<Rodada>('/robos/trilogo/atualizacao', { metodo: 'POST' })
         lidos += r.chamados_lidos
+        sairam += r.chamados_que_sairam ?? 0
         setAndamento(`Lote ${lote} · ${lidos} chamados lidos`)
         if (r.completo) break
       }
-      setRecado(lidos === 0 ? 'Nada mudou no Trílogo desde a última leitura.' : `Leitura concluída: ${lidos} chamados conferidos.`)
+      // A saída é dita SEPARADA, e não somada ao "conferidos". São duas coisas
+      // diferentes: uma é leitura, a outra é chamado que deixou de ser nosso e
+      // sumiu da lista. Se a lista encolher sem explicação, parece defeito.
+      const foram = sairam === 0 ? ''
+        : sairam === 1 ? ' 1 chamado saiu do Trílogo e deixou a lista.'
+        : ` ${sairam} chamados saíram do Trílogo e deixaram a lista.`
+      setRecado(lidos === 0
+        ? 'Nada mudou no Trílogo desde a última leitura.' + foram
+        : `Leitura concluída: ${lidos} chamados conferidos.` + foram)
       verUltimaLeitura()
       await carregar()
     } catch (e) {
@@ -341,6 +351,18 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
           </select>
         </label>
 
+        {/* O chamado que os Mercadinhos tiraram da nossa prestadora some da
+            lista sozinho — era o defeito a consertar. Este seletor é a porta
+            para ele: nada no sistema desaparece sem ter onde ser encontrado. */}
+        <label className="tri-campo">
+          <span>No Trílogo</span>
+          <select value={escolhas.saidos} onChange={e => mudar('saidos', e.target.value)}>
+            <option value="">Só os atuais</option>
+            <option value="todos">Com os que saíram</option>
+            <option value="sim">Só os que saíram</option>
+          </select>
+        </label>
+
         {/* As duas datas são UM filtro, e andam juntas. Soltas na faixa, a
             segunda caía sozinha para a linha de baixo e o "até" ficava órfão. */}
         <div className="tri-periodo">
@@ -431,7 +453,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
                 {dados!.linhas.map(c => (
                   <tr
                     key={c.id}
-                    className="tri-linha"
+                    className={'tri-linha' + (c.saiu_em ? ' tri-linha-saiu' : '')}
                     onClick={() => abrir(c.numero)}
                     title={`Abrir o chamado ${c.numero}`}
                   >
@@ -447,6 +469,11 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
                       >
                         {c.numero}
                       </button>
+                      {c.saiu_em && (
+                        <span className="tri-saiu" title={`Saiu do Trílogo em ${quando(c.saiu_em)} — não é mais da nossa prestadora. O registro fica aqui.`}>
+                          saiu
+                        </span>
+                      )}
                     </td>
                     <td className="c-loja" data-encolhe="loja" data-base="13" data-peso="400">
                       <span title={c.loja}>{c.loja}</span>

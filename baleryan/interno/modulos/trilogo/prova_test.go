@@ -33,8 +33,12 @@ type mundo struct {
 	// o que subiu para o armazém: caminho -> bytes
 	enviado map[string][]byte
 
-	conteudo       map[string][]byte // url -> bytes do arquivo
-	lista          []map[string]any
+	conteudo map[string][]byte // url -> bytes do arquivo
+	lista    []map[string]any
+	// O que a NOSSA base já tem de `chamados` — o espelho contra o qual a
+	// rodada descobre quem saiu da lista (saida.go). Vazio na maioria dos
+	// testes, e aí não há sumiço nenhum a apurar.
+	nossaBase      []map[string]any
 	detalhes       map[int]map[string]any
 	custos         map[int][]map[string]any
 	foraDoEscopo   []int
@@ -168,6 +172,16 @@ func novoMundo(t *testing.T) *mundo {
 					}
 				}
 				json.NewEncoder(w).Encode(fora)
+			case tabela == "chamados":
+				// A consulta do espelho TEM que dizer de qual cliente é, e tem
+				// que se limitar à janela da lista: um `chamados?` sem filtro
+				// traria a carga do legado junto e carimbaria "saiu" nela.
+				if !strings.Contains(q, "cliente_id=eq.") || !strings.Contains(q, "criado_em=gte.") {
+					w.WriteHeader(400)
+					w.Write([]byte(`{"message":"espelho sem cliente ou sem janela"}`))
+					return
+				}
+				json.NewEncoder(w).Encode(m.nossaBase)
 			case tabela == "chamado_anexos":
 				m.mu.Lock()
 				m.ultimaConsulta = q

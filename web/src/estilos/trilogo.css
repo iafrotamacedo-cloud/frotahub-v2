@@ -119,6 +119,18 @@
 .st-arquivado{background:var(--bg);color:var(--gray)}
 .st-outro{background:var(--bg);color:var(--gray)}
 
+/* O chamado que SAIU do Trílogo (`saiu_em`, migração 058). Ele não aparece na
+   lista comum — só na busca por número e na vista de quem saiu. Quando aparece,
+   tem que aparecer MARCADO: linha apagada e um selo ao lado do número, senão se
+   confunde com trabalho nosso. */
+.tri-saiu{
+  display:inline-block;margin-left:6px;padding:1px 5px;border-radius:4px;
+  background:var(--bg);color:var(--gray);font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.03em;vertical-align:middle;
+}
+.tri-linha-saiu td{opacity:.62}
+.tri-linha-saiu .tri-saiu{opacity:1}
+
 .pr-alta{background:var(--err-bg);color:var(--err)}
 .pr-media{background:var(--warn-bg);color:var(--warn)}
 .pr-baixa{background:var(--bg);color:var(--gray)}

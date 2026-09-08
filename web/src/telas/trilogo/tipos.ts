@@ -19,6 +19,16 @@ export interface LinhaChamado {
   prazo: string | null
   custo_total: string | number
   anexos: number
+  /**
+   * Quando o robô confirmou que este chamado não é mais nosso no Trílogo — os
+   * Mercadinhos o passaram para outra prestadora. Nulo é o normal.
+   *
+   * A linha continua inteira no banco (timeline, custos, anexos, e o que estiver
+   * amarrado nela do lado de cá); ela só sai da lista. Por isso a tela precisa
+   * saber: quando um chamado assim aparece — na busca por número, ou na vista
+   * de quem saiu —, ele tem que aparecer MARCADO, e não igual aos outros.
+   */
+  saiu_em: string | null
 }
 
 export interface Pagina {
@@ -49,6 +59,8 @@ export interface Rodada {
   situacao: string
   chamados_lidos: number
   chamados_gravados: number
+  /** Quantos deixaram de ser nossos no Trílogo nesta rodada (saíram da lista). */
+  chamados_que_sairam: number
   completo: boolean
   comecou_em?: string
   terminou_em?: string
@@ -63,10 +75,12 @@ export interface Escolhas {
   prioridade: string
   de: string
   ate: string
+  /** '' = só os que estão no Trílogo (o padrão) · 'todos' · 'sim' = só os que saíram. */
+  saidos: string
 }
 
 export const SEM_FILTRO: Escolhas = {
-  ticket: '', loja: '', status: '', conta: '', prioridade: '', de: '', ate: '',
+  ticket: '', loja: '', status: '', conta: '', prioridade: '', de: '', ate: '', saidos: '',
 }
 
 export function contaPorExtenso(c: string): string {

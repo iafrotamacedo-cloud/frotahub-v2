@@ -134,6 +134,15 @@ export function FichaChamado({ numero, perfil, voltar, anterior, proximo, posica
               <span className="fi-numero">{c!.numero}</span>
               <span className="fi-tracinho">—</span>
               <span className="fi-loja">{c!.loja}</span>
+              {/* A ficha abre pelo número mesmo depois de o chamado sair do
+                  Trílogo — e é aqui que ela precisa dizer isso. Sem o selo, a
+                  ficha de um chamado que não é mais nosso é idêntica à de um
+                  que é, e alguém orça em cima dele. */}
+              {c!.saiu_em && (
+                <span className="tri-saiu" title={`Confirmado em ${quando(c!.saiu_em)}: este chamado não está mais na nossa prestadora no Trílogo. O registro daqui fica inteiro.`}>
+                  saiu do Trílogo
+                </span>
+              )}
               <div className="fi-dir">
                 <span className={'pino ' + classeDoStatus(c!.status)}>{c!.status || '—'}</span>
                 <div className="fi-datinha">

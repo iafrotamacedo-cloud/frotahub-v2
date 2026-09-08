@@ -240,8 +240,33 @@ func (c *Consulta) montarFiltro(clienteID string, q map[string][]string) (string
 
 	partes := []string{"cliente_id=eq." + banco.Escapar(clienteID)}
 
-	if t := somenteDigitos(pega("ticket")); t != "" {
-		partes = append(partes, "numero=eq."+t)
+	ticket := somenteDigitos(pega("ticket"))
+	if ticket != "" {
+		partes = append(partes, "numero=eq."+ticket)
+	}
+
+	// QUEM SAIU DO TRÍLOGO NÃO APARECE — a não ser que se peça.
+	//
+	//	`saiu_em` (migração 058) é o carimbo do robô em quem deixou de ser
+	//	nosso lá. A lista some com eles por padrão: era exatamente o defeito a
+	//	consertar, chamado que o cliente tirou da nossa prestadora continuando
+	//	na tela como se fosse trabalho nosso.
+	//
+	//	BUSCA POR NÚMERO É EXCEÇÃO, e de propósito. Esta tela gira em torno do
+	//	ticket: quem digita 130328 tem o número na mão e quer saber o que a
+	//	gente sabe dele. Responder "nenhum chamado" para um ticket que está na
+	//	base, inteiro, seria mentir — e mandaria a pessoa procurar em outro
+	//	lugar o que está bem aqui (P-29). O carimbo vai na resposta; a tela
+	//	mostra que ele saiu.
+	if ticket == "" {
+		switch strings.ToLower(pega("saidos")) {
+		case "sim":
+			partes = append(partes, "saiu_em=not.is.null")
+		case "todos":
+			// sem filtro: os dois juntos
+		default:
+			partes = append(partes, "saiu_em=is.null")
+		}
 	}
 	if v := pega("loja"); v != "" {
 		partes = append(partes, "unidade_id=eq."+banco.Escapar(v))
@@ -627,6 +652,15 @@ func descreverFiltro(q url.Values, linhas []linhaExtracao) string {
 	var partes []string
 	if t := somenteDigitos(q.Get("ticket")); t != "" {
 		partes = append(partes, "Ticket "+t)
+	}
+	// O documento tem que dizer QUAL recorte ele é. Sem esta linha, a planilha
+	// dos que saíram do Trílogo sai igualzinha à dos que estão lá, e três
+	// semanas depois ninguém sabe qual é qual.
+	switch strings.ToLower(q.Get("saidos")) {
+	case "sim":
+		partes = append(partes, "Só os que saíram do Trílogo")
+	case "todos":
+		partes = append(partes, "Incluindo os que saíram do Trílogo")
 	}
 	if q.Get("loja") != "" && len(linhas) > 0 {
 		partes = append(partes, "Loja: "+linhas[0].Loja)

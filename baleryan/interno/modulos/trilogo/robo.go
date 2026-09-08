@@ -134,7 +134,13 @@ type Resultado struct {
 	BytesSoLink      int64  `json:"bytes_so_link"`
 	ArquivosCopiados int    `json:"arquivos_copiados"`
 	BytesCopiados    int64  `json:"bytes_copiados"`
-	Completo         bool   `json:"completo"` // falso = sobrou trabalho; chame de novo
+	// O outro lado da leitura: quantos chamados DEIXARAM de ser nossos no
+	// Trílogo nesta rodada, e quantos voltaram (ver saida.go). Não viram coluna
+	// em `robo_execucoes` de propósito — quem guarda essa história, e melhor, é
+	// o `saiu_em` de cada chamado; aqui é só o que a tela mostra do lote.
+	ChamadosQueSairam   int  `json:"chamados_que_sairam"`
+	ChamadosQueVoltaram int  `json:"chamados_que_voltaram"`
+	Completo            bool `json:"completo"` // falso = sobrou trabalho; chame de novo
 	Erro             string `json:"erro,omitempty"`
 	Duracao          string `json:"duracao"`
 	// Só o modo `alvos` preenche: os números pedidos que não existem em conta
@@ -248,11 +254,20 @@ func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado)
 	sobrou := false
 	var fronteiras []time.Time
 
+	// A UNIÃO das listas das contas, e as sessões abertas, sobrevivem ao laço:
+	// é com elas que se descobre, no fim, quem SAIU da lista (saida.go). O
+	// número entra aqui antes de qualquer filtro nosso — data de corte, escopo
+	// da loja, marca d'água —, porque a pergunta é "o Trílogo ainda mostra este
+	// chamado?", e não "nós ainda o processamos?".
+	naLista := map[int]bool{}
+	var sessoes []*Sessao
+
 	for _, conta := range contas {
 		sessao, err := Entrar(ctx, conta.Nome, conta.Email, conta.Senha)
 		if err != nil {
 			return err
 		}
+		sessoes = append(sessoes, sessao)
 
 		// A lista vem do chamado mais novo para o mais velho. Assim que uma
 		// página inteira fica antes da data de corte, não há mais nada a buscar.
@@ -272,6 +287,7 @@ func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado)
 		var pendentes []Resumo
 		var maisNovoDaConta time.Time
 		for _, t := range lista {
+			naLista[t.ID] = true
 			if t.Criacao().Before(DataDeCorte) || foraDoEscopo[t.Company.ID] {
 				continue
 			}
@@ -330,7 +346,19 @@ func (s *Servico) ler(ctx context.Context, modo, clienteID string, r *Resultado)
 				marcaGravada.Format(time.RFC3339), porConta)
 		}
 	}
-	return nil
+
+	// DEPOIS da marca d'água, e não antes.
+	//
+	//	A leitura já terminou e já está gravada; isto aqui é escrituração. Se
+	//	falhar — banco fora do ar, Trílogo recusando —, a rodada é reportada
+	//	como falha (e tem que ser: carimbo errado é chamado sumido da tela),
+	//	mas o avanço da leitura NÃO se perde junto. A próxima rodada continua
+	//	de onde parou e tenta o carimbo de novo.
+	//
+	//	Vale mesmo quando `sobrou` trabalho: a lista que o `naLista` carrega é
+	//	a lista INTEIRA da conta, e não o lote processado. Quem está na lista
+	//	não é tocado; o lote só decide de quem se leu o detalhe.
+	return s.marcarQuemSaiu(ctx, clienteID, naLista, sessoes, r)
 }
 
 // menorInstante devolve a menor fronteira — o ponto até onde TODAS as contas
@@ -688,6 +716,14 @@ func (s *Servico) gravarChamados(ctx context.Context, clienteID, conta string, c
 			"concluido_em":  nulo(d.DateOfLastConclusion),
 			"prazo":         dataNula(d.DeadlineDate),
 			"lido_em":       time.Now().UTC().Format(time.RFC3339),
+
+			// Escrever o chamado é, por si só, a prova de que ele existe no
+			// Trílogo agora — o detalhe acabou de responder. Então o carimbo de
+			// "saiu" cai aqui, sem depender do diff da lista (saida.go). É o que
+			// faz o chamado que VOLTA para a nossa prestadora reaparecer na tela
+			// na mesma rodada em que é relido, e é a rede de segurança do modo
+			// `alvos`, que não lê lista nenhuma.
+			"saiu_em": nil,
 		})
 	}
 	if len(linhas) == 0 {
