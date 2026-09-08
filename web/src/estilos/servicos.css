@@ -58,7 +58,14 @@
 .sv-form input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-100)}
 .sv-form input[type="file"]{padding:6px 0;border:0;background:none}
 
-.sv-itens-titulo{display:block;font-size:12.5px;font-weight:600;color:var(--txt);margin:4px 0 6px}
+.sv-itens-titulo{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:600;color:var(--txt);margin:4px 0 6px}
 .sv-item-linha{display:grid;grid-template-columns:1fr 72px 100px 30px;gap:6px;margin:0 0 6px}
 .sv-item-linha input{margin:0;padding:7px 9px;font-size:13px}
 .sv-item-linha .bt{padding:0;width:30px;height:32px}
+
+/* O subtotal ao lado do título da lista, e o total geral embaixo das duas —
+   mesma ideia de ConferirValor.tsx: o número formatado é o retorno visual
+   de que o que foi digitado bateu, sem precisar somar de cabeça. */
+.sv-subtotal{font-weight:400;color:var(--gray);font-size:12px}
+.sv-total{font-size:13px;color:var(--txt);margin:2px 0 12px}
+.sv-total b{color:var(--ink)}

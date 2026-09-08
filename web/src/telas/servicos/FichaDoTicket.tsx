@@ -207,7 +207,7 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
 
 function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recado: string) => void }) {
   const [erro, setErro] = useState<string | null>(null)
-  const [agindo, setAgindo] = useState<'aprovado' | 'rejeitado' | null>(null)
+  const [agindo, setAgindo] = useState<'aprovado' | 'rejeitado' | 'excluindo' | null>(null)
 
   async function aprovar() {
     setAgindo('aprovado')
@@ -238,17 +238,44 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
     }
   }
 
+  // EXCLUIR ≠ REJEITAR
+  //
+  //	Rejeitar tira o ticket de Serviço inteiro, de volta pro contrato.
+  //	Excluir só desfaz O LANÇAMENTO — apaga a cotação/orçamento errados no
+  //	Trílogo e devolve o card pra "Feitos", com o MESMO PDF ainda anexado,
+  //	pronto pra lançar de novo com os itens certos (ver cotacoes.go,
+  //	ExcluirOrcamento — já existia no motor, só nunca tinha botão).
+  async function excluir() {
+    if (!window.confirm(
+      `Excluir o orçamento lançado do ticket ${item.ticket}?\n\nApaga a cotação e o orçamento no Trílogo. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
+    )) return
+    setAgindo('excluindo')
+    setErro(null)
+    try {
+      const resposta = await motor(`/servicos/kanban/${item.id}/orcamentos`, { metodo: 'DELETE' })
+      aoFeito(avisoDe(resposta) ?? 'Orçamento excluído — voltou para "Feitos".')
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui excluir o orçamento.')
+      setAgindo(null)
+    }
+  }
+
   return (
     <div className="sv-form">
       <p className="dica">
         Lançado no Trílogo — aguardando o cliente. Aprovado vai para Execução.
-        Rejeitado devolve o ticket ao contrato e guarda o PDF.
+        Rejeitado devolve o ticket ao contrato. Excluir desfaz só o lançamento,
+        pra corrigir e lançar de novo.
       </p>
       {erro && <div className="erro-caixa">{erro}</div>}
       <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
         <button type="button" className="bt bt-mini" disabled={!!agindo}
           onClick={() => void aprovar()}>
           {agindo === 'aprovado' ? 'Marcando...' : 'Aprovado'}
+        </button>
+        <button type="button" className="bt bt-mini bt-neutro" disabled={!!agindo}
+          onClick={() => void excluir()}>
+          {agindo === 'excluindo' ? 'Excluindo...' : 'Excluir orçamento'}
         </button>
         <button type="button" className="bt bt-mini bt-perigo" disabled={!!agindo}
           onClick={() => void rejeitar()}>

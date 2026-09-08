@@ -24,12 +24,14 @@ var ErrSemArquivoDeOrcamento = errors.New("este card ainda não tem o arquivo do
 // LancarNoTrilogo cria a cotação (se ainda não existir) e o orçamento no
 // Trílogo, e grava os dois ids + o valor no card — Feitos -> Lançados.
 //
-// SEMPRE MÃO DE OBRA
+// MÃO DE OBRA E MATERIAL, NO MESMO ORÇAMENTO
 //
-//	Serviço não usa a categoria "material" do Trílogo (decisão do dono,
-//	04/09/2026) — só `services`. trilogo.MontarOrcamentoServico aceita as
-//	duas listas; aqui a de materiais é sempre vazia.
-func (s *Servico) LancarNoTrilogo(ctx context.Context, clienteID, itemID, descricaoCotacao string, itens []trilogo.ItemOrcamento) (cotacaoID, orcamentoID int, valor float64, err error) {
+//	Decisão do dono em 04/09/2026 era só mão de obra; revista em 08/09/2026
+//	para incluir material também — mesmo formulário, uma segunda lista.
+//	trilogo.MontarOrcamentoServico já aceitava as duas desde sempre (é o
+//	mesmo formato de cotacoes.go, CriarOrcamento); só este caminho mandava
+//	materiais sempre vazio.
+func (s *Servico) LancarNoTrilogo(ctx context.Context, clienteID, itemID, descricaoCotacao string, maoDeObra, materiais []trilogo.ItemOrcamento) (cotacaoID, orcamentoID int, valor float64, err error) {
 	item, err := s.itemAtivo(ctx, clienteID, itemID)
 	if err != nil {
 		return 0, 0, 0, err
@@ -81,12 +83,12 @@ func (s *Servico) LancarNoTrilogo(ctx context.Context, clienteID, itemID, descri
 		return cotacaoID, 0, 0, ErrFornecedorNaoExiste
 	}
 
-	orc := trilogo.MontarOrcamentoServico(cotacaoID, supplierID, itens, nil, []trilogo.Subido{subido})
+	orc := trilogo.MontarOrcamentoServico(cotacaoID, supplierID, maoDeObra, materiais, []trilogo.Subido{subido})
 	orcamentoID, err = sessao.CriarOrcamentoServico(ctx, orc)
 	if err != nil {
 		return cotacaoID, 0, 0, err
 	}
-	valor = totalItens(itens)
+	valor = totalItens(maoDeObra) + totalItens(materiais)
 
 	campos := map[string]any{
 		"cotacao_trilogo_id":   cotacaoID,

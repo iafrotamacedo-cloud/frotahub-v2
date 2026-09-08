@@ -699,14 +699,16 @@ func (m *Modulo) linkDoArquivo(w http.ResponseWriter, r *http.Request) {
 
 type pedidoDeLancamento struct {
 	Descricao string         `json:"descricao"`
-	Itens     []itemDoPedido `json:"itens"`
+	MaoDeObra []itemDoPedido `json:"mao_de_obra"`
+	Materiais []itemDoPedido `json:"materiais"`
 }
 
-// POST /servicos/kanban/{id}/lancar   {"descricao":"...","itens":[{descricao,valor,qtd}]}
+// POST /servicos/kanban/{id}/lancar   {"descricao":"...","mao_de_obra":[...],"materiais":[...]}
 //
 // Feitos -> Lançados. Cria a cotação (se faltar) e o orçamento no Trílogo de
-// verdade, subindo o PDF já anexado — ver lancar.go, LancarNoTrilogo. SEMPRE
-// mão de obra (decisão do dono, 04/09/2026) — não existe seção de materiais.
+// verdade, subindo o PDF já anexado — ver lancar.go, LancarNoTrilogo. Mão de
+// obra e material entram no MESMO orçamento (revisão do dono, 08/09/2026;
+// antes era só mão de obra) — precisa de ao menos um item, de qualquer lista.
 func (m *Modulo) lancarNoTrilogo(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r)
 	if p == nil {
@@ -722,12 +724,13 @@ func (m *Modulo) lancarNoTrilogo(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusBadRequest, "Descreva o que está sendo orçado.")
 		return
 	}
-	if len(pedido.Itens) == 0 {
-		web.Falhar(w, http.StatusBadRequest, "O lançamento precisa de ao menos um item de mão de obra.")
+	if len(pedido.MaoDeObra) == 0 && len(pedido.Materiais) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "O lançamento precisa de ao menos um item, de mão de obra ou material.")
 		return
 	}
 
-	cotacaoID, orcamentoID, valor, err := m.svc.LancarNoTrilogo(r.Context(), p.ClienteID, id, descricao, paraItens(pedido.Itens))
+	cotacaoID, orcamentoID, valor, err := m.svc.LancarNoTrilogo(
+		r.Context(), p.ClienteID, id, descricao, paraItens(pedido.MaoDeObra), paraItens(pedido.Materiais))
 	if err != nil {
 		m.erro(w, "lançar no Trílogo", err)
 		return
