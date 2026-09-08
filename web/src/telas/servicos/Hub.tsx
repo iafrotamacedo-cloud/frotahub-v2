@@ -88,10 +88,11 @@ export function Hub({ onde, perfil, abrir }: Props) {
           Marcar chamado como Serviço
         </button>
       </NoCabecalho>
-      <header className="hero">
-        <h1>Serviços</h1>
-        <p>Instalação, obra ou ampliação — fora do contrato de manutenção.</p>
-      </header>
+      {/* SEM HERO AQUI — o título e a descrição já saem da casca (App.tsx,
+          `.titulo`), do mesmo jeito que Orçamentos (Orcamentos.tsx). Um h1
+          "Serviços" aqui repetiria o que a barra de cima já mostra — a
+          mesma armadilha que o comentário de App.tsx descreve ter existido
+          antes ("Contrato São Luiz" três vezes na mesma tela). */}
       {recado && (
         <div className="recado" role="status">
           {recado}

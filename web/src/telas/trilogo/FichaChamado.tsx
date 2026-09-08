@@ -107,7 +107,11 @@ export function FichaChamado({ numero, perfil, voltar, anterior, proximo, posica
     <>
       <div className="fi-barra">
         <button className="bt bt-neutro" type="button" onClick={voltar}>‹ Voltar para a lista</button>
-        <span className="fi-migalha">Dados do Trílogo <b>›</b> Chamado {numero}</span>
+        {/* SEM MIGALHA AQUI — "Dados do Trílogo › Chamado N" duplicava o
+            módulo (já na migalha da casca, App.tsx) e o número (já no
+            cabeçalho da própria folha, fi-numero, logo abaixo). E dos
+            quatro lugares que usam esta ficha, só um é de fato Dados do
+            Trílogo — nos outros três (Serviços) o texto estava errado. */}
         <div className="fi-espaco" />
         {(anterior || proximo) && (
           <div className="fi-passo">
