@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDaNota } from './VisorDaNota'
 import { ConferirValor } from './ConferirValor'
 import { Carregando } from '../../componentes/Carregando'
@@ -633,6 +634,7 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
   const [url, setUrl] = useState('')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [confirmandoTirar, setConfirmandoTirar] = useState<number | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -682,7 +684,6 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
   //	até o cliente perguntar.
   async function tirar(t: number) {
     if (salvando) return
-    if (!window.confirm(`Tirar o ticket ${t} desta nota?`)) return
     setSalvando(true)
     try {
       await motor(`/orcamentos/documentos/${documento.id}/tickets/${t}/apagar`,
@@ -725,8 +726,8 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
               title={t.chamado_id ? 'casou com um chamado da nossa base' : 'este número não existe na nossa base'}>
               {t.ticket}
               <s role="button" tabIndex={0} title="tirar este ticket da nota"
-                onClick={() => void tirar(t.ticket)}
-                onKeyDown={e => { if (e.key === 'Enter') void tirar(t.ticket) }}>×</s>
+                onClick={() => setConfirmandoTirar(t.ticket)}
+                onKeyDown={e => { if (e.key === 'Enter') setConfirmandoTirar(t.ticket) }}>×</s>
             </span>
           ))}
           {novos.map(n => (
@@ -759,6 +760,16 @@ function FichaDaNota({ documento, fechar }: { documento: Documento; fechar: () =
           ? <iframe title={documento.nome_arquivo} src={url} />
           : <Carregando />}
       </div>
+
+      {confirmandoTirar != null && (
+        <Confirmar
+          titulo={`Tirar o ticket ${confirmandoTirar} desta nota?`}
+          mensagem="O orçamento desamarra deste chamado."
+          perigo
+          aoConfirmar={() => void tirar(confirmandoTirar)}
+          aoFechar={() => setConfirmandoTirar(null)}
+        />
+      )}
     </div>
   )
 }

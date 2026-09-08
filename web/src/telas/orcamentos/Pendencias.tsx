@@ -45,6 +45,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, arquivoDoMotor, salvarArquivo } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { Confirmar } from '../../componentes/Confirmar'
 import { useFocado } from '../../componentes/Foco'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { BarraDeVolta } from './Arquivos'
@@ -109,6 +110,7 @@ export function Pendencias({ lista, voltar, embutido }: {
   const [dados, setDados] = useState<ListaDePendencias | null>(null)
   const [decisoes, setDecisoes] = useState<Pagina<Orcamento> | null>(null)
   const [tratando, setTratando] = useState<string | null>(null)
+  const [confirmando, setConfirmando] = useState<{ o: Orcamento; acao: 'apagar' | 'lancar' | 'aprovar' } | null>(null)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [marcando, setMarcando] = useState(false)
@@ -234,12 +236,6 @@ export function Pendencias({ lista, voltar, embutido }: {
   //	Nenhuma delas roda sem confirmação: são as três coisas desta tela que
   //	mexem em dinheiro.
   async function tratar(o: Orcamento, acao: 'apagar' | 'lancar' | 'aprovar') {
-    const frases = {
-      apagar: `Apagar o orçamento do ticket ${o.ticket}, de ${emReais(o.valor)}? A nota volta para a fila.`,
-      lancar: `Lançar ${emReais(o.valor)} no ticket ${o.ticket} mesmo com um custo do mesmo valor já lá?`,
-      aprovar: `Registrar que o cliente autorizou ${emReais(o.valor)} acima do teto no ticket ${o.ticket}?`,
-    }
-    if (!window.confirm(frases[acao])) return
     setTratando(o.id)
     setErro('')
     try {
@@ -349,7 +345,7 @@ export function Pendencias({ lista, voltar, embutido }: {
                     {decisoes.linhas.map(o => (
                       <Decisao key={o.id} o={o}
                         ocupado={tratando === o.id}
-                        tratar={a => void tratar(o, a)} />
+                        tratar={a => setConfirmando({ o, acao: a })} />
                     ))}
                   </tbody>
                 </table>
@@ -446,8 +442,39 @@ export function Pendencias({ lista, voltar, embutido }: {
           )}
         </div>
       )}
+
+      {confirmando && (
+        <Confirmar
+          {...fraseDeConfirmacao(confirmando.o, confirmando.acao)}
+          aoConfirmar={() => void tratar(confirmando.o, confirmando.acao)}
+          aoFechar={() => setConfirmando(null)}
+        />
+      )}
     </div>
   )
+}
+
+// Nenhuma das três roda sem confirmação: são as coisas desta tela que mexem
+// em dinheiro (ver o comentário de `tratar`, acima).
+function fraseDeConfirmacao(o: Orcamento, acao: 'apagar' | 'lancar' | 'aprovar'): { titulo: string; mensagem: string; perigo?: boolean } {
+  switch (acao) {
+    case 'apagar':
+      return {
+        titulo: `Apagar o orçamento do ticket ${o.ticket}?`,
+        mensagem: `De ${emReais(o.valor)}. A nota volta para a fila.`,
+        perigo: true,
+      }
+    case 'lancar':
+      return {
+        titulo: `Lançar ${emReais(o.valor)} no ticket ${o.ticket}?`,
+        mensagem: 'Mesmo com um custo do mesmo valor já lá.',
+      }
+    case 'aprovar':
+      return {
+        titulo: `Registrar autorização do cliente no ticket ${o.ticket}?`,
+        mensagem: `${emReais(o.valor)} acima do teto.`,
+      }
+  }
 }
 
 /** Uma linha da lista "Esperando você".

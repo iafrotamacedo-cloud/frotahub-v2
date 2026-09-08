@@ -13,13 +13,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
+import { Confirmar } from '../../../componentes/Confirmar'
 import { FichaChamado } from '../../trilogo/FichaChamado'
 import type { Perfil } from '../../../sessao/tipos'
 import type { Candidato } from '../tipos'
 import { PromoverCandidato } from '../PromoverCandidato'
 import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, useEncolher } from '../celulas'
 
-type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato }
+type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato } | { tipo: 'descartar'; alvo: Candidato }
 
 export function Candidatos({ perfil }: { perfil: Perfil }) {
   const [linhas, setLinhas] = useState<Candidato[] | null>(null)
@@ -46,7 +47,6 @@ export function Candidatos({ perfil }: { perfil: Perfil }) {
   useEffect(() => { void carregar() }, [carregar])
 
   async function descartar(c: Candidato) {
-    if (!window.confirm(`Marcar o chamado ${c.ticket} como "não é Serviço"? Isto é definitivo — ele não volta para esta fila.`)) return
     setAgindo(c.id)
     setErro(null)
     try {
@@ -129,7 +129,7 @@ export function Candidatos({ perfil }: { perfil: Perfil }) {
                     </button>
                     <button
                       type="button" className="bt bt-mini bt-neutro" disabled={agindo === c.id}
-                      onClick={() => void descartar(c)}
+                      onClick={() => setJanela({ tipo: 'descartar', alvo: c })}
                     >
                       Não é Serviço
                     </button>
@@ -150,6 +150,16 @@ export function Candidatos({ perfil }: { perfil: Perfil }) {
             setRecado(aviso ?? 'Chamado marcado como Serviço.')
             void carregar()
           }}
+        />
+      )}
+
+      {janela.tipo === 'descartar' && (
+        <Confirmar
+          titulo={`Marcar o chamado ${janela.alvo.ticket} como "não é Serviço"?`}
+          mensagem="Isto é definitivo — ele não volta para esta fila."
+          perigo
+          aoConfirmar={() => void descartar(janela.alvo)}
+          aoFechar={() => setJanela({ tipo: 'nenhuma' })}
         />
       )}
     </>

@@ -10,6 +10,7 @@
 //	sozinhas (Execução, Faturado).
 import { useState } from 'react'
 import { FichaChamado } from '../trilogo/FichaChamado'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { motor, enviarFormulario, ErroMotor, avisoDe } from '../../motor/cliente'
 import { emReais } from '../orcamentos/tipos'
@@ -161,6 +162,7 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
   const [trocando, setTrocando] = useState(false)
   const [abrindo, setAbrindo] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
+  const [confirmandoExcluir, setConfirmandoExcluir] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
   async function ver() {
@@ -182,9 +184,6 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
   //	apagarArquivoDeOrcamento/soltarRegistroDeArquivo de Reclassificar (ver
   //	documentos.go, ExcluirArquivoDeOrcamento), só que sem sair de Serviço.
   async function excluirArquivo() {
-    if (!window.confirm(
-      `Excluir o PDF anexado do ticket ${item.ticket}?\n\nO card volta para "Pendentes", sem orçamento nenhum.`,
-    )) return
     setExcluindo(true)
     setErro(null)
     try {
@@ -234,11 +233,20 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
         <div className="jn-pe" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
           {verOrcamento}
           <button type="button" className="bt bt-neutro" disabled={excluindo} onClick={() => setTrocando(true)}>Trocar PDF</button>
-          <button type="button" className="bt bt-neutro" disabled={excluindo} onClick={() => void excluirArquivo()}>
+          <button type="button" className="bt bt-neutro" disabled={excluindo} onClick={() => setConfirmandoExcluir(true)}>
             {excluindo ? 'Excluindo...' : 'Excluir PDF'}
           </button>
           <button type="button" className="bt bt-forte" disabled={excluindo} onClick={() => setAbriu(true)}>Lançar no Trílogo</button>
         </div>
+        {confirmandoExcluir && (
+          <Confirmar
+            titulo={`Excluir o PDF anexado do ticket ${item.ticket}?`}
+            mensagem='O card volta para "Pendentes", sem orçamento nenhum.'
+            perigo
+            aoConfirmar={() => void excluirArquivo()}
+            aoFechar={() => setConfirmandoExcluir(false)}
+          />
+        )}
       </div>
     )
   }
@@ -261,6 +269,7 @@ function Lancar({ item, aoFeito, aoVerOrcamento }: {
 function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recado: string) => void }) {
   const [erro, setErro] = useState<string | null>(null)
   const [agindo, setAgindo] = useState<'aprovado' | 'rejeitado' | 'excluindo' | null>(null)
+  const [confirmando, setConfirmando] = useState<'rejeitar' | 'retirar' | null>(null)
 
   async function aprovar() {
     setAgindo('aprovado')
@@ -277,9 +286,6 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
   }
 
   async function rejeitar() {
-    if (!window.confirm(
-      `Rejeitar o orçamento do ticket ${item.ticket}?\n\nO ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo.`,
-    )) return
     setAgindo('rejeitado')
     setErro(null)
     try {
@@ -300,9 +306,6 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
   //	ExcluirOrcamento — mesma ação exposta também na lista de Lançados,
   //	ListaDeServicos.tsx).
   async function retirarCotacao() {
-    if (!window.confirm(
-      `Retirar a cotação do ticket ${item.ticket} no Trílogo?\n\nApaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
-    )) return
     setAgindo('excluindo')
     setErro(null)
     try {
@@ -328,14 +331,31 @@ function AprovarOuRejeitar({ item, aoFeito }: { item: ItemLista; aoFeito: (recad
           {agindo === 'aprovado' ? 'Marcando...' : 'Aprovado'}
         </button>
         <button type="button" className="bt bt-mini bt-neutro" disabled={!!agindo}
-          onClick={() => void retirarCotacao()}>
+          onClick={() => setConfirmando('retirar')}>
           {agindo === 'excluindo' ? 'Retirando...' : 'Retirar cotação'}
         </button>
         <button type="button" className="bt bt-mini bt-perigo" disabled={!!agindo}
-          onClick={() => void rejeitar()}>
+          onClick={() => setConfirmando('rejeitar')}>
           {agindo === 'rejeitado' ? 'Rejeitando...' : 'Rejeitar orçamento'}
         </button>
       </div>
+      {confirmando === 'rejeitar' && (
+        <Confirmar
+          titulo={`Rejeitar o orçamento do ticket ${item.ticket}?`}
+          mensagem="O ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo."
+          perigo
+          aoConfirmar={() => void rejeitar()}
+          aoFechar={() => setConfirmando(null)}
+        />
+      )}
+      {confirmando === 'retirar' && (
+        <Confirmar
+          titulo={`Retirar a cotação do ticket ${item.ticket} no Trílogo?`}
+          mensagem='Apaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.'
+          aoConfirmar={() => void retirarCotacao()}
+          aoFechar={() => setConfirmando(null)}
+        />
+      )}
     </div>
   )
 }

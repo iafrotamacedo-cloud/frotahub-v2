@@ -14,12 +14,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../../motor/cliente'
 import { Carregando } from '../../../componentes/Carregando'
+import { Confirmar } from '../../../componentes/Confirmar'
 import { Paginacao } from '../../orcamentos/Arquivos'
 import type { Pagina } from '../../orcamentos/tipos'
 import type { Perfil } from '../../../sessao/tipos'
 import type { ItemLista, Status } from '../tipos'
 import { FichaDoTicket, type Acao } from '../FichaDoTicket'
 import { CelulaConta, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from '../celulas'
+
+/** Ação de linha que espera confirmação (componentes/Confirmar.tsx) antes de rodar. */
+type AcaoPendente = { tipo: 'voltar' | 'rejeitar' | 'retirar'; item: ItemLista }
 
 interface Props {
   titulo: string
@@ -40,6 +44,7 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
   const [aberto, setAberto] = useState<ItemLista | null>(null)
+  const [pendente, setPendente] = useState<AcaoPendente | null>(null)
   const corpo = useEncolher(pagina)
 
   useEffect(() => {
@@ -64,9 +69,6 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
   useEffect(() => { void carregar() }, [carregar])
 
   async function voltarProContrato(item: ItemLista) {
-    if (!window.confirm(
-      `Voltar o ticket ${item.ticket} para a fila do contrato?\n\nO PDF do orçamento sai do arquivo e o orçamento desvincula deste ticket.`,
-    )) return
     setErro(null)
     try {
       const resposta = await motor(`/servicos/kanban/${item.id}/reclassificar`, { metodo: 'POST', corpo: { motivo: '' } })
@@ -78,9 +80,6 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
   }
 
   async function rejeitarOrcamento(item: ItemLista) {
-    if (!window.confirm(
-      `Rejeitar o orçamento do ticket ${item.ticket}?\n\nO ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo.`,
-    )) return
     setErro(null)
     try {
       const resposta = await motor(`/servicos/kanban/${item.id}/rejeitar`, { metodo: 'POST' })
@@ -99,9 +98,6 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
   //	pronto pra lançar de novo (ver cotacoes.go, ExcluirOrcamento — mesma
   //	ação que já existia dentro da ficha, agora também aqui na lista).
   async function retirarCotacao(item: ItemLista) {
-    if (!window.confirm(
-      `Retirar a cotação do ticket ${item.ticket} no Trílogo?\n\nApaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.`,
-    )) return
     setErro(null)
     try {
       const resposta = await motor(`/servicos/kanban/${item.id}/orcamentos`, { metodo: 'DELETE' })
@@ -110,6 +106,38 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui retirar a cotação.')
     }
+  }
+
+  // Texto de cada confirmação — só o que window.confirm() mostrava antes,
+  // agora dentro da Janela do sistema (componentes/Confirmar.tsx) em vez
+  // do popup do navegador.
+  function textoDaConfirmacao({ tipo, item }: AcaoPendente): { titulo: string; mensagem: string; perigo?: boolean } {
+    switch (tipo) {
+      case 'voltar':
+        return {
+          titulo: `Voltar o ticket ${item.ticket} para a fila do contrato?`,
+          mensagem: 'O PDF do orçamento sai do arquivo e o orçamento desvincula deste ticket.',
+        }
+      case 'rejeitar':
+        return {
+          titulo: `Rejeitar o orçamento do ticket ${item.ticket}?`,
+          mensagem: 'O ticket volta para o contrato. O orçamento some no Trílogo e o PDF fica guardado — se o chamado voltar para Serviço, cai em Feitos para lançar de novo.',
+          perigo: true,
+        }
+      case 'retirar':
+        return {
+          titulo: `Retirar a cotação do ticket ${item.ticket} no Trílogo?`,
+          mensagem: 'Apaga a cotação e o orçamento lá. O ticket continua em Serviço, volta para "Feitos" com o mesmo PDF, pronto pra lançar de novo.',
+        }
+    }
+  }
+
+  function confirmarPendente() {
+    if (!pendente) return
+    const { tipo, item } = pendente
+    if (tipo === 'voltar') void voltarProContrato(item)
+    else if (tipo === 'rejeitar') void rejeitarOrcamento(item)
+    else void retirarCotacao(item)
   }
 
   if (aberto) {
@@ -181,15 +209,15 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
                       <td className="acoes" onClick={e => e.stopPropagation()}>
                         {status === 'orcamento_lancado' ? (
                           <>
-                            <button type="button" className="bt bt-mini bt-neutro" onClick={() => void retirarCotacao(it)}>
+                            <button type="button" className="bt bt-mini bt-neutro" onClick={() => setPendente({ tipo: 'retirar', item: it })}>
                               Retirar cotação
                             </button>
-                            <button type="button" className="bt bt-mini bt-perigo" onClick={() => void rejeitarOrcamento(it)}>
+                            <button type="button" className="bt bt-mini bt-perigo" onClick={() => setPendente({ tipo: 'rejeitar', item: it })}>
                               Rejeitar
                             </button>
                           </>
                         ) : (
-                          <button type="button" className="bt bt-mini bt-neutro" onClick={() => void voltarProContrato(it)}>
+                          <button type="button" className="bt bt-mini bt-neutro" onClick={() => setPendente({ tipo: 'voltar', item: it })}>
                             Voltar pro contrato
                           </button>
                         )}
@@ -206,6 +234,14 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
             aoTrocarPor={p => { setPor(p); setNumeroDaPagina(1) }}
           />
         </>
+      )}
+
+      {pendente && (
+        <Confirmar
+          {...textoDaConfirmacao(pendente)}
+          aoConfirmar={confirmarPendente}
+          aoFechar={() => setPendente(null)}
+        />
       )}
     </>
   )
