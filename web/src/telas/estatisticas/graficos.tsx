@@ -15,7 +15,7 @@
 //
 //	Agora a dica recebe JSX montado, não texto. O negrito continua, e o que vem
 //	do banco entra como texto — que é o que ele é.
-import { useState, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { Par, PontoDaSerie, LojaDaExpectativa, Expectativa } from './calculo'
 import {
   FIM_DO_PLANO, INICIO_CONTRATO, diaMais, diasEntre, esperadoEm, faixaEm, pct, soma,
@@ -420,6 +420,16 @@ export function GraficoExpectativa(
   </>
 }
 
+/** Verde em 0%, amarelo no patamar (100%), vermelho em 200%. */
+function corDoPercentual(pct: number): string {
+  const x = Math.min(2, Math.max(0, pct / 100))
+  const mix = (a: number, b: number, t: number) => a + (b - a) * t
+  const [h, s, l, a] = x <= 1
+    ? [mix(145, 46, x), mix(62, 88, x), mix(34, 44, x), mix(.28, .36, x)]
+    : [mix(46, 4, x - 1), mix(88, 72, x - 1), mix(44, 40, x - 1), mix(.36, .42, x - 1)]
+  return `hsla(${h} ${s}% ${l}% / ${a})`
+}
+
 /** Miniatura de uma loja: o plano ao fundo, a linha da loja por cima, o valor de hoje. */
 export function MiniExpectativa(
   { loja, exp, ativa, aoClicar }:
@@ -441,10 +451,15 @@ export function MiniExpectativa(
   const real = loja.real.map(r => `${x(r.dia)},${y(r.indice)}`).join(' ')
   const u = loja.ultimo
   const acima = !!u && u.indice > esperadoEm(exp.hoje)
+  const indice = u?.indice ?? 0
+  const balao: CSSProperties = {
+    '--me-fill': `${Math.min(100, indice / 2)}%`,
+    '--me-cor': corDoPercentual(indice),
+  } as CSSProperties
   return (
     <button type="button" className={'mini-exp' + (ativa ? ' ativa' : '')} onClick={aoClicar}
-      title={`${loja.nome} — patamar ${loja.patamar.toFixed(1)}/mês`}>
-      <span className="me-nome">{loja.nome.replace(/^LOJA /i, '')}</span>
+      title={`${loja.nome} — ${Math.round(indice)}% do patamar ${loja.patamar.toFixed(1)}/mês`}>
+      <span className="me-nome" style={balao}>{loja.nome.replace(/^LOJA /i, '')}</span>
       <svg viewBox={`0 0 ${L} ${A}`} width="100%" style={{ display: 'block' }}>
         <line x1={mE} x2={L - mD} y1={y(100)} y2={y(100)} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 3" />
         <polyline points={plano} fill="none" stroke="var(--c-inst)" strokeWidth="1.6" opacity=".75" />
