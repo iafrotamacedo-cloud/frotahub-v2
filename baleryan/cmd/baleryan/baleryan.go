@@ -1,4 +1,4 @@
-// rev 9 — baleryan, o motor do FrotaHub
+// rev 10 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -9,6 +9,19 @@
 // NENHUMA regra de negócio mora aqui. Este arquivo não sabe o que é orçamento,
 // nota ou ticket. Cada módulo traz as suas próprias rotas e este arquivo só o
 // monta — ele não cresce junto com o sistema (P-13).
+//
+// RESTAURADO EM 10/09/2026
+//
+//	A "Fase 5: Inserir OC" (88aeee2) trouxe este arquivo de volta pra rev 8
+//	sem os módulos Serviço, Estatísticas, Consolidação, SESMT e DP,
+//	Engenharia e Rogue Worker montados — nenhum deles tinha sido apagado do
+//	código, só a linha que os registra no mux sumiu. Toda rota dessas seções
+//	(GET /servicos/painel incluído) respondia 404 puro desde então, o que o
+//	front mostrava como "Alguma coisa deu errado do nosso lado" (a resposta
+//	não vinha em JSON, então nem a mensagem de erro do motor aparecia). Ver
+//	o mesmo comentário em web/src/App.tsx — a mesma regressão, dos dois
+//	lados. Volta a montar todos, com Administrativo (a peça nova de fato)
+//	registrado junto.
 package main
 
 import (
@@ -28,7 +41,13 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/administrativo"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/funcionarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/planejamento"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/rogueworker"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/servicos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/trilogo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/usuarios"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
@@ -37,7 +56,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "9"
+const Revisao = "10"
 
 type motor struct {
 	cfg  *config.Config
@@ -74,16 +93,46 @@ func main() {
 	// O armazém é um só, compartilhado: o robô o usa para GRAVAR arquivo, e a
 	// tela para assinar o endereço temporário que MOSTRA esse arquivo.
 	arm := armazem.Novo(cfg)
-	trilogo.NovoModulo(trilogo.Novo(cfg, bd, arm), seg, m.perm, bd).Montar(mux)
+	trilogoSvc := trilogo.Novo(cfg, bd, arm)
+	trilogo.NovoModulo(trilogoSvc, seg, m.perm, bd).Montar(mux)
 	trilogo.NovaConsulta(bd, seg, m.perm, arm).Montar(mux)
+	// Serviço (fila, cotação, orçamento, Candidatos, Kanban) fica INTEIRO no
+	// pacote servicos, ACIMA do trilogo (servicos.Novo recebe o mesmo
+	// trilogoSvc) — toda ação de Serviço mexe no estado local
+	// (servicos_orcamentos), não só no Trílogo, então não faz sentido ter
+	// rota HTTP nenhuma dentro de trilogo para isso. Ver o cabeçalho de
+	// interno/modulos/servicos/servicos.go pra saber por quê são dois pacotes.
+	servicosSvc := servicos.Novo(cfg, bd, trilogoSvc, arm)
+	servicos.NovoModulo(servicosSvc, seg, m.perm, bd, hist).Montar(mux)
 	// Orçamentos usa o mesmo armazém do Trílogo — os arquivos são do mesmo
 	// cliente e o endereçamento por sha256 é o mesmo. Dois armazéns seriam duas
 	// verdades sobre onde um arquivo está.
 	orcamentos.Novo(cfg, bd, seg, m.perm, arm, hist).Montar(mux)
+	// Estatísticas é leitura pura: não recebe nem o armazém nem o histórico,
+	// porque não abre arquivo e não grava nada. O que ela alcança é o que as
+	// nove views da migração 042 entregam, e nada além disso.
+	estatisticas.Novo(bd, seg, m.perm).Montar(mux)
+	// Consolidação também é leitura pura, sobre as duas views da migração 043.
+	// Ela cruza o que já existe — nota, orçamento, fatura — e por isso não
+	// precisa de nada que grave.
+	consolidacao.Novo(bd, seg, m.perm).Montar(mux)
+	// SESMT e DP (migração 044): funcionário da obra e a documentação dele.
+	// Usa o mesmo armazém dos outros dois módulos que guardam arquivo — um
+	// balde, um endereçamento por sha256, uma verdade sobre onde cada
+	// arquivo está.
+	funcionarios.Novo(bd, seg, m.perm, hist, arm).Montar(mux)
+	// Engenharia > Planejamento (migração 056): contratante, obra, calendário,
+	// cronograma e EAP. Sem armazém — este módulo ainda não guarda arquivo
+	// nenhum (RDO e as fotos de diário de obra ficam para a Fase 3).
+	planejamento.Novo(bd, seg, m.perm, hist).Montar(mux)
 	// Administrativo > Compras: primeiro passo é só inserir e listar a OC — a
 	// leitura do PDF ainda não existe (ver `administrativo/ordens.go`). Mesmo
 	// armazém dos outros dois, pelo mesmo motivo.
 	administrativo.Novo(bd, seg, m.perm, arm, hist).Montar(mux)
+	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
+	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
+	// escrever nas tabelas deles.
+	rogueworker.Novo(cfg, bd, seg, m.perm, hist, mux).Montar(mux)
 
 	// A ordem importa: CORS por fora de tudo, para que até um erro inesperado
 	// chegue ao navegador como erro de verdade, e não como "Failed to fetch".
