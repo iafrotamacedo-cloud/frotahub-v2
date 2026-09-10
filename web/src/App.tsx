@@ -309,11 +309,11 @@ function Casca() {
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
           ) : atual?.tela === 'a-pagar' ? (
-            <APagar voltar={() => navegar(caminho.slice(0, -1))} />
+            <APagar />
           ) : atual?.tela === 'inserir-oc' ? (
             <InserirOC />
           ) : atual?.tela === 'faturar' ? (
-            <Faturamento voltar={() => navegar(caminho.slice(0, -1))} />
+            <Faturamento />
           ) : atual?.tela === 'orcamentos' ? (
             // A sub-tela também vem do endereço, pelo mesmo motivo do ticket
             // abaixo: voltar tem que fechar a sub-tela, não sair do sistema.
@@ -328,6 +328,7 @@ function Casca() {
             // sistema, e faz um link para um chamado abrir aquele chamado.
             <DadosTrilogo
               ticket={extra[0]}
+              perfil={perfil}
               abrir={numero => navegar(caminho, [String(numero)])}
               voltar={() => navegar(caminho)}
             />

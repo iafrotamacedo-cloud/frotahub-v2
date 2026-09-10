@@ -1,4 +1,4 @@
-// rev 10 — a árvore de menus
+// rev 11 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -46,11 +46,12 @@ export interface ItemMenu {
 export type Icone =
   | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
   | 'dinheiro' | 'saida' | 'entrada' | 'balanca'
+  | 'grafico' | 'balao'
   | 'prancheta'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
-  | 'inserir-oc'
+  | 'inserir-oc' | 'obras' | 'servicos-hub' | 'funcionarios'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   // Fase 5, em construção numa sessão separada — ver o comentário no topo do
