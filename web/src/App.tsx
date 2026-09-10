@@ -1,8 +1,19 @@
-// rev 8 — a casca do FrotaHub
+// rev 12 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
 // arquivo não cresce junto (CORE-16): ele só sabe QUAL abrir, nunca o que ela faz.
+//
+// RESTAURADO EM 10/09/2026
+//
+//	A "Fase 5: Inserir OC" (88aeee2) trouxe este arquivo de volta pra rev 8 —
+//	um commit feito em cima de uma base antiga, sem Serviços, Engenharia,
+//	SESMT e DP, Consolidação, Estatísticas nem o Rogue Worker. O trabalho de
+//	semanas sumiu do ar, e ninguém tinha apagado o código — só a ligação
+//	aqui. Este arquivo volta a ser a rev 11 (44915af) com a peça nova
+//	(Inserir OC) enxertada por cima, em vez de a rev 11 por cima da peça
+//	nova. Ver `claude/coordenacao-modulos-paralelos.md`: sessões paralelas
+//	editando o mesmo arquivo têm que confirmar a base antes de sobrescrever.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSessao } from './sessao/useSessao'
 import { ehBuilder } from './sessao/tipos'
@@ -21,10 +32,16 @@ import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { InserirOC } from './telas/administrativo/InserirOC'
+import { Consolidacao } from './telas/financeiro/Consolidacao'
+import { Hub as ServicosHub } from './telas/servicos/Hub'
+import { Funcionarios } from './telas/funcionarios/Funcionarios'
+import { Obras } from './telas/engenharia/Obras'
 import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
+import { Estatisticas, type TelaEstatistica } from './telas/estatisticas/Estatisticas'
 import { useExpiracao } from './sessao/inatividade'
+import { ChatRogue } from './telas/rogueworker/ChatRogue'
 
 // A CASCA MORA DENTRO DO PROVEDOR
 //   `useFocado` só funciona abaixo de `ProvedorDeFoco`. Envolver aqui, e não em
@@ -75,6 +92,9 @@ function Casca() {
     try { localStorage.setItem('fh-menu-recolhido', recolhida ? '1' : '0') } catch { /* navegador sem armazenamento: só não lembra */ }
   }, [recolhida])
   const [expirou, setExpirou] = useState(false)
+  // O miolo da barra vira chat. Logo e rodapé ficam. Recolhida, abrir a
+  // Worker traz a barra de volta — senão o chat nasceria invisível.
+  const [chatAberto, setChatAberto] = useState(false)
 
   // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
   // alguém dentro — na tela de login não há sessão para expirar.
@@ -95,8 +115,22 @@ function Casca() {
   //
   //	Dados do Trílogo entrou por pedido do dono em 26/08/2026; antes ela era
   //	clara de ponta a ponta e a tabela não se destacava de nada.
+  //
+  //	Serviços entra pelo mesmo motivo de Orçamentos, e não pela regra de cima
+  //	(`atual?.sub?.length`): o hub de 6 cards é uma tela-FOLHA na árvore — o
+  //	menu não sabe que ela se parte em nove listas por dentro, isso é assunto
+  //	do próprio Hub.tsx (mesmo desenho de `onde`/`abrir` de Orçamentos). Sem
+  //	entrar aqui pelo nome, a moldura ficava clara e os cards escuros boiavam
+  //	soltos em cima de um fundo branco — dois módulos iguais parecendo dois
+  //	sistemas diferentes.
+  //
+  //	Consolidação, A pagar, Faturar ao cliente e Inserir OC são o mesmo caso:
+  //	telas-folha com lista. Sem entrar pelo nome, a página inteira nascia
+  //	cinza-clara e a tabela não se destacava.
   const ehEscura = caminho.length === 0 || !!atual?.sub?.length
-    || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados'
+    || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados' || atual?.tela === 'servicos-hub'
+    || atual?.tela === 'consolidacao' || atual?.tela === 'a-pagar' || atual?.tela === 'faturar'
+    || atual?.tela === 'inserir-oc'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -161,6 +195,17 @@ function Casca() {
           </button>
         </div>
 
+        {chatAberto ? (
+          <ChatRogue
+            aoVoltar={() => setChatAberto(false)}
+            aoNavegar={rotas => {
+              const caminho = caminhoPorRotas(arvore, rotas)
+              if (!caminho) return
+              setChatAberto(false)
+              navegar(caminho)
+            }}
+          />
+        ) : (
         <nav className="sd-nav">
           <div className="nv-sec">Menu</div>
 
@@ -201,6 +246,24 @@ function Casca() {
             )
           })}
         </nav>
+        )}
+
+        {!chatAberto && (
+          <div className="sd-rogue-wrap">
+            <button
+              className="sd-rogue"
+              type="button"
+              onClick={() => {
+                if (recolhida) setRecolhida(false)
+                setChatAberto(true)
+              }}
+            >
+              <Icone nome="balao" />
+              <span className="lb">Rogue Worker</span>
+              <span className="hint">perguntar</span>
+            </button>
+          </div>
+        )}
 
         <div className="sd-user">
           {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
@@ -234,10 +297,12 @@ function Casca() {
               aria-label="Voltar"
               title="Voltar"
               onClick={() =>
-                // Dentro de uma sub-tela, voltar FECHA a sub-tela. Só depois é
-                // que sai do nível. Pular direto seria fazer um clique desfazer
-                // dois passos.
-                extra.length > 0 ? navegar(caminho) : navegar(caminho.slice(0, -1))
+                // Dentro de uma sub-tela, voltar FECHA um passo. Lista dentro
+                // de Expectativa usa dois extras (`lista`, depois o ticket):
+                // um clique não pode desfazer os dois.
+                extra.length > 0
+                  ? navegar(caminho, extra.slice(0, -1))
+                  : navegar(caminho.slice(0, -1))
               }
             >
               ←
@@ -278,14 +343,40 @@ function Casca() {
               <div className="titulo">{atual ? atual.t : 'Início'}</div>
             )}
           </div>
+          <div className="tp-acoes" id="tp-acoes" />
         </header>}
 
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura
             confortável atrapalha mais do que ajuda. */}
         <main className={'content'
-          + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura) ? ' content-largo' : '')}>
+          + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura
+            || atual?.tela?.startsWith('est-')) ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
+          ) : atual?.tela?.startsWith('est-') ? (
+            // ESTATÍSTICAS VEM ANTES DO PAINEL GENÉRICO, E É DE PROPÓSITO
+            //
+            //	Os nós dela têm `sub` — logo cairiam no ramo de baixo e ganhariam
+            //	o painel de MENU: título, descrição, seta. Só que as barras de
+            //	Estatísticas mostram número e prévia ("121 a lançar", "34 lojas
+            //	com chamado"), e é isso que faz a entrada da seção ser um painel
+            //	em vez de uma lista de links. Quem sabe desenhar isso é a seção.
+            //
+            //	Um ramo só para as doze telas: o prefixo `est-` é o contrato
+            //	(ver `menu/arvore.ts`). Doze linhas iguais aqui envelheceriam
+            //	mal, e a décima terceira seria esquecida.
+            <Estatisticas
+              tela={atual.tela as TelaEstatistica}
+              titulo={atual.t}
+              descricao={atual.desc ?? ''}
+              perfil={perfil}
+              extra={extra}
+              abrirExtra={sobra => navegar(caminho, sobra)}
+              abrir={rota => {
+                const filho = atual.sub?.find(f => f.rota === rota)
+                if (filho) navegar([...caminho, filho])
+              }}
+            />
           ) : atual?.sub?.length ? (
             // O MESMO desenho de barras da tela inicial e do painel de
             // Orçamentos. Um esquema de menu só para o programa inteiro.
@@ -312,6 +403,14 @@ function Casca() {
             <APagar />
           ) : atual?.tela === 'inserir-oc' ? (
             <InserirOC />
+          ) : atual?.tela === 'consolidacao' ? (
+            <Consolidacao />
+          ) : atual?.tela === 'servicos-hub' ? (
+            <ServicosHub
+              onde={extra[0]}
+              perfil={perfil}
+              abrir={onde => navegar(caminho, [onde])}
+            />
           ) : atual?.tela === 'faturar' ? (
             <Faturamento />
           ) : atual?.tela === 'orcamentos' ? (
@@ -332,6 +431,16 @@ function Casca() {
               abrir={numero => navegar(caminho, [String(numero)])}
               voltar={() => navegar(caminho)}
             />
+          ) : atual?.tela === 'funcionarios' ? (
+            <Funcionarios perfil={perfil} />
+          ) : atual?.tela === 'obras' ? (
+            // A obra aberta também vem do endereço — mesmo motivo do ticket
+            // do Trílogo: voltar fecha o cronograma, não sai do sistema.
+            <Obras
+              obraId={extra[0]}
+              abrir={id => navegar(caminho, [id])}
+              voltar={() => navegar(caminho)}
+            />
           ) : (
             <EmBreve titulo={atual!.t} />
           )}
@@ -340,4 +449,16 @@ function Casca() {
 
     </div>
   )
+}
+
+function caminhoPorRotas(arvore: ItemMenu[], rotas: string[]): ItemMenu[] | null {
+  const caminho: ItemMenu[] = []
+  let nivel = arvore
+  for (const rota of rotas) {
+    const item = nivel.find(i => i.rota === rota)
+    if (!item) return null
+    caminho.push(item)
+    nivel = item.sub ?? []
+  }
+  return caminho.length ? caminho : null
 }
