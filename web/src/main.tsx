@@ -12,6 +12,7 @@ import './estilos/orcamentos.css'
 // ela passou a poder pisar nas outras.
 import './estilos/estatisticas.css'
 import './estilos/funcionarios.css'
+import './estilos/administrativo.css'
 import './estilos/engenharia.css'
 import './estilos/servicos.css'
 import './estilos/rogueworker.css'

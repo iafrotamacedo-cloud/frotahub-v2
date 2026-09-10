@@ -1,0 +1,15 @@
+/* rev 1 — Compras: a caixa de inserção da OC
+   Botões, tabela, selos e avisos já são globais (telas.css/funcionarios.css,
+   P-19) — só a caixa de arrastar-e-soltar é própria deste módulo. */
+.adm-insercao{
+  background:var(--card);border:1px dashed var(--line);border-radius:var(--r-l);
+  padding:16px;margin:0 0 16px;
+  transition:border-color var(--transicao),background var(--transicao);
+}
+.adm-insercao.sobre{border-color:var(--red);background:var(--red-050)}
+.adm-insercao > p{margin:0 0 10px;font-size:12.8px;color:var(--gray)}
+.adm-insercao .linha{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.adm-insercao .caixa{
+  flex:1;min-width:200px;font-size:13px;color:var(--mut);
+  border:1px solid var(--line-2);border-radius:var(--r-s);padding:9px 12px;background:var(--bg);
+}

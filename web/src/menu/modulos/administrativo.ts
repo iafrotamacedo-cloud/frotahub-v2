@@ -2,9 +2,9 @@
 //
 // Fica no seu próprio arquivo, e não dentro de `arvore.ts`, porque este módulo
 // cresce sem pedir edição da árvore além do import. Quem ainda não tem tela
-// (PCO, Notas fiscais, Equalizar, e as três filas de OC) cai no `<EmBreve>`
-// do `App.tsx`. Sem `breve`, o desenho é o mesmo da tela inicial — ícone da
-// marca, seta, barra cheia — em vez da versão apagada.
+// (PCO, Notas fiscais, e as duas de Compras) cai no `<EmBreve>` do `App.tsx`.
+// Sem `breve`, o desenho é o mesmo da tela inicial — ícone da marca, seta,
+// barra cheia — em vez da versão apagada.
 import type { ItemMenu } from '../arvore'
 
 export const administrativoMenu: ItemMenu = {
@@ -24,26 +24,11 @@ export const administrativoMenu: ItemMenu = {
           rota: 'inserir-oc',
           icone: 'lista',
           desc: 'Cadastrar uma ordem de compra',
-          sub: [
-            {
-              t: 'OCs Inseridas',
-              rota: 'inseridas',
-              icone: 'lista',
-              desc: 'Ordens de compra recém-cadastradas',
-            },
-            {
-              t: 'OCs Processadas',
-              rota: 'processadas',
-              icone: 'lista',
-              desc: 'Ordens de compra já processadas',
-            },
-            {
-              t: 'OCs Rejeitadas',
-              rota: 'rejeitadas',
-              icone: 'lista',
-              desc: 'Ordens de compra que não passaram',
-            },
-          ],
+          tela: 'inserir-oc',
+          // Migração 059: só CEO ganha a rotina por padrão. Quem for inserir
+          // no dia a dia (Nadyson) precisa dela na categoria pela tela de
+          // Acesso — sem isso o item nem aparece no menu (P-17).
+          rotina: 'COMPRAS_ORDENS_GERENCIAR',
         },
         {
           t: 'Equalizar Propostas',

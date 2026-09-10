@@ -1,7 +1,6 @@
 // rev 10 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
-// Um item com `oculto: true` some de vez — o código da tela continua no lugar.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
 // para o dono do sistema — o menu se ajusta ao login (P-17).
 //
@@ -10,9 +9,17 @@
 //   derivado do título, de propósito: título é texto de tela e muda quando alguém
 //   acha uma palavra melhor. Se o endereço acompanhasse o título, todo favorito e
 //   todo link colado numa conversa apontariam para o vazio no dia seguinte.
-import { sesmtDpMenu } from './modulos/sesmt-dp'
-import { servicosMenu } from './modulos/servicos'
-import { engenhariaMenu } from './modulos/engenharia'
+//
+// CADA DEPARTAMENTO NO SEU PRÓPRIO ARQUIVO, EM `modulos/`
+//   Manutenção e Configurações continuam aqui embaixo porque já existiam antes
+//   desta convenção — mexer nelas para mudar de lugar seria risco sem ganho
+//   (não trocar o que já está em produção sem motivo). Mas a partir do
+//   Administrativo, cada bloco de departamento novo nasce em
+//   `menu/modulos/<departamento>.ts` e entra aqui só como UMA linha na lista.
+//   O motivo é a Fase 5 (ver `claude/coordenacao-modulos-paralelos.md` no
+//   Projeto): vários módulos estão sendo construídos em sessões separadas, e
+//   com cada um no seu arquivo, juntar o trabalho depois é diff pequeno em vez
+//   de todo mundo editando o mesmo bloco grande ao mesmo tempo.
 import { administrativoMenu } from './modulos/administrativo'
 
 export interface ItemMenu {
@@ -22,11 +29,6 @@ export interface ItemMenu {
   icone: Icone
   desc?: string
   breve?: boolean
-  /**
-   * Some do menu e das barras. `breve` mostra "Em breve"; `oculto` não mostra
-   * nada. É o "por enquanto": a tela continua no código, um flag a tira da vista.
-   */
-  oculto?: boolean
   soBuilder?: boolean
   /**
    * O código no catálogo de permissões. Item com `rotina` só aparece para quem
@@ -43,23 +45,16 @@ export interface ItemMenu {
 
 export type Icone =
   | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
-  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico' | 'balao' | 'prancheta'
+  | 'dinheiro' | 'saida' | 'entrada' | 'balanca'
+  | 'prancheta'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
-export type Tela =
-  | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
-  | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras'
-  // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
-  //
-  //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
-  //	em vez de doze linhas iguais. E os três primeiros são NÓS que também têm
-  //	tela: as barras deles mostram número e prévia, e é isso que os distingue
-  //	de um menu comum — por isso não podem cair no painel genérico da casca.
-  | 'est-raiz' | 'est-operacionais' | 'est-financeiras'
-  | 'est-expectativa' | 'est-chamados' | 'est-onde' | 'est-tempo' | 'est-fila'
-  | 'est-custos' | 'est-orcamentos' | 'est-faturamento' | 'est-balanco'
+export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
+  | 'inserir-oc'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
+  // Fase 5, em construção numa sessão separada — ver o comentário no topo do
+  // arquivo e `claude/coordenacao-modulos-paralelos.md`.
   administrativoMenu,
   {
     t: 'Manutenção',
@@ -68,24 +63,19 @@ const ARVORE_COMPLETA: ItemMenu[] = [
     desc: 'Contratos, chamados e serviços',
     sub: [
       {
-        // PRIMEIRO DA LISTA (04/09/2026)
-        //
-        //	Morava dentro de "Contrato São Luiz", como o primeiro dos quatro
-        //	cards, até subir um nível. O dono pediu pra vir antes do próprio
-        //	contrato na barra lateral — é o que mais se abre no dia a dia.
-        t: 'Dados do Trílogo',
-        rota: 'dados-trilogo',
-        icone: 'lista',
-        desc: 'Os chamados do contrato, como o robô os trouxe',
-        tela: 'trilogo-dados',
-        rotina: 'CONTRATO_TRILOGO_DADOS',
-      },
-      {
         t: 'Contrato São Luiz',
         rota: 'contrato-sao-luiz',
         icone: 'loja',
         desc: 'Chamados, orçamentos e preventiva',
         sub: [
+          {
+            t: 'Dados do Trílogo',
+            rota: 'dados-trilogo',
+            icone: 'lista',
+            desc: 'Os chamados do contrato, como o robô os trouxe',
+            tela: 'trilogo-dados',
+            rotina: 'CONTRATO_TRILOGO_DADOS',
+          },
           {
             t: 'Orçamentos',
             rota: 'orcamentos',
@@ -146,141 +136,19 @@ const ARVORE_COMPLETA: ItemMenu[] = [
                 rotina: 'CONTRATO_ORCAMENTOS_FATURAR',
               },
               {
-                // CONSOLIDAÇÃO, E NÃO MAIS "BALANÇO" (01/09/2026)
-                //
-                //	Decisão do dono, e ela resolve dois problemas de uma vez. O
-                //	nome ficou honesto — esta tela CONFERE dois sistemas um
-                //	contra o outro, não fecha um balanço — e a palavra "Balanço"
-                //	deixa de aparecer duas vezes no mesmo contrato, que era o
-                //	que estava anotado aqui embaixo esperando decisão.
-                t: 'Consolidação',
-                rota: 'consolidacao',
+                t: 'Balanço',
+                rota: 'balanco',
                 icone: 'balanca',
-                desc: 'O que se comprou contra o que se cobrou — nota e ticket, nos dois sentidos',
-                tela: 'consolidacao',
-                rotina: 'CONTRATO_FINANCEIRO_CONSOLIDACAO',
-              },
-            ],
-          },
-          {
-            // ESTATÍSTICAS — TRÊS NÍVEIS, E OS NÓS TAMBÉM SÃO TELAS
-            //
-            //	O painel genérico da casca desenha qualquer nó com `sub`, mas
-            //	desenha um MENU: título, descrição, seta. Aqui os nós precisam
-            //	mostrar número e prévia — "5 lojas com chamado", "121 a lançar" —
-            //	que é o que transforma a entrada da seção num painel em vez de
-            //	uma lista de links.
-            //
-            //	Por isso eles têm `sub` E `tela`. A árvore continua sendo a
-            //	verdade sobre a navegação (o endereço, o voltar do navegador, a
-            //	migalha), e quem desenha as barras é a própria seção.
-            //
-            //	Uma `rotina` só, no nó de cima: quem alcança as estatísticas do
-            //	contrato alcança as nove. Partir isso em nove linhas de permissão
-            //	seria pedir que alguém marcasse nove caixas para liberar uma
-            //	tela — e a matriz vira um lugar onde ninguém mais olha.
-            //
-            //	FINANCEIRAS OCULTA (10/09/2026)
-            //	O dono pediu para esconder o ramo financeiro por enquanto. As
-            //	quatro telas continuam no código; o agrupamento Operacionais
-            //	saiu do meio para a entrada não virar um card só. Para voltar:
-            //	tire `oculto` e recoloque o envelope Operacionais / Financeiras.
-            t: 'Estatísticas',
-            rota: 'estatisticas',
-            icone: 'grafico',
-            desc: 'Chamados, tempo de atendimento e a fila do contrato',
-            tela: 'est-raiz',
-            rotina: 'CONTRATO_ESTATISTICAS',
-            sub: [
-              {
-                t: 'Expectativa × Realidade',
-                rota: 'expectativa',
-                icone: 'grafico',
-                desc: 'O plano de manutenção preventiva contra os chamados abertos, dia a dia',
-                tela: 'est-expectativa',
-              },
-              {
-                t: 'Chamados',
-                rota: 'chamados',
-                icone: 'lista',
-                desc: 'Quantos entraram, quantos foram resolvidos e como estão hoje',
-                tela: 'est-chamados',
-              },
-              {
-                t: 'Onde',
-                rota: 'onde',
-                icone: 'loja',
-                desc: 'Em que lojas e em que lugares os chamados acontecem',
-                tela: 'est-onde',
-              },
-              {
-                t: 'Tempo de atendimento',
-                rota: 'tempo',
-                icone: 'servicos',
-                desc: 'Quanto tempo leva para resolver um chamado',
-                tela: 'est-tempo',
-              },
-              {
-                t: 'Fila de hoje',
-                rota: 'fila',
-                icone: 'lista',
-                desc: 'O que está em aberto agora (não depende do período)',
-                tela: 'est-fila',
-              },
-              {
-                t: 'Financeiras',
-                rota: 'financeiras',
-                icone: 'dinheiro',
-                desc: 'Custos, orçamentos, faturamento e balanço',
-                tela: 'est-financeiras',
-                oculto: true,
-                sub: [
-                  {
-                    t: 'Custos no Trílogo',
-                    rota: 'custos',
-                    icone: 'dinheiro',
-                    desc: 'Quanto foi lançado nos chamados, e onde',
-                    tela: 'est-custos',
-                  },
-                  {
-                    t: 'Orçamentos',
-                    rota: 'orcamentos',
-                    icone: 'lista',
-                    desc: 'O que espera lançamento, o que travou e o que já foi',
-                    tela: 'est-orcamentos',
-                  },
-                  {
-                    t: 'Faturamento ao cliente',
-                    rota: 'faturamento',
-                    icone: 'entrada',
-                    desc: 'O que foi cobrado do cliente e o que já voltou',
-                    tela: 'est-faturamento',
-                  },
-                  {
-                    // A PALAVRA FICOU LIVRE (01/09/2026)
-                    //
-                    //	O "Balanço" de Financeiro virou Consolidação, então este
-                    //	deixa de ser homônimo. Os dois convivem porque são
-                    //	trabalhos diferentes: lá se CONFERE nota contra ticket;
-                    //	aqui se MEDE — quanto se pagou, quanto se cobrou, qual
-                    //	foi a margem.
-                    t: 'Balanço',
-                    rota: 'balanco',
-                    icone: 'balanca',
-                    desc: 'O que se paga ao fornecedor, o que se cobra do cliente, e a margem',
-                    tela: 'est-balanco',
-                  },
-                ],
+                desc: 'A pagar contra a receber, no período escolhido',
+                breve: true,
               },
             ],
           },
         ],
       },
-      servicosMenu,
+      { t: 'Serviços', rota: 'servicos', icone: 'servicos', desc: 'Serviços avulsos e outros contratos', breve: true },
     ],
   },
-  sesmtDpMenu,
-  engenhariaMenu,
   {
     t: 'Configurações',
     rota: 'configuracoes',
@@ -330,7 +198,6 @@ export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = [
   function filtrar(itens: ItemMenu[]): ItemMenu[] {
     const fora: ItemMenu[] = []
     for (const item of itens) {
-      if (item.oculto) continue
       if (item.soBuilder && !ehBuilder) continue
       // O builder passa sempre, aconteça o que acontecer com a matriz — é a
       // garantia de que uma configuração errada não tranca o dono para fora.
