@@ -1,4 +1,4 @@
-// rev 5 — os ícones do sistema, desenhados à mão
+// rev 6 — os ícones do sistema, desenhados à mão
 //
 // Sem biblioteca de ícones: são poucos, e assim eles herdam a cor e a espessura do
 // resto da interface em vez de trazerem um estilo próprio (CORE-25).
@@ -119,6 +119,13 @@ const CAMINHOS: Record<NomeIcone, JSX.Element> = {
     <>
       <path d="M5 6.2h14a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.2L4.4 21V8a1.8 1.8 0 0 1 1.8-1.8Z" />
       <path d="M8.4 10.6h7.2M8.4 13.8h4.6" />
+    </>
+  ),
+  'prancheta': (
+    <>
+      <rect x="5.2" y="4.8" width="13.6" height="16.4" rx="2" />
+      <rect x="8.4" y="2.6" width="7.2" height="3.8" rx="1.2" />
+      <path d="M8.6 11.4h6.8M8.6 14.8h6.8M8.6 18.2h4.4" />
     </>
   ),
 }

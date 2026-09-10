@@ -1,4 +1,4 @@
-// rev 9 — a árvore de menus
+// rev 10 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `oculto: true` some de vez — o código da tela continua no lugar.
@@ -13,6 +13,7 @@
 import { sesmtDpMenu } from './modulos/sesmt-dp'
 import { servicosMenu } from './modulos/servicos'
 import { engenhariaMenu } from './modulos/engenharia'
+import { administrativoMenu } from './modulos/administrativo'
 
 export interface ItemMenu {
   t: string
@@ -42,7 +43,7 @@ export interface ItemMenu {
 
 export type Icone =
   | 'chave-inglesa' | 'engrenagem' | 'loja' | 'servicos' | 'pessoas' | 'cadeado' | 'pessoa' | 'lista'
-  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico' | 'balao'
+  | 'dinheiro' | 'saida' | 'entrada' | 'balanca' | 'grafico' | 'balao' | 'prancheta'
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela =
@@ -59,6 +60,7 @@ export type Tela =
   | 'est-custos' | 'est-orcamentos' | 'est-faturamento' | 'est-balanco'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
+  administrativoMenu,
   {
     t: 'Manutenção',
     rota: 'manutencao',
