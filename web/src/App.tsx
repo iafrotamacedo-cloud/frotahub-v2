@@ -284,10 +284,12 @@ function Casca() {
               aria-label="Voltar"
               title="Voltar"
               onClick={() =>
-                // Dentro de uma sub-tela, voltar FECHA a sub-tela. Só depois é
-                // que sai do nível. Pular direto seria fazer um clique desfazer
-                // dois passos.
-                extra.length > 0 ? navegar(caminho) : navegar(caminho.slice(0, -1))
+                // Dentro de uma sub-tela, voltar FECHA um passo. Lista dentro
+                // de Expectativa usa dois extras (`lista`, depois o ticket):
+                // um clique não pode desfazer os dois.
+                extra.length > 0
+                  ? navegar(caminho, extra.slice(0, -1))
+                  : navegar(caminho.slice(0, -1))
               }
             >
               ←
@@ -355,6 +357,8 @@ function Casca() {
               titulo={atual.t}
               descricao={atual.desc ?? ''}
               perfil={perfil}
+              extra={extra}
+              abrirExtra={sobra => navegar(caminho, sobra)}
               abrir={rota => {
                 const filho = atual.sub?.find(f => f.rota === rota)
                 if (filho) navegar([...caminho, filho])

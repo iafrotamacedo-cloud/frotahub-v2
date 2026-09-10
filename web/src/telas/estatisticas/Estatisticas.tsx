@@ -66,10 +66,13 @@ interface Props {
   descricao: string
   /** O que a barra do nó abre. Vem da árvore de menus, pela casca. */
   abrir: (rota: string) => void
+  /** O que sobra no endereço depois da tela — a lista aberta a partir da Expectativa. */
+  extra?: string[]
+  abrirExtra?: (sobra: string[]) => void
   perfil: Perfil
 }
 
-export function Estatisticas({ tela, titulo, descricao, abrir, perfil }: Props) {
+export function Estatisticas({ tela, titulo, descricao, abrir, extra = [], abrirExtra, perfil }: Props) {
   const [base, setBase] = useState<Base | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -182,7 +185,7 @@ export function Estatisticas({ tela, titulo, descricao, abrir, perfil }: Props) 
       )}
     </>}
 
-    {tela === 'est-expectativa' ? <TelaExpectativa r={r} perfil={perfil} />
+    {tela === 'est-expectativa' ? <TelaExpectativa r={r} perfil={perfil} extra={extra} abrirExtra={abrirExtra} />
       : tela === 'est-chamados' ? <TelaChamados r={r} semConta={!conta} />
         : tela === 'est-onde' ? <TelaOnde r={r} />
           : tela === 'est-tempo' ? <TelaTempo r={r} />

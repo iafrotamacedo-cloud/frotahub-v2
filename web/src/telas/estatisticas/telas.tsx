@@ -553,7 +553,12 @@ export function TelaBalanco({ r }: { r: Resultado }) {
 
 type OrdemLoja = 'loja' | 'chamados' | 'percentual'
 
-export function TelaExpectativa({ r, perfil }: { r: Resultado; perfil: Perfil }) {
+export function TelaExpectativa({ r, perfil, extra = [], abrirExtra }: {
+  r: Resultado
+  perfil: Perfil
+  extra?: string[]
+  abrirExtra?: (sobra: string[]) => void
+}) {
   const [horizonte, setHorizonte] = useState('ciclo')
   const [lojaSel, setLojaSel] = useState('') // '' = geral (a rede inteira)
   const [contaSel, setContaSel] = useState<ContaDaExpectativa>('')
@@ -571,35 +576,36 @@ export function TelaExpectativa({ r, perfil }: { r: Resultado; perfil: Perfil })
     if (lojaSel && !lojas.some(l => String(l.unidade) === lojaSel)) setLojaSel('')
   }
 
-  // A lista dos abertos nos 30 dias: mesma tela do Trílogo, com os filtros
-  // que o número já aplicou. O ← da casca sairia da Expectativa; o ‹ Voltar
-  // daqui devolve ao gráfico.
+  // A lista dos abertos mora no endereço (`.../lista` e `.../lista/123`), não
+  // num estado escondido: o ← da casca fecha a lista, não a Expectativa. Os
+  // filtros ficam aqui porque não cabem no endereço sem virar um segundo
+  // sistema de rotas.
   const [lista, setLista] = useState<{ de: string; ate: string; conta: string; lojaTrilogo?: number } | null>(null)
-  const [ticketLista, setTicketLista] = useState<string>()
+  const listaAberta = extra[0] === 'lista'
+  const ticketLista = extra[1]
   const abrirLista = (de: string, ate: string, comLoja = true) => {
-    setTicketLista(undefined)
     setLista({
       de, ate,
       conta: contaSel,
       lojaTrilogo: comLoja ? loja?.unidade : undefined,
     })
+    abrirExtra?.(['lista'])
   }
 
-  if (lista) {
+  if (listaAberta) {
+    const filtro = lista ?? {
+      de: diaMais(e.hoje, -29), ate: e.hoje, conta: contaSel,
+      lojaTrilogo: loja?.unidade,
+    }
     return (
       <div className="est-trilogo">
-        {!ticketLista && (
-          <button type="button" className="bt bt-neutro est-voltar" onClick={() => setLista(null)}>
-            ‹ Voltar
-          </button>
-        )}
         <DadosTrilogo
           ticket={ticketLista}
           perfil={perfil}
-          inicial={{ de: lista.de, ate: lista.ate, conta: lista.conta }}
-          lojaTrilogo={lista.lojaTrilogo}
-          abrir={n => setTicketLista(String(n))}
-          voltar={() => setTicketLista(undefined)}
+          inicial={{ de: filtro.de, ate: filtro.ate, conta: filtro.conta }}
+          lojaTrilogo={filtro.lojaTrilogo}
+          abrir={n => abrirExtra?.(['lista', String(n)])}
+          voltar={() => abrirExtra?.(['lista'])}
         />
       </div>
     )
