@@ -1,4 +1,4 @@
-// rev 1 — a tela de Estatísticas dentro do FrotaHub
+// rev 3 — a tela de Estatísticas dentro do FrotaHub
 //
 // O QUE ESTE ARQUIVO É, E O QUE ELE DEIXOU DE SER
 //
@@ -19,15 +19,16 @@
 //	deixaria a tela lenta para não guardar nada — o retrato inteiro cabe numa
 //	resposta só (ver `interno/modulos/estatisticas` no motor).
 import { useEffect, useMemo, useState } from 'react'
-import { Painel, type Etapa } from '../../componentes/Painel'
+import { Painel } from '../../componentes/Painel'
 import { Fonte, type Base } from './dados'
 import { calcular, type Filtro } from './calculo'
 import { hoje, iso } from './formato'
-import { ICONE, cartoes } from './telas'
+import { cartoes } from './telas'
 import {
   TelaBalanco, TelaChamados, TelaCustos, TelaExpectativa, TelaFaturamento,
   TelaFila, TelaOnde, TelaOrcamentos, TelaTempo,
 } from './telas'
+import type { Perfil } from '../../sessao/tipos'
 
 /**
  * As telas desta seção, pelo nome que elas têm em `menu/arvore.ts`.
@@ -39,19 +40,6 @@ export type TelaEstatistica =
   | 'est-raiz' | 'est-operacionais' | 'est-financeiras'
   | 'est-expectativa' | 'est-chamados' | 'est-onde' | 'est-tempo' | 'est-fila'
   | 'est-custos' | 'est-orcamentos' | 'est-faturamento' | 'est-balanco'
-
-const GRUPOS: Etapa[] = [
-  {
-    chave: 'operacionais', titulo: 'Operacionais',
-    descricao: 'Chamados, onde, tempo de atendimento e a fila de hoje',
-    icone: ICONE.chamados,
-  },
-  {
-    chave: 'financeiras', titulo: 'Financeiras',
-    descricao: 'Custos, orçamentos, faturamento e balanço',
-    icone: ICONE.custos,
-  },
-]
 
 const ATALHOS: [string, () => [Date, Date]][] = [
   ['Este mês', () => { const a = hoje(); return [new Date(a.getFullYear(), a.getMonth(), 1), a] }],
@@ -78,9 +66,10 @@ interface Props {
   descricao: string
   /** O que a barra do nó abre. Vem da árvore de menus, pela casca. */
   abrir: (rota: string) => void
+  perfil: Perfil
 }
 
-export function Estatisticas({ tela, titulo, descricao, abrir }: Props) {
+export function Estatisticas({ tela, titulo, descricao, abrir, perfil }: Props) {
   const [base, setBase] = useState<Base | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -125,18 +114,20 @@ export function Estatisticas({ tela, titulo, descricao, abrir }: Props) {
     : '—'
   const barras = cartoes(r)
 
-  // ---- os três nós: as barras verticais, sem filtro ----
+  // ---- os nós: as barras verticais, sem filtro ----
+  //
+  //	Financeiras está oculta (arvore.ts, 10/09/2026). A entrada (est-raiz)
+  //	mostra as barras operacionais direto, senão sobraria um card só. O
+  //	ramo financeiro continua desenhável se o flag `oculto` sair.
   if (tela === 'est-raiz' || tela === 'est-operacionais' || tela === 'est-financeiras') {
-    const etapas = tela === 'est-raiz' ? GRUPOS
-      : tela === 'est-operacionais' ? barras.operacionais
-        : barras.financeiras
+    const etapas = tela === 'est-financeiras' ? barras.financeiras : barras.operacionais
     return (
       <div className="est">
         <header className="hero">
           <div><h1>{titulo}</h1><p>{descricao}</p></div>
           <div className="carimbo">
             Lido do banco às <b>{carimbo}</b>
-            {tela !== 'est-raiz' && <> · período: <b>{atalho ?? 'personalizado'}</b></>}
+            {tela !== 'est-financeiras' && <> · período: <b>{atalho ?? 'personalizado'}</b></>}
           </div>
         </header>
         <Painel etapas={etapas} aoEscolher={abrir} />
@@ -191,7 +182,7 @@ export function Estatisticas({ tela, titulo, descricao, abrir }: Props) {
       )}
     </>}
 
-    {tela === 'est-expectativa' ? <TelaExpectativa r={r} />
+    {tela === 'est-expectativa' ? <TelaExpectativa r={r} perfil={perfil} />
       : tela === 'est-chamados' ? <TelaChamados r={r} semConta={!conta} />
         : tela === 'est-onde' ? <TelaOnde r={r} />
           : tela === 'est-tempo' ? <TelaTempo r={r} />

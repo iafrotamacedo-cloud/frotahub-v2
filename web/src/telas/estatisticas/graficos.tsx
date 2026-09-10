@@ -1,4 +1,4 @@
-// rev 1 — os gráficos, em SVG próprio
+// rev 2 — os gráficos, em SVG próprio
 //
 // SEM BIBLIOTECA DE GRÁFICO, E É DE PROPÓSITO
 //
@@ -276,18 +276,23 @@ export const Bloco = ({ t, sub, c = 'c6', children }:
 export const Frase = ({ children }: { children: ReactNode }) => <p className="frase">{children}</p>
 export const B = ({ children }: { children: ReactNode }) => <b>{children}</b>
 
-/** Três números, e só. [rótulo, valor, sub?, tom?] */
-export type ItemDeNumero = [string, string, string?, string?]
+/** Três números, e só. [rótulo, valor, sub?, tom?, clique?] */
+export type ItemDeNumero = [string, string, string?, string?, (() => void)?]
 
 export const Numeros = ({ itens }: { itens: ItemDeNumero[] }) => (
   <div className="nums">
-    {itens.map(([r, v, s, tom], i) => (
-      <div key={i} className={'num' + (tom ? ' ' + tom : '')}>
+    {itens.map(([r, v, s, tom, aoClicar], i) => {
+      const classe = 'num' + (tom ? ' ' + tom : '') + (aoClicar ? ' clicavel' : '')
+      const miolo = <>
         <span className="num-v">{v}</span>
         <span className="num-r">{r}</span>
         {s && <span className="num-s">{s}</span>}
-      </div>
-    ))}
+      </>
+      return aoClicar
+        ? <button key={i} type="button" className={classe} onClick={aoClicar}
+            aria-label={s ? `Ver ${s}` : r}>{miolo}</button>
+        : <div key={i} className={classe}>{miolo}</div>
+    })}
   </div>
 )
 

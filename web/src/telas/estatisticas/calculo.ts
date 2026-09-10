@@ -1,4 +1,4 @@
-// rev 1 — a conta das estatísticas
+// rev 2 — a conta das estatísticas
 //
 // FUNÇÕES PURAS: linhas + filtros entram, números e séries saem. Nada aqui sabe
 // o que é um <div>, e nada aqui vai ao servidor.
@@ -242,22 +242,34 @@ export interface Expectativa {
   diasDeContrato: number
 }
 
-function calcularExpectativa(base: Base): Expectativa {
+/** '' = as duas contas. A tela escolhe; o card da entrada fica sempre no geral. */
+export type ContaDaExpectativa = '' | 'instalacoes' | 'civil'
+export type ExpPorConta = Record<ContaDaExpectativa, Expectativa>
+
+function calcularExpectativa(base: Base, conta: ContaDaExpectativa = ''): Expectativa {
   const { chamados, porUnidade } = base
   const ate = diaLocal(base.geradoEm) ?? iso(new Date())
 
-  // Toda a rede, as duas contas, só as unidades do plano (`no_escopo`). O
-  // chamado conta no dia em que foi ABERTO pela primeira vez — a demanda que o
-  // plano quer reduzir.
+  // Só as unidades do plano (`no_escopo`). O chamado conta no dia em que foi
+  // ABERTO pela primeira vez — a demanda que o plano quer reduzir.
+  //
+  // O PATAMAR DA CONTA é a fatia dela nos 700, pela participação nas aberturas
+  // do contrato: patamar = 700 × (aberturas da conta ÷ aberturas da rede). Sem
+  // essa escala, filtrar Instalações deixaria o índice na casa dos 50% mesmo
+  // com a conta no ritmo do plano — o mesmo defeito que a loja tinha antes de
+  // ganhar a fatia dela.
   const porDia = new Map<string, number>()
   const porLojaDia = new Map<number, Map<string, number>>()
   const totalLoja = new Map<number, number>()
+  let totalRede = 0
   for (const c of chamados) {
     // AQUI ESTÁ A ÚNICA MUDANÇA DA FUSÃO: a loja é achada pelo número do
     // Trílogo, não pela posição numa lista (ver `dados.ts`).
     if (c.unidade == null || !porUnidade.get(c.unidade)?.no_escopo || !c.criado_em) continue
     const d = diaLocal(c.criado_em)
     if (!d || d < INICIO_CONTRATO) continue
+    totalRede++
+    if (conta && c.conta !== conta) continue
     porDia.set(d, (porDia.get(d) || 0) + 1)
     let m = porLojaDia.get(c.unidade)
     if (!m) { m = new Map<string, number>(); porLojaDia.set(c.unidade, m) }
@@ -267,7 +279,8 @@ function calcularExpectativa(base: Base): Expectativa {
 
   const dias: string[] = []
   for (let d = INICIO_CONTRATO; d <= ate; d = diaMais(d, 1)) dias.push(d)
-  const totalRede = [...porDia.values()].reduce((a, b) => a + b, 0)
+  const totalFiltrado = [...porDia.values()].reduce((a, b) => a + b, 0)
+  const patamarRede = PATAMAR_MES * (totalFiltrado / Math.max(1, totalRede))
 
   /** Série de 30 dias móveis ÷ patamar, a partir de um mapa dia→n. */
   const serie = (mapa: Map<string, number>, patamar: number): PontoDaSerie[] => {
@@ -281,7 +294,7 @@ function calcularExpectativa(base: Base): Expectativa {
     return fora
   }
 
-  const real = serie(porDia, PATAMAR_MES)
+  const real = serie(porDia, patamarRede)
 
   // O PATAMAR DE CADA LOJA é a fatia dela no patamar da rede, pela participação
   // nas aberturas do contrato até hoje: patamar_loja = 700 × (aberturas da loja
@@ -316,7 +329,7 @@ function calcularExpectativa(base: Base): Expectativa {
       mes: m,
       abertos: n,
       parcial,
-      indice: (n / PATAMAR_MES) * 100,
+      indice: (n / patamarRede) * 100,
       projetado: parcial ? (n / diasNoMes) * 30 : n,
       esperado: esperadoEm(fim),
     }
@@ -328,9 +341,9 @@ function calcularExpectativa(base: Base): Expectativa {
     ultimo: real[real.length - 1] || null,
     esperadoHoje: esperadoEm(ate),
     porMes,
-    patamar: PATAMAR_MES,
+    patamar: patamarRede,
     lojas,
-    totalContrato: totalRede,
+    totalContrato: totalFiltrado,
     diasDeContrato: dias.length,
   }
 }
@@ -369,6 +382,7 @@ interface CustoComChamado extends Custo {
 export interface Resultado {
   nomeLoja: (id: number | null) => string
   exp: Expectativa
+  expPorConta: ExpPorConta
   chamados: {
     total: number; noPeriodo: number; abertosAgora: number; emExecucao: number
     executados: number; vistoriados: number; pctPrazo: number | null; comPrazo: number
@@ -625,9 +639,16 @@ export function calcular(base: Base, f: Filtro): Resultado {
     .sort((a, b) => b.receber - a.receber)
     .slice(0, 12)
 
+  const expPorConta = lembrar(chamados, () => ({
+    '': calcularExpectativa(base, ''),
+    instalacoes: calcularExpectativa(base, 'instalacoes'),
+    civil: calcularExpectativa(base, 'civil'),
+  })) as ExpPorConta
+
   return {
     nomeLoja,
-    exp: lembrar(chamados, () => calcularExpectativa(base)),
+    exp: expPorConta[''],
+    expPorConta,
     chamados: {
       total: ch.length, noPeriodo: chPeriodo.length, abertosAgora: abertosAgora.length,
       emExecucao: abertosAgora.filter(c => c.status === 'Em execução').length,

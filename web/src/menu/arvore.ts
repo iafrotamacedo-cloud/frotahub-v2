@@ -1,6 +1,7 @@
-// rev 8 — a árvore de menus
+// rev 9 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
+// Um item com `oculto: true` some de vez — o código da tela continua no lugar.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
 // para o dono do sistema — o menu se ajusta ao login (P-17).
 //
@@ -20,6 +21,11 @@ export interface ItemMenu {
   icone: Icone
   desc?: string
   breve?: boolean
+  /**
+   * Some do menu e das barras. `breve` mostra "Em breve"; `oculto` não mostra
+   * nada. É o "por enquanto": a tela continua no código, um flag a tira da vista.
+   */
+  oculto?: boolean
   soBuilder?: boolean
   /**
    * O código no catálogo de permissões. Item com `rotina` só aparece para quem
@@ -171,56 +177,53 @@ const ARVORE_COMPLETA: ItemMenu[] = [
             //	contrato alcança as nove. Partir isso em nove linhas de permissão
             //	seria pedir que alguém marcasse nove caixas para liberar uma
             //	tela — e a matriz vira um lugar onde ninguém mais olha.
+            //
+            //	FINANCEIRAS OCULTA (10/09/2026)
+            //	O dono pediu para esconder o ramo financeiro por enquanto. As
+            //	quatro telas continuam no código; o agrupamento Operacionais
+            //	saiu do meio para a entrada não virar um card só. Para voltar:
+            //	tire `oculto` e recoloque o envelope Operacionais / Financeiras.
             t: 'Estatísticas',
             rota: 'estatisticas',
             icone: 'grafico',
-            desc: 'Chamados, tempo de atendimento, custos e faturamento do contrato',
+            desc: 'Chamados, tempo de atendimento e a fila do contrato',
             tela: 'est-raiz',
             rotina: 'CONTRATO_ESTATISTICAS',
             sub: [
               {
-                t: 'Operacionais',
-                rota: 'operacionais',
-                icone: 'chave-inglesa',
-                desc: 'Chamados, onde, tempo de atendimento e a fila de hoje',
-                tela: 'est-operacionais',
-                sub: [
-                  {
-                    t: 'Expectativa × Realidade',
-                    rota: 'expectativa',
-                    icone: 'grafico',
-                    desc: 'O plano de manutenção preventiva contra os chamados abertos, dia a dia',
-                    tela: 'est-expectativa',
-                  },
-                  {
-                    t: 'Chamados',
-                    rota: 'chamados',
-                    icone: 'lista',
-                    desc: 'Quantos entraram, quantos foram resolvidos e como estão hoje',
-                    tela: 'est-chamados',
-                  },
-                  {
-                    t: 'Onde',
-                    rota: 'onde',
-                    icone: 'loja',
-                    desc: 'Em que lojas e em que lugares os chamados acontecem',
-                    tela: 'est-onde',
-                  },
-                  {
-                    t: 'Tempo de atendimento',
-                    rota: 'tempo',
-                    icone: 'servicos',
-                    desc: 'Quanto tempo leva para resolver um chamado',
-                    tela: 'est-tempo',
-                  },
-                  {
-                    t: 'Fila de hoje',
-                    rota: 'fila',
-                    icone: 'lista',
-                    desc: 'O que está em aberto agora (não depende do período)',
-                    tela: 'est-fila',
-                  },
-                ],
+                t: 'Expectativa × Realidade',
+                rota: 'expectativa',
+                icone: 'grafico',
+                desc: 'O plano de manutenção preventiva contra os chamados abertos, dia a dia',
+                tela: 'est-expectativa',
+              },
+              {
+                t: 'Chamados',
+                rota: 'chamados',
+                icone: 'lista',
+                desc: 'Quantos entraram, quantos foram resolvidos e como estão hoje',
+                tela: 'est-chamados',
+              },
+              {
+                t: 'Onde',
+                rota: 'onde',
+                icone: 'loja',
+                desc: 'Em que lojas e em que lugares os chamados acontecem',
+                tela: 'est-onde',
+              },
+              {
+                t: 'Tempo de atendimento',
+                rota: 'tempo',
+                icone: 'servicos',
+                desc: 'Quanto tempo leva para resolver um chamado',
+                tela: 'est-tempo',
+              },
+              {
+                t: 'Fila de hoje',
+                rota: 'fila',
+                icone: 'lista',
+                desc: 'O que está em aberto agora (não depende do período)',
+                tela: 'est-fila',
               },
               {
                 t: 'Financeiras',
@@ -228,6 +231,7 @@ const ARVORE_COMPLETA: ItemMenu[] = [
                 icone: 'dinheiro',
                 desc: 'Custos, orçamentos, faturamento e balanço',
                 tela: 'est-financeiras',
+                oculto: true,
                 sub: [
                   {
                     t: 'Custos no Trílogo',
@@ -324,6 +328,7 @@ export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = [
   function filtrar(itens: ItemMenu[]): ItemMenu[] {
     const fora: ItemMenu[] = []
     for (const item of itens) {
+      if (item.oculto) continue
       if (item.soBuilder && !ehBuilder) continue
       // O builder passa sempre, aconteça o que acontecer com a matriz — é a
       // garantia de que uma configuração errada não tranca o dono para fora.

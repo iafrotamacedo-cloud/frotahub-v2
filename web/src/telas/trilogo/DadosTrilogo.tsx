@@ -1,4 +1,4 @@
-// rev 4 — Dados do Trílogo: a lista, a ficha e a extração
+// rev 5 — Dados do Trílogo: a lista, a ficha e a extração
 //
 // TUDO GIRA EM TORNO DO TICKET
 //   É por isso que a busca por número tem borda escura e vem primeiro, antes dos
@@ -42,14 +42,25 @@ interface Props {
   perfil: Perfil
   abrir: (numero: number) => void
   voltar: () => void
+  /**
+   * Filtros já ligados ao abrir a lista. Estatísticas chega aqui com o período
+   * de 30 dias, a conta e a loja que estavam no gráfico — senão a pessoa
+   * reaplicaria à mão o que o número já disse.
+   */
+  inicial?: Partial<Escolhas>
+  /** Número da loja no Trílogo. Vira o uuid do seletor quando as opções chegam. */
+  lojaTrilogo?: number
 }
 
-export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
+export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilogo }: Props) {
   const [filtros, setFiltros] = useState<Filtros | null>(null)
-  const [escolhas, setEscolhas] = useState<Escolhas>(SEM_FILTRO)
+  const [escolhas, setEscolhas] = useState<Escolhas>(() => ({ ...SEM_FILTRO, ...inicial }))
   const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
   const [porPagina, setPorPagina] = useState(100)
+  // Sem a loja resolvida, a primeira carga viria "todas" e depois apertaria
+  // o filtro — a pessoa veria 200 linhas virarem 8, e desconfiaria da conta.
+  const [pronto, setPronto] = useState(lojaTrilogo == null)
 
   const [dados, setDados] = useState<Pagina | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -78,9 +89,20 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
     let vivo = true
     motor<Filtros>('/trilogo/filtros')
       .then(f => { if (vivo) setFiltros(f) })
-      .catch(() => { /* a tela funciona sem os seletores; a busca por ticket não depende deles */ })
+      .catch(() => {
+        if (vivo) setPronto(true)
+        /* a tela funciona sem os seletores; a busca por ticket não depende deles */
+      })
     return () => { vivo = false }
   }, [])
+
+  useEffect(() => {
+    if (lojaTrilogo == null) return
+    if (!filtros) return
+    const l = filtros.lojas.find(x => x.id_trilogo === lojaTrilogo)
+    if (l) setEscolhas(e => (e.loja === l.id ? e : { ...e, loja: l.id }))
+    setPronto(true)
+  }, [filtros, lojaTrilogo])
 
   const verUltimaLeitura = useCallback(() => {
     motor<{ rodadas: Rodada[] }>('/robos/trilogo/rodadas')
@@ -125,7 +147,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar }: Props) {
     }
   }, [paramsDoFiltro, pagina, porPagina])
 
-  useEffect(() => { void carregar() }, [carregar])
+  useEffect(() => { if (pronto) void carregar() }, [carregar, pronto])
 
   // A página pedida pode não existir mais — o motor devolve a última que existe.
   // A tela acompanha, em vez de continuar mostrando um número que não é o que

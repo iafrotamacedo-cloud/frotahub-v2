@@ -1,4 +1,4 @@
-// rev 10 — a casca do FrotaHub
+// rev 11 — a casca do FrotaHub
 //
 // Junta as três peças e nada mais: a barra lateral com o menu, o cabeçalho com o
 // caminho, e a área de trabalho. Cada rotina é um arquivo próprio em telas/ — este
@@ -334,7 +334,8 @@ function Casca() {
         {/* A tela de chamados é uma tabela larga: nela o limite de leitura
             confortável atrapalha mais do que ajuda. */}
         <main className={'content'
-          + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura) ? ' content-largo' : '')}>
+          + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura
+            || atual?.tela?.startsWith('est-')) ? ' content-largo' : '')}>
           {caminho.length === 0 ? (
             <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
           ) : atual?.tela?.startsWith('est-') ? (
@@ -353,6 +354,7 @@ function Casca() {
               tela={atual.tela as TelaEstatistica}
               titulo={atual.t}
               descricao={atual.desc ?? ''}
+              perfil={perfil}
               abrir={rota => {
                 const filho = atual.sub?.find(f => f.rota === rota)
                 if (filho) navegar([...caminho, filho])

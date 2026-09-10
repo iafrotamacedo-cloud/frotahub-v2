@@ -50,24 +50,19 @@ var catalogoDeTelas = []telaConhecida{
 		nomes: []string{"estatistica", "estatisticas"},
 	},
 	{
-		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "operacionais", "chamados"},
+		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "chamados"},
 		tela:  "est-chamados", rotina: "CONTRATO_ESTATISTICAS",
 		nomes: []string{"estatistica de chamados", "chamados de todas as lojas", "chamados de todas lojas"},
 	},
 	{
-		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "operacionais", "onde"},
+		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "onde"},
 		tela:  "est-onde", rotina: "CONTRATO_ESTATISTICAS",
 		nomes: []string{"onde estao os chamados", "chamados por loja"},
 	},
 	{
-		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "operacionais", "fila"},
+		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "fila"},
 		tela:  "est-fila", rotina: "CONTRATO_ESTATISTICAS",
 		nomes: []string{"fila de hoje"},
-	},
-	{
-		rotas: []string{"manutencao", "contrato-sao-luiz", "estatisticas", "financeiras", "faturamento"},
-		tela:  "est-faturamento", rotina: "CONTRATO_ESTATISTICAS",
-		nomes: []string{"estatistica de faturamento"},
 	},
 	{
 		rotas: []string{"manutencao", "servicos"},

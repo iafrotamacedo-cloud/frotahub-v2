@@ -1,4 +1,4 @@
-// rev 1 — as nove telas
+// rev 5 — as nove telas
 //
 // A REGRA DE CADA TELA (pedido do dono em 30/08/2026: "muita informação, pouco fluido")
 //
@@ -20,13 +20,15 @@
 //	texto fica num lugar só.
 import { useState } from 'react'
 import type { Etapa } from '../../componentes/Painel'
-import type { Resultado } from './calculo'
-import { INICIO_CONTRATO, pct } from './calculo'
-import { diasFmt, classeStatus, dtBR, inteiro, mesCurto, reais, reaisCurto } from './formato'
+import type { ContaDaExpectativa, Resultado } from './calculo'
+import { INICIO_CONTRATO, PATAMAR_MES, diaMais, pct } from './calculo'
+import { CONTA, diasFmt, classeStatus, dtBR, inteiro, mesCurto, reais, reaisCurto } from './formato'
 import {
   B, Barras, BarrasH, Bloco, CORES, ContaPill, Detalhes, Duas, Frase, GraficoExpectativa,
   Lista, MiniExpectativa, Numeros, Principal, Rosca, Linhas, type ItemDeNumero,
 } from './graficos'
+import { DadosTrilogo } from '../trilogo/DadosTrilogo'
+import type { Perfil } from '../../sessao/tipos'
 
 const n_ = inteiro
 const semLoja = (s: string) => s.replace(/^LOJA /i, '')
@@ -244,13 +246,11 @@ export function TelaTempo({ r }: { r: Resultado }) {
     ['dias até resolver', diasFmt(t.medianaExec), 'metade dos chamados, em até'],
     ['resolvidos em menos de 7 dias', t.pctAte7 == null ? '—' : t.pctAte7 + '%',
       `de ${n_(t.n)} executados`, (t.pctAte7 ?? 0) >= 70 ? 'ok' : 'warn'],
-    ['dias até o cliente aprovar', diasFmt(t.medianaExecAteVist), 'do executado ao vistoriado'],
   ]
   return <>
     <Frase>
       Metade dos chamados é resolvida em até <B>{diasFmt(t.medianaExec)} dias</B>
-      {t.pctAte7 != null && <>, e <B>{t.pctAte7}%</B> em menos de uma semana</>}. Depois de executado,
-      o cliente leva em torno de <B>{diasFmt(t.medianaExecAteVist)} dia(s)</B> para aprovar (vistoriar).
+      {t.pctAte7 != null && <>, e <B>{t.pctAte7}%</B> em menos de uma semana</>}.
     </Frase>
     <Numeros itens={numeros} />
     <Duas>
@@ -547,16 +547,60 @@ export function TelaBalanco({ r }: { r: Resultado }) {
 // expectativa × realidade
 // ---------------------------------------------------------------------------
 
-export function TelaExpectativa({ r }: { r: Resultado }) {
-  const e = r.exp
+export function TelaExpectativa({ r, perfil }: { r: Resultado; perfil: Perfil }) {
   const [horizonte, setHorizonte] = useState('ciclo')
   const [lojaSel, setLojaSel] = useState('') // '' = geral (a rede inteira)
+  const [contaSel, setContaSel] = useState<ContaDaExpectativa>('')
+  const e = r.expPorConta[contaSel]
   const loja = lojaSel === '' ? null : e.lojas.find(l => String(l.unidade) === lojaSel) ?? null
   const u = loja ? loja.ultimo : e.ultimo
   const dif = u ? Math.round(u.indice - e.esperadoHoje) : null
   const dt = (s: string) => s.split('-').reverse().join('/')
+  const daConta = contaSel ? CONTA[contaSel] : null
+  const patamarTxt = (p: number) => p === PATAMAR_MES ? n_(p) : p.toFixed(1)
+  const escolherConta = (v: ContaDaExpectativa) => {
+    setContaSel(v)
+    const lojas = r.expPorConta[v].lojas
+    if (lojaSel && !lojas.some(l => String(l.unidade) === lojaSel)) setLojaSel('')
+  }
+
+  // A lista dos abertos nos 30 dias: mesma tela do Trílogo, com os filtros
+  // que o número já aplicou. O ← da casca sairia da Expectativa; o ‹ Voltar
+  // daqui devolve ao gráfico.
+  const [lista, setLista] = useState<{ de: string; ate: string; conta: string; lojaTrilogo?: number } | null>(null)
+  const [ticketLista, setTicketLista] = useState<string>()
+  const abrirLista = (de: string, ate: string, comLoja = true) => {
+    setTicketLista(undefined)
+    setLista({
+      de, ate,
+      conta: contaSel,
+      lojaTrilogo: comLoja ? loja?.unidade : undefined,
+    })
+  }
+
+  if (lista) {
+    return (
+      <div className="est-trilogo">
+        {!ticketLista && (
+          <button type="button" className="bt bt-neutro est-voltar" onClick={() => setLista(null)}>
+            ‹ Voltar
+          </button>
+        )}
+        <DadosTrilogo
+          ticket={ticketLista}
+          perfil={perfil}
+          inicial={{ de: lista.de, ate: lista.ate, conta: lista.conta }}
+          lojaTrilogo={lista.lojaTrilogo}
+          abrir={n => setTicketLista(String(n))}
+          voltar={() => setTicketLista(undefined)}
+        />
+      </div>
+    )
+  }
+
   const numeros: ItemDeNumero[] = [
-    ['do patamar, hoje', u ? Math.round(u.indice) + '%' : '—', u ? `${n_(u.soma)} abertos em 30 dias` : ''],
+    ['do patamar, hoje', u ? Math.round(u.indice) + '%' : '—', u ? `${n_(u.soma)} abertos em 30 dias` : '',
+      undefined, u ? () => abrirLista(diaMais(e.hoje, -29), e.hoje) : undefined],
     ['o plano esperava', Math.round(e.esperadoHoje) + '%', 'para ' + dt(e.hoje)],
     ['diferença', dif == null ? '—' : (dif > 0 ? '+' : '') + dif + ' pontos',
       dif == null ? '' : dif <= 0 ? 'dentro do esperado' : 'acima do plano',
@@ -564,9 +608,10 @@ export function TelaExpectativa({ r }: { r: Resultado }) {
   ]
   return <>
     <Frase>{u ? <>
-      {loja ? <><B>{loja.nome}</B>: nos</> : 'Nos'} últimos 30 dias foram
+      {loja ? <><B>{loja.nome}</B>{daConta && <> · {daConta}</>}: nos</>
+        : daConta ? <>Em <B>{daConta}</B>, nos</> : 'Nos'} últimos 30 dias foram
       abertos <B>{n_(u.soma)} chamados</B> — <B>{Math.round(u.indice)}%</B> do patamar
-      de {loja ? loja.patamar.toFixed(1) : n_(e.patamar)} por mês. Para hoje, o plano
+      de {loja ? loja.patamar.toFixed(1) : patamarTxt(e.patamar)} por mês. Para hoje, o plano
       esperava <B>{Math.round(e.esperadoHoje)}%</B>: a realidade
       está <B>{Math.abs(dif ?? 0)} ponto(s) {(dif ?? 0) > 0 ? 'acima' : 'abaixo'}</B> do plano.
       A queda de verdade só começa em setembro, quando entra a preventiva de rotina.
@@ -578,11 +623,18 @@ export function TelaExpectativa({ r }: { r: Resultado }) {
           <h3>Expectativa × Realidade</h3>
           <div className="sub">
             o plano ao fundo, a realidade por cima; 100% = {loja
-              ? `${loja.patamar.toFixed(1)} chamados por mês (a fatia da loja nos ${n_(e.patamar)})`
-              : `${n_(e.patamar)} chamados por mês`}
+              ? `${loja.patamar.toFixed(1)} chamados por mês (a fatia da loja nos ${patamarTxt(e.patamar)})`
+              : `${patamarTxt(e.patamar)} chamados por mês`}
+            {daConta ? ` · ${daConta}` : ''}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="pilulas">
+            {([['', 'Todas'], ['instalacoes', 'Instalações'], ['civil', 'Civil']] as const).map(([v, n]) => (
+              <button key={v || 'todas'} type="button" className={contaSel === v ? 'ativo' : ''}
+                onClick={() => escolherConta(v)}>{n}</button>
+            ))}
+          </div>
           <select className="sel" value={lojaSel} onChange={ev => setLojaSel(ev.target.value)}>
             <option value="">Geral — toda a rede</option>
             {e.lojas.map(l => <option key={l.unidade} value={l.unidade}>{l.nome}</option>)}
@@ -602,8 +654,8 @@ export function TelaExpectativa({ r }: { r: Resultado }) {
       <h3>As {e.lojas.length} lojas</h3>
       <div className="sub">
         cada miniatura é o mesmo gráfico da loja: plano ao fundo, realidade por cima, valor de hoje.
-        O patamar de cada loja é a fatia dela nos {n_(e.patamar)}/mês, pela participação nas aberturas
-        do contrato. Clique para abrir no gráfico grande.
+        O patamar de cada loja é a fatia dela nos {patamarTxt(e.patamar)}/mês, pela participação nas aberturas
+        do contrato{daConta ? ` em ${daConta}` : ''}. Clique para abrir no gráfico grande.
       </div>
       <div className="mini-grade">
         {e.lojas.map(l => (
@@ -619,7 +671,23 @@ export function TelaExpectativa({ r }: { r: Resultado }) {
           <tbody>{e.porMes.map(m => (
             <tr key={m.mes}>
               <td className="forte">{mesCurto(m.mes)}</td>
-              <td className="n">{n_(m.abertos)}{m.parcial && <span className="tri-fraco"> (até {dt(e.hoje)})</span>}</td>
+              <td className="n">
+                {m.abertos
+                  ? <button type="button" className="est-num-link"
+                      aria-label={`Ver ${n_(m.abertos)} chamados abertos em ${mesCurto(m.mes)}`}
+                      onClick={() => {
+                        const ate = m.parcial ? e.hoje
+                          : diaMais(diaMais(m.mes + '-01', 32).slice(0, 7) + '-01', -1)
+                        abrirLista(m.mes + '-01', ate, false)
+                      }}>
+                      {n_(m.abertos)}
+                      {m.parcial && <span className="tri-fraco"> (até {dt(e.hoje)})</span>}
+                    </button>
+                  : <>
+                      {n_(m.abertos)}
+                      {m.parcial && <span className="tri-fraco"> (até {dt(e.hoje)})</span>}
+                    </>}
+              </td>
               <td className="n forte">
                 {Math.round(m.parcial ? (m.projetado / e.patamar) * 100 : m.indice)}%
                 {m.parcial && <span className="tri-fraco"> proj.</span>}
@@ -632,14 +700,19 @@ export function TelaExpectativa({ r }: { r: Resultado }) {
       </Bloco>
       <Bloco t="Como é feita a conta" c="c4">
         <div className="explica">
-          <p><b>Patamar.</b> 100% = {n_(e.patamar)} chamados por mês, o número do plano.</p>
+          <p><b>Patamar.</b> 100% = {patamarTxt(e.patamar)} chamados por mês
+            {daConta
+              ? ` — a fatia de ${daConta} nos ${n_(PATAMAR_MES)} do plano.`
+              : ', o número do plano.'}</p>
           <p><b>Realidade.</b> Chamado <b>aberto</b> = aberto pela primeira vez (retrabalho não conta duas
             vezes). Cada ponto do dia soma os abertos nos 30 dias anteriores e divide pelo patamar — é a
-            demanda que o treinamento e a preventiva querem reduzir. Toda a rede, as duas contas, só as
+            demanda que o treinamento e a preventiva querem reduzir. Toda a rede
+            {daConta ? <>, só <b>{daConta}</b></> : ', as duas contas'}, só as
             unidades do plano.</p>
           <p><b>Plano.</b> A curva da Figura 1: 100 em julho, pico de 120 na 2ª quinzena de agosto
             (contingência), e de setembro em diante a queda até −40% em mai/2028, na faixa de −27% a −53%.</p>
-          <p className="tri-fraco">{n_(e.totalContrato)} abertos desde {dt(INICIO_CONTRATO)} ·
+          <p className="tri-fraco">{n_(e.totalContrato)} abertos desde {dt(INICIO_CONTRATO)}
+            {daConta ? ` em ${daConta}` : ''} ·
             {' '}{e.diasDeContrato} dias de contrato · retrato de {dt(e.hoje)}</p>
         </div>
       </Bloco>
