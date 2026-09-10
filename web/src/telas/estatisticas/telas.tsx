@@ -32,6 +32,10 @@ import type { Perfil } from '../../sessao/tipos'
 
 const n_ = inteiro
 const semLoja = (s: string) => s.replace(/^LOJA /i, '')
+const numeroDaLoja = (nome: string) => {
+  const m = nome.match(/LOJA\s+(\d+)/i)
+  return m ? +m[1] : 9999
+}
 
 /**
  * O endereço de um chamado em Dados do Trílogo.
@@ -547,10 +551,13 @@ export function TelaBalanco({ r }: { r: Resultado }) {
 // expectativa × realidade
 // ---------------------------------------------------------------------------
 
+type OrdemLoja = 'loja' | 'chamados' | 'percentual'
+
 export function TelaExpectativa({ r, perfil }: { r: Resultado; perfil: Perfil }) {
   const [horizonte, setHorizonte] = useState('ciclo')
   const [lojaSel, setLojaSel] = useState('') // '' = geral (a rede inteira)
   const [contaSel, setContaSel] = useState<ContaDaExpectativa>('')
+  const [ordemLojas, setOrdemLojas] = useState<OrdemLoja>('loja')
   const e = r.expPorConta[contaSel]
   const loja = lojaSel === '' ? null : e.lojas.find(l => String(l.unidade) === lojaSel) ?? null
   const u = loja ? loja.ultimo : e.ultimo
@@ -651,14 +658,30 @@ export function TelaExpectativa({ r, perfil }: { r: Resultado; perfil: Perfil })
         serie={loja ? loja.real : null} patamar={loja ? loja.patamar : null} />
     </section>
     <section className="bloco" style={{ marginBottom: 12 }}>
-      <h3>As {e.lojas.length} lojas</h3>
+      <div className="bloco-cab">
+        <h3>As {e.lojas.length} lojas</h3>
+        <label className="bloco-ord">
+          Ordenar por
+          <select className="sel" value={ordemLojas}
+            onChange={ev => setOrdemLojas(ev.target.value as OrdemLoja)}>
+            <option value="loja">Número da loja</option>
+            <option value="chamados">Número de chamados</option>
+            <option value="percentual">Percentual relativo</option>
+          </select>
+        </label>
+      </div>
       <div className="sub">
         cada miniatura é o mesmo gráfico da loja: plano ao fundo, realidade por cima, valor de hoje.
         O patamar de cada loja é a fatia dela nos {patamarTxt(e.patamar)}/mês, pela participação nas aberturas
         do contrato{daConta ? ` em ${daConta}` : ''}. Clique para abrir no gráfico grande.
       </div>
       <div className="mini-grade">
-        {e.lojas.map(l => (
+        {[...e.lojas].sort((a, b) => {
+          const porNumero = numeroDaLoja(a.nome) - numeroDaLoja(b.nome)
+          if (ordemLojas === 'chamados') return b.total - a.total || porNumero
+          if (ordemLojas === 'percentual') return (b.ultimo?.indice ?? 0) - (a.ultimo?.indice ?? 0) || porNumero
+          return porNumero
+        }).map(l => (
           <MiniExpectativa key={l.unidade} loja={l} exp={e} ativa={String(l.unidade) === lojaSel}
             aoClicar={() => { setLojaSel(String(l.unidade)); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
         ))}
