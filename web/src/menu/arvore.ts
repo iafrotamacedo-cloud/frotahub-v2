@@ -1,4 +1,4 @@
-// rev 12 — a árvore de menus
+// rev 11 — a árvore de menus
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
@@ -21,9 +21,6 @@
 //   com cada um no seu arquivo, juntar o trabalho depois é diff pequeno em vez
 //   de todo mundo editando o mesmo bloco grande ao mesmo tempo.
 import { administrativoMenu } from './modulos/administrativo'
-import { engenhariaMenu } from './modulos/engenharia'
-import { servicosMenu } from './modulos/servicos'
-import { sesmtDpMenu } from './modulos/sesmt-dp'
 
 export interface ItemMenu {
   t: string
@@ -57,17 +54,9 @@ export type Tela = 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' |
   | 'inserir-oc' | 'obras' | 'servicos-hub' | 'funcionarios'
 
 const ARVORE_COMPLETA: ItemMenu[] = [
-  // Fase 5, cada um construído numa sessão separada — ver o comentário no
-  // topo do arquivo e `claude/coordenacao-modulos-paralelos.md`. Ligados
-  // aqui em 10/09/2026: até então os três arquivos existiam em `modulos/`
-  // mas nenhum tinha a linha de import + a linha na lista — o deploy que
-  // finalmente foi ao ar depois do conserto do build mostrou a árvore como
-  // ela sempre esteve (só o Administrativo ligado), e não como o trabalho
-  // de cada sessão já estava pronto para aparecer.
+  // Fase 5, em construção numa sessão separada — ver o comentário no topo do
+  // arquivo e `claude/coordenacao-modulos-paralelos.md`.
   administrativoMenu,
-  engenhariaMenu,
-  servicosMenu,
-  sesmtDpMenu,
   {
     t: 'Manutenção',
     rota: 'manutencao',
