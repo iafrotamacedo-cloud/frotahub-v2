@@ -158,29 +158,18 @@
   background:var(--err);color:#fff;font-size:13px;max-width:min(520px,92vw);
 }
 
-/* O PDF desenhado por nós (FolhaPdfZoom.tsx, canvas + pdf.js) — MESMA
-   MOLDURA DO VISOR PADRÃO (.orc-visor-doc), zoom e rolagem próprios.
-     A folha ocupa a altura inteira disponível (é a escala inicial que o
-     componente calcula, não um retângulo pequeno fixo) e a rolagem é a do
-     navegador — .adm-pdf-rolagem só tem overflow:auto, sem reinventar
-     nada. Zoom é redesenhar o canvas maior/menor: as caixas do overlay
-     recebem essa MESMA escala (ver RepararOrdemOC.tsx), então acompanham
-     tanto o zoom quanto a rolagem sem sincronização nenhuma à parte —
-     canvas e caixas são o mesmo elemento posicionado, um em cima do outro. */
+/* O PDF desenhado por nós (FolhaPdfCanvas.tsx, canvas + pdf.js) — MESMA
+   MOLDURA DO VISOR PADRÃO (.orc-visor-doc).
+     A folha cabe na LARGURA disponível sozinha (sem zoom interativo — pedido
+     do dono, 11/09/2026) e o resto é rolagem normal do navegador —
+     .adm-pdf-rolagem só tem overflow:auto, sem reinventar nada. As caixas do
+     overlay recebem a MESMA escala que o canvas usou pra desenhar (ver
+     RepararOrdemOC.tsx), então acompanham a rolagem sem sincronização
+     nenhuma à parte — canvas e caixas são o mesmo elemento posicionado, um
+     em cima do outro. */
 .orc-visor-doc--folha{padding:0}
-.adm-pdf-zoom-area{display:flex;flex-direction:column;flex:1 1 auto;width:100%;min-height:0}
-.adm-pdf-zoom-barra{
-  flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;
-  padding:6px;border-bottom:1px solid var(--d-line);
-}
-.adm-pdf-zoom-barra button{
-  width:26px;height:26px;border-radius:var(--r-s);border:1px solid var(--d-line);
-  background:var(--d-card2);color:var(--d-txt);font-size:15px;line-height:1;cursor:pointer;
-}
-.adm-pdf-zoom-barra button:disabled{opacity:.5;cursor:default}
-.adm-pdf-zoom-barra span{font-size:12px;color:var(--d-mut);min-width:38px;text-align:center}
 .adm-pdf-rolagem{
-  flex:1 1 auto;min-height:0;overflow:auto;
+  flex:1 1 auto;width:100%;min-height:0;overflow:auto;
   display:flex;justify-content:center;padding:16px;
 }
 .adm-pdf-folha{

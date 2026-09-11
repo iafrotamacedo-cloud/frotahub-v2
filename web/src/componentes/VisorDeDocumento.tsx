@@ -22,7 +22,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { arquivoDoMotor, salvarArquivo } from '../motor/cliente'
 import { usePedirFoco } from './Foco'
-import { FolhaPdfZoom } from './FolhaPdfZoom'
+import { FolhaPdfCanvas } from './FolhaPdfCanvas'
 
 export function VisorDeDocumento({
   titulo, caminho, endereco, nomeSugerido, voltar, acoes, barAcoes, destaque, barraAlta,
@@ -53,7 +53,7 @@ export function VisorDeDocumento({
   barraAlta?: boolean
   /**
    * Camada sobre o PDF — ex.: caixas de reparo híbrido. Só vale com
-   * `folhaProporcional`: o PDF aí é desenhado por nós (FolhaPdfZoom, canvas
+   * `folhaProporcional`: o PDF aí é desenhado por nós (FolhaPdfCanvas, canvas
    * + pdf.js), e a função recebe a escala atual do zoom pra calcular onde
    * cada caixa cai — sem isso, zoom e overlay se descolam.
    */
@@ -144,7 +144,7 @@ export function VisorDeDocumento({
         {!arq
           ? <p className="orc-vazio">abrindo o documento…</p>
           : folhaProporcional && !ehImagem(arq.url, nomeSugerido)
-            ? <FolhaPdfZoom url={arq.url} chave={chavePDF} overlay={sobreDocumento} />
+            ? <FolhaPdfCanvas url={arq.url} chave={chavePDF} overlay={sobreDocumento} />
             : ehImagem(arq.url, nomeSugerido)
               ? <img src={arq.url} alt="documento" />
               : <iframe key={chavePDF} src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
