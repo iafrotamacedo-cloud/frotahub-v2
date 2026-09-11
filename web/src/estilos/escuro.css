@@ -129,13 +129,23 @@
 .orc-painel--estreito.orc-painel--2 .pn-col {
   flex: 1 1 0;
   max-width: calc((100% - 14px) / 4);
+  transition: flex-grow var(--transicao), max-width var(--transicao), border-color var(--transicao),
+              box-shadow var(--transicao), transform var(--transicao);
 }
 .orc-painel--estreito.orc-painel--3 .pn-col {
   flex: 1 1 0;
   max-width: calc((100% - 28px) / 6);
+  transition: flex-grow var(--transicao), max-width var(--transicao), border-color var(--transicao),
+              box-shadow var(--transicao), transform var(--transicao);
 }
-.orc-painel--estreito .pn-col.aberta {
-  max-width: none;
+/* Aberto: cresce o bastante para os sub-cartões, sem engolir a linha inteira. */
+.orc-painel--estreito.orc-painel--2 .pn-col.aberta {
+  flex-grow: 1.2;
+  max-width: calc((100% - 14px) / 3);
+}
+.orc-painel--estreito.orc-painel--3 .pn-col.aberta {
+  flex-grow: 1.2;
+  max-width: calc((100% - 28px) / 4);
 }
 
 .pn-col {
