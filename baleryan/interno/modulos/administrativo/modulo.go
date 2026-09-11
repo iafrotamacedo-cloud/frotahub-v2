@@ -25,8 +25,8 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/brevo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/correio"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -54,20 +54,20 @@ const TamanhoMaximo = 25 << 20
 const TetoDaLista = 500
 
 type Modulo struct {
-	cfg     *config.Config
-	bd      *banco.Cliente
-	seg     *seguranca.Servico
-	perm    *permissao.Servico
-	arm     *armazem.Cliente
-	hist    *historico.Servico
-	correio *correio.Cliente
+	cfg   *config.Config
+	bd    *banco.Cliente
+	seg   *seguranca.Servico
+	perm  *permissao.Servico
+	arm   *armazem.Cliente
+	hist  *historico.Servico
+	brevo *brevo.Cliente
 }
 
 func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
 	arm *armazem.Cliente, hist *historico.Servico) *Modulo {
 	return &Modulo{
 		cfg: cfg, bd: bd, seg: seg, perm: perm, arm: arm, hist: hist,
-		correio: correio.Novo(cfg.SMTP),
+		brevo: brevo.Novo(cfg.Brevo),
 	}
 }
 

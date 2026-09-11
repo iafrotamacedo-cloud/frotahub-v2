@@ -1,4 +1,4 @@
-// rev 2 — PCO: enviar o pacote por e-mail (SMTP do HostGator)
+// rev 3 — PCO: enviar o pacote por e-mail (Brevo, remetente pco@ validado)
 //
 // O PEDIDO DO DONO (11/09/2026)
 //
@@ -6,6 +6,19 @@
 //	Fortaleza) e um botão manual — um por OC, e um para "enviar tudo que
 //	está pendente". As duas batem na mesma rota, porque é a mesma regra:
 //	nunca duas implementações do que é "enviar o PCO" (CORE-06).
+//
+// POR QUE VOLTOU A SER O BREVO, NÃO O SMTP DO HOSTGATOR (11/09/2026, à noite)
+//
+//	O plano do dia era sair do Brevo (remetente não validado) para o SMTP
+//	da própria caixa (`interno/correio`, ver o cabeçalho de lá). Funcionou
+//	em código, mas o Render bloqueia TODA saída SMTP (25/465/587) no plano
+//	Free — confirmado no changelog oficial deles, não é firewall do
+//	HostGator. Sem trocar de plano no Render, aquele caminho não sai do
+//	papel. Solução mais simples que reverter tudo: validar
+//	`pco@frotamacedo.com.br` como remetente único no Brevo (sem precisar
+//	de autenticação de domínio inteira) — o envio volta a ser por HTTPS,
+//	que o Free do Render não bloqueia. `interno/correio` continua no
+//	repositório, sem ninguém chamando, para quando o Render for pago.
 //
 // MESMO PADRÃO DO ROBÔ DO TRÍLOGO
 //
@@ -40,7 +53,7 @@ import (
 	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/correio"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/brevo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
@@ -365,11 +378,11 @@ func (m *Modulo) enviarPorEmail(ctx context.Context, clienteID string, ordens []
 
 	html := montarHTMLDoEnvio(ordens, data)
 
-	return m.correio.Enviar(ctx, correio.Mensagem{
+	return m.brevo.Enviar(ctx, brevo.Mensagem{
 		Para:    destinatarios,
 		Assunto: fmt.Sprintf("Ordens de Compra (PCO) - %s - Frota Macedo Engenharia", data),
 		HTML:    html,
-		Anexos: []correio.Anexo{
+		Anexos: []brevo.Anexo{
 			{Nome: fmt.Sprintf("Pedidos_PCO_%s.zip", data), Conteudo: zipBytes},
 		},
 	})
