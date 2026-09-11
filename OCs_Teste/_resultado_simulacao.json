@@ -1,0 +1,577 @@
+[
+  {
+    "arquivo": "OC_20001_VALIDA.pdf",
+    "numero": "20001",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20001",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "35088657000137",
+      "comprador_cnpj": "03720882002444",
+      "n_itens": 4,
+      "subtotal": 239.61,
+      "desconto": 0,
+      "total": 239.61,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20002_VALIDA.pdf",
+    "numero": "20002",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20002",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "11222333000144",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 2,
+      "subtotal": 1489.76,
+      "desconto": 0,
+      "total": 1489.76,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20003_VALIDA.pdf",
+    "numero": "20003",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20003",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "35088657000137",
+      "comprador_cnpj": "03720882000743",
+      "n_itens": 6,
+      "subtotal": 2230.05,
+      "desconto": 0,
+      "total": 2230.05,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20004_VALIDA.pdf",
+    "numero": "20004",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20004",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "03720882000239",
+      "n_itens": 6,
+      "subtotal": 244.88,
+      "desconto": 0,
+      "total": 244.88,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20005_VALIDA.pdf",
+    "numero": "20005",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20005",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "33444555000166",
+      "comprador_cnpj": "03720882002444",
+      "n_itens": 14,
+      "subtotal": 1358.67,
+      "desconto": 0,
+      "total": 1358.67,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20006_VALIDA.pdf",
+    "numero": "20006",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20006",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "35088657000137",
+      "comprador_cnpj": "03720882000743",
+      "n_itens": 14,
+      "subtotal": 1973.59,
+      "desconto": 0,
+      "total": 1973.59,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20007_VALIDA.pdf",
+    "numero": "20007",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20007",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "33444555000166",
+      "comprador_cnpj": "03720882000239",
+      "n_itens": 6,
+      "subtotal": 3009.87,
+      "desconto": 0,
+      "total": 3009.87,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20008_VALIDA.pdf",
+    "numero": "20008",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20008",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "33444555000166",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 9,
+      "subtotal": 428.95,
+      "desconto": 0,
+      "total": 428.95,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20009_VALIDA.pdf",
+    "numero": "20009",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20009",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "35088657000137",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 4,
+      "subtotal": 362.11,
+      "desconto": 0,
+      "total": 362.11,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20010_VALIDA.pdf",
+    "numero": "20010",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20010",
+      "fornecedor_nome": "FERRAGENS SANTA FE COMERCIO LTDA",
+      "fornecedor_cnpj": "98765123000144",
+      "comprador_cnpj": "03720882000239",
+      "n_itens": 9,
+      "subtotal": 6839.04,
+      "desconto": 0,
+      "total": 6839.04,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20011_VALIDA.pdf",
+    "numero": "20011",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20011",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "03720882000743",
+      "n_itens": 4,
+      "subtotal": 207.11,
+      "desconto": 0,
+      "total": 207.11,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20012_VALIDA.pdf",
+    "numero": "20012",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20012",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "35088657000137",
+      "comprador_cnpj": "03720882002444",
+      "n_itens": 5,
+      "subtotal": 488.59,
+      "desconto": 0,
+      "total": 488.59,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20013_VALIDA.pdf",
+    "numero": "20013",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20013",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "03720882002444",
+      "n_itens": 6,
+      "subtotal": 1080.76,
+      "desconto": 0,
+      "total": 1080.76,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20014_VALIDA.pdf",
+    "numero": "20014",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20014",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 5,
+      "subtotal": 1038.85,
+      "desconto": 0,
+      "total": 1038.85,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20015_VALIDA.pdf",
+    "numero": "20015",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20015",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "03720882000239",
+      "n_itens": 6,
+      "subtotal": 1137.7,
+      "desconto": 0,
+      "total": 1137.7,
+      "status": "PROCESSADA",
+      "motivos": null
+    }
+  },
+  {
+    "arquivo": "OC_20016_BLOQ_FORNECEDOR_SEM_CNPJ.pdf",
+    "numero": "20016",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20016",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 2,
+      "subtotal": 117.72,
+      "desconto": 0,
+      "total": 117.72,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20017_BLOQ_FORNECEDOR_SEM_CNPJ.pdf",
+    "numero": "20017",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20017",
+      "fornecedor_nome": "DISTRIBUIDORA CENTRAL DE HIDRAULICA LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "03720882003920",
+      "n_itens": 3,
+      "subtotal": 879,
+      "desconto": 0,
+      "total": 879,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20018_BLOQ_FORNECEDOR_SEM_CNPJ.pdf",
+    "numero": "20018",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20018",
+      "fornecedor_nome": "S V COMERCIO DE MATERIAL ELETRICO LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "03720882000239",
+      "n_itens": 3,
+      "subtotal": 137.81,
+      "desconto": 0,
+      "total": 137.81,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20019_BLOQ_FORNECEDOR_SEM_CNPJ.pdf",
+    "numero": "20019",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20019",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "03720882000743",
+      "n_itens": 7,
+      "subtotal": 144.16,
+      "desconto": 0,
+      "total": 144.16,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20020_BLOQ_FORNECEDOR_SEM_CNPJ.pdf",
+    "numero": "20020",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20020",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "03720882000743",
+      "n_itens": 3,
+      "subtotal": 33.42,
+      "desconto": 0,
+      "total": 33.42,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20021_BLOQ_CNPJ_FATURAMENTO_ERRADO.pdf",
+    "numero": "20021",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20021",
+      "fornecedor_nome": "ELETRO CEARA DISTRIBUIDORA LTDA",
+      "fornecedor_cnpj": "22333444000155",
+      "comprador_cnpj": "45612378000123",
+      "n_itens": 8,
+      "subtotal": 3425.37,
+      "desconto": 0,
+      "total": 3425.37,
+      "status": "REJEITADA",
+      "motivos": [
+        "o CNPJ de faturamento (45612378000123) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20022_BLOQ_CNPJ_FATURAMENTO_ERRADO.pdf",
+    "numero": "20022",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20022",
+      "fornecedor_nome": "DISTRIBUIDORA CENTRAL DE HIDRAULICA LTDA",
+      "fornecedor_cnpj": "12345098000122",
+      "comprador_cnpj": "78912345000167",
+      "n_itens": 3,
+      "subtotal": 105,
+      "desconto": 0,
+      "total": 105,
+      "status": "REJEITADA",
+      "motivos": [
+        "o CNPJ de faturamento (78912345000167) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20023_BLOQ_CNPJ_FATURAMENTO_ERRADO.pdf",
+    "numero": "20023",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20023",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "11222333000144",
+      "comprador_cnpj": "45612378000123",
+      "n_itens": 6,
+      "subtotal": 228.74,
+      "desconto": 0,
+      "total": 228.74,
+      "status": "REJEITADA",
+      "motivos": [
+        "o CNPJ de faturamento (45612378000123) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20024_BLOQ_CNPJ_FATURAMENTO_ERRADO.pdf",
+    "numero": "20024",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20024",
+      "fornecedor_nome": "FERRAGENS SANTA FE COMERCIO LTDA",
+      "fornecedor_cnpj": "98765123000144",
+      "comprador_cnpj": "12345678000199",
+      "n_itens": 3,
+      "subtotal": 401.48,
+      "desconto": 0,
+      "total": 401.48,
+      "status": "REJEITADA",
+      "motivos": [
+        "o CNPJ de faturamento (12345678000199) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20025_BLOQ_CNPJ_FATURAMENTO_ERRADO.pdf",
+    "numero": "20025",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20025",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "11222333000144",
+      "comprador_cnpj": "45612378000123",
+      "n_itens": 1,
+      "subtotal": 50,
+      "desconto": 0,
+      "total": 50,
+      "status": "REJEITADA",
+      "motivos": [
+        "o CNPJ de faturamento (45612378000123) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20026_BLOQ_FORNECEDOR_E_CNPJ.pdf",
+    "numero": "20026",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20026",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "12345678000199",
+      "n_itens": 4,
+      "subtotal": 353.44,
+      "desconto": 0,
+      "total": 353.44,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC",
+        "o CNPJ de faturamento (12345678000199) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20027_BLOQ_FORNECEDOR_E_CNPJ.pdf",
+    "numero": "20027",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20027",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "65498732000145",
+      "n_itens": 2,
+      "subtotal": 213.96,
+      "desconto": 0,
+      "total": 213.96,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC",
+        "o CNPJ de faturamento (65498732000145) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20028_BLOQ_FORNECEDOR_E_CNPJ.pdf",
+    "numero": "20028",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20028",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "78912345000167",
+      "n_itens": 4,
+      "subtotal": 624.49,
+      "desconto": 0,
+      "total": 624.49,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC",
+        "o CNPJ de faturamento (78912345000167) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20029_BLOQ_FORNECEDOR_E_CNPJ.pdf",
+    "numero": "20029",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20029",
+      "fornecedor_nome": "MEGA MATERIAIS DE CONSTRUCAO EIRELI",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "65498732000145",
+      "n_itens": 5,
+      "subtotal": 562.61,
+      "desconto": 0,
+      "total": 562.61,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC",
+        "o CNPJ de faturamento (65498732000145) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  },
+  {
+    "arquivo": "OC_20030_BLOQ_FORNECEDOR_E_CNPJ.pdf",
+    "numero": "20030",
+    "passou": true,
+    "falhas": [],
+    "obtido": {
+      "numero": "20030",
+      "fornecedor_nome": "TUBOS E CONEXOES DO NORDESTE LTDA",
+      "fornecedor_cnpj": "",
+      "comprador_cnpj": "98765432000188",
+      "n_itens": 5,
+      "subtotal": 277.83,
+      "desconto": 0,
+      "total": 277.83,
+      "status": "REJEITADA",
+      "motivos": [
+        "não achei o nome e o CNPJ do fornecedor nesta OC",
+        "o CNPJ de faturamento (98765432000188) não começa com 03720882 — esta OC não é para a Frota Macedo faturar"
+      ]
+    }
+  }
+]

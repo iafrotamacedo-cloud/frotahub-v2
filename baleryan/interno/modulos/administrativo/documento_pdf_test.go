@@ -228,3 +228,43 @@ func TestJSONDocumento_IdaEVolta(t *testing.T) {
 		t.Errorf("total %s vs %s", volta.Total.Reais(), e.Total.Reais())
 	}
 }
+
+func TestCNPJVazioNaoPegaCEP(t *testing.T) {
+	texto := `
+DADOS DA ORDEM DE COMPRA 20016
+Data: 05/09/2026
+Previsão da entrega: 15/09/2026
+Cond. pgto.: 1 parcela
+Forma pgto.: Boleto
+Comprador: Igor Tostes
+
+DADOS DO FATURAMENTO
+Nome: MERCADINHOS SÃO LUIZ VILLAS
+CNPJ: 03720882003920
+Endereco: Aquiraz - CE, 61700-000
+
+DADOS DO FORNECEDOR
+Nome: S V COMERCIO DE MATERIAL ELETRICO LTDA
+CNPJ:
+Endereço: Avenida Bezerra de Menezes, 420 - Farias Brito, Fortaleza - CE, 60325-000
+
+OBRA/CENTRO DE CUSTO: MSL VILLAS - AQUIRAZ
+
+N. Item                                                   Qtd.           Unit. (R$)       Subtotal (R$)       Desc. (R$)         Total (R$)
+1     PARAFUSO FRANCES                                    10,00                   2,00              20,00            0,00               20,00
+                                                          UN
+                                                                   Subtotal                     20,00            0,00             20,00
+                                                                   Frete                                                           0,00
+                                                                   Total                                                          20,00
+`
+	e, err := ExtrairDoTexto(texto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.FornecedorCNPJ != "" {
+		t.Errorf("fornecedor_cnpj = %q, não podia pegar o CEP do endereço", e.FornecedorCNPJ)
+	}
+	if e.CompradorCNPJ != "03720882003920" {
+		t.Errorf("comprador_cnpj = %q", e.CompradorCNPJ)
+	}
+}

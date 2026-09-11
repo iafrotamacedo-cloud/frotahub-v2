@@ -1,18 +1,22 @@
-// rev 1 — a Ordem de Compra desenhada, clone visual do Obra Prima
+// rev 2 — a Ordem de Compra desenhada, clone da OC 019731 (Obra Prima)
 //
 // POR QUE GERAR DE NOVO, E NÃO TAMPONAR O PDF ANTIGO
 //
-//	Editar "em cima" do arquivo original deixa o texto velho no fluxo, marca
-//	de revisão, e um leitor atento vê o remendo. O pedido foi substituir o
-//	PDF antigo pelo editado sem vestígio na folha: então a folha é desenhada
-//	do zero, com `relatorio.Folha` (o mesmo encanamento do orçamento), no
-//	layout que a operação já conhece — letreiro, blocos, tabela, totais.
+//	Editar "em cima" do arquivo original deixa o texto velho no fluxo. O pedido
+//	foi substituir a folha sem vestígio: então ela é desenhada do zero, no
+//	layout medido na OC 019731 de 10/09/2026 — marca, faixas cinzas, colunas,
+//	tabela com grade.
 //
 //	Não leva faixa azul FrotaHub nem rodapé "gerado em". É a OC, não um
 //	relatório nosso.
+//
+//	As coordenadas (x do texto, topo das faixas, colunas da tabela) saíram do
+//	PDF original, não de um chute. Helvetica no lugar de Arial — é a fonte que
+//	todo leitor já tem, e visualmente é a irmã.
 package administrativo
 
 import (
+	_ "embed"
 	"fmt"
 	"strings"
 	"time"
@@ -21,20 +25,42 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/relatorio"
 )
 
-const (
-	ocMargem = 40.0
-	ocEsq    = 40.0
-)
-
-func ocDir() float64 { return relatorio.LarguraRetrato - ocMargem }
+//go:embed marca_oc.jpg
+var marcaOC []byte
 
 const (
-	ocCor = relatorio.CorTexto
-	ocTam = 8.0
+	ocX0      = 19.44
+	ocX1      = 576.0
+	ocTextoX  = 109.4
+	ocMeio    = 297.0
+	ocValEsq  = 90.0
+	ocValDir  = 411.9
+	ocRotFim  = 88.0
+	ocFaixaH  = 18.03
+	ocFaixa   = "0.77 0.77 0.77"
+	ocPreto   = "0 0 0"
+	ocTam     = 9.0
+	ocLinha   = 14.4
+	ocAltItem = 28.8
 )
 
-// desenharOC monta o PDF da ordem no visual da OC 019731. Recalcula totais
-// antes de desenhar, para a folha e a conta não divergirem.
+func ocLarg() float64 { return ocX1 - ocX0 }
+
+func yt(topo, tam float64) float64 {
+	return relatorio.AlturaRetrato - topo - tam*0.78
+}
+
+func yCaixa(topo, alt float64) float64 {
+	return relatorio.AlturaRetrato - topo - alt
+}
+
+// DesenharOC é o gerador público da folha — o editor e as ferramentas de
+// teste (OCs_Teste) usam o mesmo desenho, para o PDF de teste ser o mesmo
+// documento que a tela gera.
+func DesenharOC(e Extraida) ([]byte, error) {
+	return desenharOC(e)
+}
+
 func desenharOC(e Extraida) ([]byte, error) {
 	e.RecalcularTotais()
 	aplicarPadraoEmitente(&e)
@@ -44,17 +70,20 @@ func desenharOC(e Extraida) ([]byte, error) {
 	if len(e.Itens) == 0 {
 		return nil, fmt.Errorf("a ordem de compra precisa de ao menos um item")
 	}
+	for i := range e.Itens {
+		if strings.TrimSpace(e.Itens[i].Unidade) == "" {
+			e.Itens[i].Unidade = "UN"
+		}
+	}
 
 	f := relatorio.NovaFolha()
 	paginas := estimarPaginas(e)
-	y := letreiroOC(f, e, 1, paginas)
-	y = blocosDaOC(f, e, y)
-
+	topo := letreiroOC(f, e, 1, paginas)
+	topo = blocosDaOC(f, e, topo)
 	xs := colunasDaTabelaOC()
-	y = cabecalhoTabelaOC(f, y, xs)
-	y = itensDaOC(f, e, y, xs, paginas)
-	totaisDaOC(f, e, y, xs, paginas)
-
+	topo = cabecalhoTabelaOC(f, topo, xs)
+	topo = itensDaOC(f, e, topo, xs, paginas)
+	totaisDaOC(f, e, topo, xs, paginas)
 	return f.PDF()
 }
 
@@ -80,19 +109,18 @@ func aplicarPadraoEmitente(e *Extraida) {
 }
 
 func letreiroOC(f *relatorio.Folha, e Extraida, pagina, paginas int) float64 {
-	y := relatorio.AlturaRetrato - 36
-	dir := ocDir()
-	f.Texto(ocEsq, y, 10, true, ocCor, e.EmitenteRazao)
-	f.Direita(dir, y, 9, false, ocCor, e.DataImpressao)
-	y -= 13
-	rotuloPag := fmt.Sprintf("Página %d/%d", pagina, paginas)
+	_ = f.Imagem(25.92, yCaixa(24.3, 32.4), 64.8, 32.4, marcaOC)
+
+	f.Texto(ocTextoX, yt(21.5, 12), 12, true, ocPreto, e.EmitenteRazao)
+	f.Direita(ocX1, yt(20.7, 8.2), 8.2, false, ocPreto, e.DataImpressao)
+
+	f.TextoCortado(ocTextoX, yt(38.2, 8), 8, 400, false, ocPreto, e.EmitenteEndereco)
+	f.Texto(519.0, yt(36.1, 8.2), 8.2, false, ocPreto, "Página")
 	if paginas < 1 {
 		paginas = 1
-		rotuloPag = fmt.Sprintf("Página %d/%d", pagina, paginas)
 	}
-	f.TextoCortado(ocEsq, y, 8, 380, false, ocCor, e.EmitenteEndereco)
-	f.Direita(dir, y, 8, false, ocCor, rotuloPag)
-	y -= 12
+	f.Texto(554.6, yt(36.1, 8.2), 8.2, true, ocPreto, fmt.Sprintf("%d/%d", pagina, paginas))
+
 	contato := e.EmitenteContato
 	if e.EmitenteCNPJ != "" {
 		if contato != "" {
@@ -100,192 +128,239 @@ func letreiroOC(f *relatorio.Folha, e Extraida, pagina, paginas int) float64 {
 		}
 		contato += "CNPJ: " + e.EmitenteCNPJ
 	}
-	f.TextoCortado(ocEsq, y, 8, dir-ocEsq, false, ocCor, contato)
-	y -= 22
-	f.Texto(ocEsq, y, 12, true, ocCor, "ORDEM DE COMPRA "+e.Numero)
-	y -= 14
+	f.TextoCortado(ocTextoX, yt(49.2, 8), 8, ocX1-ocTextoX, false, ocPreto, contato)
+
+	f.Texto(ocTextoX, yt(73.3, 12), 12, true, ocPreto, "ORDEM DE COMPRA "+e.Numero)
 	if e.TituloObra != "" {
-		f.TextoCortado(ocEsq, y, 9, dir-ocEsq, false, ocCor, e.TituloObra)
-		y -= 16
+		f.TextoCortado(ocTextoX, yt(87.1, 12), 12, ocX1-ocTextoX, true, ocPreto, e.TituloObra)
 	}
-	return y
+	return 114.44
 }
 
-func blocosDaOC(f *relatorio.Folha, e Extraida, y float64) float64 {
-	dir := ocDir()
-	meio := ocEsq + 280
+func faixa(f *relatorio.Folha, topo float64) {
+	f.Caixa(ocX0, yCaixa(topo, ocFaixaH), ocLarg(), ocFaixaH, ocFaixa)
+}
 
-	f.Texto(ocEsq, y, 9, true, ocCor, "DADOS DA ORDEM DE COMPRA      "+e.Numero)
-	y -= 16
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Data: "+dataParaTela(e.Data))
-	f.Texto(meio, y, ocTam, false, ocCor, "Previsão da entrega: "+dataParaTela(e.PrevisaoEntrega))
-	y -= 13
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Cond. pgto.: "+e.CondPgto)
-	f.Texto(meio, y, ocTam, false, ocCor, "Forma pgto.: "+e.FormaPgto)
-	y -= 13
+func faixaTitulo(f *relatorio.Folha, topo, x float64, txt string) {
+	faixa(f, topo)
+	f.Texto(x, yt(topo+4.36, ocTam), ocTam, true, ocPreto, txt)
+}
+
+func blocosDaOC(f *relatorio.Folha, e Extraida, topo float64) float64 {
+	faixa(f, topo)
+	f.Texto(22.3, yt(topo+4.36, ocTam), ocTam, true, ocPreto, "DADOS DA ORDEM DE COMPRA")
+	f.Texto(182.0, yt(topo+4.36, ocTam), ocTam, true, ocPreto, e.Numero)
+	y := topo + ocFaixaH + 5.6
+
+	f.Texto(60.3, yt(y, ocTam), ocTam, true, ocPreto, "Data:")
+	f.Texto(ocValEsq, yt(y, ocTam), ocTam, false, ocPreto, dataParaTela(e.Data))
+	f.Texto(316.2, yt(y, ocTam), ocTam, true, ocPreto, "Previsão da entrega:")
+	f.Texto(ocValDir, yt(y, ocTam), ocTam, false, ocPreto, dataParaTela(e.PrevisaoEntrega))
+	y += ocLinha
+
+	f.Texto(29.8, yt(y, ocTam), ocTam, true, ocPreto, "Cond. pgto.: "+e.CondPgto)
+	f.Texto(349.7, yt(y, ocTam), ocTam, true, ocPreto, "Forma pgto.: "+e.FormaPgto)
+	y += ocLinha + 2.2
+
 	obs := "Observação:"
 	if strings.TrimSpace(e.Observacao) != "" {
 		obs += " " + e.Observacao
 	}
-	f.TextoCortado(ocEsq, y, ocTam, dir-ocEsq, false, ocCor, obs)
-	y -= 18
+	f.TextoCortado(26.8, yt(y, ocTam), ocTam, ocX1-26.8, true, ocPreto, obs)
+	y += 19.4
 
-	f.Texto(ocEsq, y, 9, true, ocCor, "RESPONSÁVEL PELA COMPRA")
-	y -= 14
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Nome: "+primeiroNaoVazio(e.ResponsavelNome, e.EmitenteRazao))
-	f.Texto(meio, y, ocTam, false, ocCor, "Comprador: "+e.CompradorInterno)
-	y -= 13
+	faixaTitulo(f, y, 22.3, "RESPONSÁVEL PELA COMPRA")
+	y += ocFaixaH + 5.9
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "Nome:")
+	f.Texto(91.4, yt(y, ocTam), ocTam, false, ocPreto, primeiroNaoVazio(e.ResponsavelNome, e.EmitenteRazao))
+	f.Direita(408, yt(y, ocTam), ocTam, true, ocPreto, "Comprador:")
+	f.Texto(ocValDir, yt(y, ocTam), ocTam, false, ocPreto, e.CompradorInterno)
+	y += ocLinha
 	email := e.ResponsavelEmail
 	if email == "" {
 		email = "compras@frotamacedo.com.br"
 	}
-	f.Texto(meio, y, ocTam, false, ocCor, "Email: "+email)
-	y -= 18
+	f.Texto(377.7, yt(y, ocTam), ocTam, true, ocPreto, "Email: "+email)
+	y += 31.9
 
-	f.Texto(ocEsq, y, 9, true, ocCor, "DADOS DO FATURAMENTO")
-	y -= 14
+	faixaTitulo(f, y, 22.3, "DADOS DO FATURAMENTO")
+	y += ocFaixaH + 7.6
 	y = parNomeEndereco(f, y, e.CompradorNome, e.FaturamentoEndereco)
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "CNPJ: "+e.CompradorCNPJ)
-	y -= 13
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "I.E.: "+e.FaturamentoIE)
-	y -= 18
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "CNPJ:")
+	f.Texto(91.4, yt(y, ocTam), ocTam, false, ocPreto, e.CompradorCNPJ)
+	y += ocLinha
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "I.E.:")
+	f.Texto(91.4, yt(y, ocTam), ocTam, false, ocPreto, e.FaturamentoIE)
+	y += 25.5
 
-	f.Texto(ocEsq, y, 9, true, ocCor, "DADOS DO FORNECEDOR")
-	y -= 14
-	y = parNomeEndereco(f, y, e.FornecedorNome, e.FornecedorEndereco)
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "CNPJ: "+e.FornecedorCNPJ)
-	y -= 13
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Telefone: "+e.FornecedorTelefone)
-	y -= 13
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Vendedor: "+e.FornecedorVendedor)
-	y -= 13
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "E-mail: "+e.FornecedorEmail)
-	y -= 18
+	faixaTitulo(f, y, 22.3, "DADOS DO FORNECEDOR")
+	y += ocFaixaH + 4.6
+	yNome := y
+	linhasEnd := quebrarFolha(f, e.FornecedorEndereco, 164, ocTam)
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "Nome:")
+	f.TextoCortado(91.4, yt(y, ocTam), ocTam, 250, false, ocPreto, e.FornecedorNome)
+	f.Texto(360.7, yt(y, ocTam), ocTam, true, ocPreto, "Endereço:")
+	for i, ln := range linhasEnd {
+		f.Texto(ocValDir, yt(yNome+float64(i)*10.4, ocTam), ocTam, false, ocPreto, ln)
+	}
+	y += ocLinha
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "CNPJ:")
+	f.Texto(91.4, yt(y, ocTam), ocTam, false, ocPreto, e.FornecedorCNPJ)
+	y += ocLinha
+	f.Texto(44.2, yt(y, ocTam), ocTam, true, ocPreto, "Telefone: "+e.FornecedorTelefone)
+	y += ocLinha
+	f.Texto(39.7, yt(y, ocTam), ocTam, true, ocPreto, "Vendedor: "+e.FornecedorVendedor)
+	y += ocLinha
+	f.Texto(54.2, yt(y, ocTam), ocTam, true, ocPreto, "E-mail: "+e.FornecedorEmail)
+	y += 32.0
 
-	obra := "OBRA/CENTRO DE CUSTO: " + e.ObraCentroCusto
-	f.TextoCortado(ocEsq, y, 9, 360, true, ocCor, obra)
-	f.Texto(ocEsq+400, y, ocTam, true, ocCor, "CNO: "+e.CNO)
-	y -= 16
+	faixa(f, y)
+	f.Texto(22.3, yt(y+4.36, ocTam), ocTam, true, ocPreto, "OBRA/CENTRO DE CUSTO:")
+	f.TextoCortado(155.6, yt(y+4.36, ocTam), ocTam, 300, true, ocPreto, e.ObraCentroCusto)
+	f.Texto(472.7, yt(y+4.36, ocTam), ocTam, true, ocPreto, "CNO: "+e.CNO)
+	y += ocFaixaH + 2.1
 
-	f.Texto(ocEsq, y, 9, true, ocCor, "ENDEREÇO ENTREGA:")
-	f.Texto(meio+40, y, 9, true, ocCor, "ENDEREÇO COBRANÇA:")
-	y -= 13
-	linhasE := quebrarFolha(f, "Endereço: "+e.EnderecoEntrega, 270, ocTam)
-	linhasC := quebrarFolha(f, "Endereço: "+e.EnderecoCobranca, 230, ocTam)
+	f.Texto(25.2, yt(y, ocTam), ocTam, true, ocPreto, "ENDEREÇO ENTREGA:")
+	f.Texto(306.7, yt(y, ocTam), ocTam, true, ocPreto, "ENDEREÇO COBRANÇA:")
+	y += ocLinha
+	linhasE := quebrarFolha(f, e.EnderecoEntrega, 200, ocTam)
+	linhasC := quebrarFolha(f, e.EnderecoCobranca, 164, ocTam)
 	n := len(linhasE)
 	if len(linhasC) > n {
 		n = len(linhasC)
 	}
+	f.Texto(38.8, yt(y, ocTam), ocTam, true, ocPreto, "Endereço:")
+	f.Texto(360.7, yt(y, ocTam), ocTam, true, ocPreto, "Endereço:")
 	for i := 0; i < n; i++ {
+		yy := y + float64(i)*10.4
 		if i < len(linhasE) {
-			f.Texto(ocEsq, y, ocTam, false, ocCor, linhasE[i])
+			f.Texto(ocValEsq, yt(yy, ocTam), ocTam, false, ocPreto, linhasE[i])
 		}
 		if i < len(linhasC) {
-			f.Texto(meio+40, y, ocTam, false, ocCor, linhasC[i])
+			f.Texto(ocValDir, yt(yy, ocTam), ocTam, false, ocPreto, linhasC[i])
 		}
-		y -= 12
 	}
-	f.Texto(ocEsq, y, ocTam, false, ocCor, "Recebedor: "+e.Recebedor)
-	return y - 16
+	if n < 1 {
+		n = 1
+	}
+	// Divisor vertical entre entrega e cobrança, como na 019731.
+	altDiv := 14.4 + float64(n)*10.4 + 8
+	f.Caixa(ocMeio, yCaixa(y-14.4, altDiv), 0.72, altDiv, ocFaixa)
+	y += float64(n)*10.4 + 14.4
+	f.Texto(25.2, yt(y, ocTam), ocTam, true, ocPreto, "   Recebedor: "+e.Recebedor)
+	return y + 22.0
 }
 
 func parNomeEndereco(f *relatorio.Folha, y float64, nome, endereco string) float64 {
-	meio := ocEsq + 300
-	f.TextoCortado(ocEsq, y, ocTam, 290, false, ocCor, "Nome: "+nome)
-	linhas := quebrarFolha(f, "Endereço: "+endereco, 210, ocTam)
+	f.Direita(ocRotFim, yt(y, ocTam), ocTam, true, ocPreto, "Nome:")
+	f.TextoCortado(91.4, yt(y, ocTam), ocTam, 250, false, ocPreto, nome)
+	f.Texto(360.7, yt(y, ocTam), ocTam, true, ocPreto, "Endereço:")
+	linhas := quebrarFolha(f, endereco, 164, ocTam)
 	for i, ln := range linhas {
-		if i == 0 {
-			f.Texto(meio, y, ocTam, false, ocCor, ln)
-			continue
-		}
-		y -= 12
-		f.Texto(meio, y, ocTam, false, ocCor, ln)
+		f.Texto(ocValDir, yt(y+float64(i)*10.4, ocTam), ocTam, false, ocPreto, ln)
 	}
-	if len(linhas) == 0 {
-		f.Texto(meio, y, ocTam, false, ocCor, "Endereço:")
-	}
-	return y - 13
+	return y + ocLinha
 }
 
-// colunas: n.item | desc | qtd | unit | subtotal | desc$ | total  (x do FIM de cada numérica)
+// colunas: N | desc | qtd | unit | subtotal | desc$ | total | (fim)
 func colunasDaTabelaOC() []float64 {
-	return []float64{ocEsq, ocEsq + 28, 318, 378, 438, 490, ocDir()}
+	return []float64{19.44, 40.62, 223.20, 295.20, 360.0, 432.0, 496.80, 576.0}
 }
 
-func cabecalhoTabelaOC(f *relatorio.Folha, y float64, x []float64) float64 {
-	f.Texto(x[0], y, 7.5, true, ocCor, "N. Item")
-	f.Direita(x[2], y, 7.5, true, ocCor, "Qtd.")
-	f.Direita(x[3], y, 7.5, true, ocCor, "Unit. (R$)")
-	f.Direita(x[4], y, 7.5, true, ocCor, "Subtotal (R$)")
-	f.Direita(x[5], y, 7.5, true, ocCor, "Desc. (R$)")
-	f.Direita(x[6], y, 7.5, true, ocCor, "Total (R$)")
-	y -= 4
-	f.Linha(ocEsq, ocDir(), y, relatorio.CorLinha)
-	return y - 12
+func cabecalhoTabelaOC(f *relatorio.Folha, topo float64, x []float64) float64 {
+	f.Caixa(ocX0, yCaixa(topo, ocFaixaH), ocLarg(), ocFaixaH, ocFaixa)
+	ty := yt(topo+4.36, ocTam)
+	// "N. Item" é um marcador da leitura — tem que sair com um espaço só,
+	// senão o ExtrairDoTexto não acha o começo da tabela.
+	f.Texto(25.5, ty, ocTam, true, ocPreto, "N. Item")
+	f.Texto(250.2, ty, ocTam, true, ocPreto, "Qtd.")
+	f.Texto(307.6, ty, ocTam, true, ocPreto, "Unit. (R$)")
+	f.Texto(368.0, ty, ocTam, true, ocPreto, "Subtotal (R$)")
+	f.Texto(442.4, ty, ocTam, true, ocPreto, "Desc. (R$)")
+	f.Texto(531.6, ty, ocTam, true, ocPreto, "Total (R$)")
+	return topo + ocFaixaH
 }
 
-func itensDaOC(f *relatorio.Folha, e Extraida, y float64, x []float64, paginas int) float64 {
-	const pe = ocMargem + 80
+func molduraLinha(f *relatorio.Folha, topo, alt float64, x []float64) {
+	yb := yCaixa(topo, alt)
+	for i := 0; i < len(x)-1; i++ {
+		f.Moldura(x[i], yb, x[i+1]-x[i], alt, ocFaixa)
+	}
+}
+
+func itensDaOC(f *relatorio.Folha, e Extraida, topo float64, x []float64, paginas int) float64 {
+	const pe = 800.0
 	pagina := 1
 	for i, it := range e.Itens {
 		bruto := regras.DinheiroDe(it.Qtd * it.ValorUnit.Float())
-		descLarg := x[2] - x[1] - 8
-		partes := quebrarFolha(f, it.Descricao, descLarg, 7.5)
+		descLarg := x[2] - x[1] - 6
+		partes := quebrarFolha(f, it.Descricao, descLarg, ocTam)
 		if len(partes) == 0 {
 			partes = []string{""}
 		}
-		alt := 12.0 + float64(len(partes))*11.0
-		if y-alt < pe {
+		linhas := len(partes)
+		if linhas < 2 {
+			linhas = 2 // a UN ocupa a segunda linha, como na 019731
+		}
+		alt := 18.0 + float64(linhas-1)*10.4
+		if alt < ocAltItem {
+			alt = ocAltItem
+		}
+		if topo+alt > pe {
 			f.Pagina()
 			pagina++
-			y = letreiroOC(f, e, pagina, paginas)
-			y = cabecalhoTabelaOC(f, y, x)
+			topo = letreiroOC(f, e, pagina, paginas)
+			topo = cabecalhoTabelaOC(f, topo, x)
 		}
+		molduraLinha(f, topo, alt, x)
 		n := i + 1
-		base := y
-		f.Texto(x[0], base, 7.5, false, ocCor, fmt.Sprintf("%d", n))
-		f.TextoCortado(x[1], base, 7.5, descLarg, false, ocCor, partes[0])
-		f.Direita(x[2], base, 7.5, false, ocCor, qtdBR(it.Qtd))
-		f.Direita(x[3], base, 7.5, false, ocCor, it.ValorUnit.Reais())
-		f.Direita(x[4], base, 7.5, false, ocCor, bruto.Reais())
-		f.Direita(x[5], base, 7.5, false, ocCor, it.Desconto.Reais())
-		f.Direita(x[6], base, 7.5, false, ocCor, it.Total.Reais())
-		y -= 11
+		ty := topo + 3.6
+		f.Texto(27.5, yt(ty, ocTam), ocTam, false, ocPreto, fmt.Sprintf("%d", n))
+		f.TextoCortado(43.5, yt(ty, ocTam), ocTam, descLarg, false, ocPreto, partes[0])
+		f.Direita(275, yt(ty, ocTam), ocTam, false, ocPreto, qtdBR(it.Qtd))
+		f.Direita(x[4]-6, yt(ty, ocTam), ocTam, false, ocPreto, it.ValorUnit.Reais())
+		f.Direita(x[5]-6, yt(ty, ocTam), ocTam, false, ocPreto, bruto.Reais())
+		f.Direita(x[6]-6, yt(ty, ocTam), ocTam, false, ocPreto, it.Desconto.Reais())
+		f.Direita(x[7]-6, yt(ty, ocTam), ocTam, false, ocPreto, it.Total.Reais())
 		for j := 1; j < len(partes); j++ {
-			f.TextoCortado(x[1], y, 7.5, descLarg, false, ocCor, partes[j])
-			y -= 11
+			f.TextoCortado(43.5, yt(ty+float64(j)*10.4, ocTam), ocTam, descLarg, false, ocPreto, partes[j])
 		}
 		un := it.Unidade
 		if un == "" {
 			un = "UN"
 		}
-		f.Texto(x[2]-28, y, 7.5, false, ocCor, un)
-		y -= 13
+		f.Texto(252.0, yt(ty+11.5, ocTam), ocTam, false, ocPreto, un)
+		topo += alt
 	}
-	return y
+	return topo
 }
 
-func totaisDaOC(f *relatorio.Folha, e Extraida, y float64, x []float64, paginas int) {
-	if y < ocMargem+50 {
+func totaisDaOC(f *relatorio.Folha, e Extraida, topo float64, x []float64, paginas int) {
+	if topo > 760 {
 		f.Pagina()
-		y = letreiroOC(f, e, paginas, paginas)
-		y -= 20
+		topo = letreiroOC(f, e, paginas, paginas)
+		topo += 20
 	}
-	y -= 6
-	f.Texto(x[3]-40, y, 8, true, ocCor, "Subtotal")
-	f.Direita(x[4], y, 8, true, ocCor, e.Subtotal.Reais())
-	f.Direita(x[5], y, 8, true, ocCor, e.Desconto.Reais())
-	f.Direita(x[6], y, 8, true, ocCor, (e.Subtotal - e.Desconto).Reais())
-	y -= 13
-	f.Texto(x[3]-40, y, 8, true, ocCor, "Frete")
-	f.Direita(x[6], y, 8, true, ocCor, e.Frete.Reais())
-	y -= 13
-	f.Texto(x[3]-40, y, 8, true, ocCor, "Total")
-	f.Direita(x[6], y, 8, true, ocCor, e.Total.Reais())
+	topo += 8
+	// Label e números na mesma fonte — Helvetica vs Helvetica-Bold desloca
+	// o topo do glifo em 0,1pt e o simulador (agrupa por y arredondado a
+	// 0,1) separava "Subtotal" dos valores.
+	ty := yt(topo, ocTam)
+	f.Texto(298.1, ty, ocTam, true, ocPreto, "Subtotal")
+	f.Direita(x[5]-6, ty, ocTam, true, ocPreto, e.Subtotal.Reais())
+	f.Direita(x[6]-6, ty, ocTam, true, ocPreto, e.Desconto.Reais())
+	f.Direita(x[7]-6, ty, ocTam, true, ocPreto, (e.Subtotal - e.Desconto).Reais())
+	topo += 18.8
+	ty = yt(topo, ocTam)
+	f.Texto(298.1, ty, ocTam, true, ocPreto, "Frete")
+	f.Direita(x[7]-6, ty, ocTam, true, ocPreto, e.Frete.Reais())
+	topo += 18.8
+	ty = yt(topo, ocTam)
+	f.Texto(298.1, ty, ocTam, true, ocPreto, "Total")
+	f.Direita(x[7]-6, ty, ocTam, true, ocPreto, e.Total.Reais())
 }
 
 func estimarPaginas(e Extraida) int {
-	// A 1ª folha leva o letreiro e os blocos (~8 itens, medido na 019731).
 	n := len(e.Itens)
 	if n <= 8 {
 		return 1

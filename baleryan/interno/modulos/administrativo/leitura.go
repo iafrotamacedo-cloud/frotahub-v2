@@ -195,7 +195,9 @@ var (
 	reObraSimples     = regexp.MustCompile(`(?mi)^\s*OBRA\s*/\s*CENTRO DE CUSTO:\s*(\S(?:.*\S)?)\s*$`)
 	reNomeDoBloco     = regexp.MustCompile(`(?m)^\s*Nome:\s*(\S(?:.*?\S)?)\s{2,}`)
 	reNomeSimples     = regexp.MustCompile(`(?m)^\s*Nome:\s*(\S(?:.*\S)?)\s*$`)
-	reCNPJDoBloco     = regexp.MustCompile(`CNPJ:\s*([\d./\-]+)`)
+	// Só a mesma linha: `\s` come newline e, com CNPJ vazio, o CEP do
+	// endereço virava "CNPJ" (60325-000 → 60325000).
+	reCNPJDoBloco = regexp.MustCompile(`CNPJ:[ \t]*([\d./\-]+)`)
 )
 
 // ExtrairDoTexto é a parte 100% pura — sem processo externo, sem I/O — que os
@@ -357,6 +359,7 @@ var (
 // solta se algum item tiver "Subtotal" na descrição, embora isso não tenha
 // acontecido em nenhuma amostra vista até aqui).
 var reFimDaTabela = regexp.MustCompile(`(?m)^\s*Subtotal\s`)
+var reSoDinheiros = regexp.MustCompile(`^\s*(?:[\d.]+,\d{2}\s*)+$`)
 
 // O Obra Prima repete, no topo de CADA página nova, um bloco fixo: a data no
 // canto (sozinha na própria linha), o nome da empresa, o endereço com
@@ -428,6 +431,13 @@ func extrairItens(texto string) []ItemExtraido {
 		if strings.TrimSpace(linha) == "" {
 			continue
 		}
+		if reSoDinheiros.MatchString(linha) {
+			continue
+		}
+		if t := strings.TrimSpace(linha); strings.HasPrefix(t, "Subtotal") ||
+			strings.HasPrefix(t, "Frete") || strings.HasPrefix(t, "Total") {
+			continue
+		}
 		atual := &itens[len(itens)-1]
 		if atual.Unidade == "" {
 			if m := reUnidadeSozinha.FindStringSubmatch(linha); m != nil {
@@ -453,6 +463,12 @@ func juntar(a, b string) string {
 		return a
 	}
 	return a + " " + b
+}
+
+func limparLixoDeRodape(desc string) string {
+	desc = strings.TrimSpace(desc)
+	desc = regexp.MustCompile(`(?:\s+[\d.]+,\d{2}){2,}\s*$`).ReplaceAllString(desc, "")
+	return strings.TrimSpace(desc)
 }
 
 // reFooterTresNumeros casa a linha "Subtotal <valor> <desconto> <total>" do

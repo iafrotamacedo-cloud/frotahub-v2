@@ -214,4 +214,6 @@ export interface EstadoDocumentoOC {
   precisa_fornecedor: boolean
   precisa_faturamento: boolean
   motivo?: string
+  /** Só na prévia (`POST .../documento?antever=1`). */
+  pdf_base64?: string
 }

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -220,6 +221,7 @@ func (m *Modulo) verDocumento(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /administrativo/compras/ordens/{id}/documento
+// ?antever=1 gera o PDF e valida os filtros sem gravar BD nem R2.
 func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r)
 	if p == nil {
@@ -230,6 +232,7 @@ func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
 		return
 	}
+	antever := r.URL.Query().Get("antever") == "1" || strings.EqualFold(r.URL.Query().Get("antever"), "true")
 	var corpo struct {
 		Documento documentoJSON `json:"documento"`
 	}
@@ -247,30 +250,32 @@ func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ex := jsonParaExtraida(corpo.Documento)
-	if ex.Numero == "" {
-		web.Falhar(w, http.StatusBadRequest, "A ordem de compra precisa de número.")
-		return
-	}
-	if len(ex.Itens) == 0 {
-		web.Falhar(w, http.StatusBadRequest, "A ordem de compra precisa de ao menos um item.")
-		return
-	}
-	for _, it := range ex.Itens {
-		if strings.TrimSpace(it.Descricao) == "" {
-			web.Falhar(w, http.StatusBadRequest, "Todo item precisa de descrição.")
+	ex, err := m.exValidadaParaSalvar(r.Context(), p.ClienteID, id, corpo.Documento)
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "Já existe") {
+			web.Falhar(w, http.StatusConflict, err.Error())
 			return
 		}
-	}
-
-	if err := m.numeroLivre(r.Context(), p.ClienteID, id, ex.Numero); err != nil {
-		web.Falhar(w, http.StatusConflict, err.Error())
+		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	pdf, err := desenharOC(ex)
 	if err != nil {
 		m.erro(w, "não consegui montar o PDF", err)
+		return
+	}
+
+	status, motivo := "lido", ""
+	if motivos := ex.MotivosDeRejeicao(); len(motivos) > 0 {
+		status, motivo = "falhou", strings.Join(motivos, "; ")
+	}
+
+	if antever {
+		saida := respostaDocumento(ex, status, temPCOEnviado(ordem["pco_enviado_em"]))
+		saida["motivo"] = motivo
+		saida["pdf_base64"] = base64.StdEncoding.EncodeToString(pdf)
+		web.Responder(w, http.StatusOK, saida)
 		return
 	}
 
@@ -285,11 +290,6 @@ func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 	if ferr != nil {
 		m.erro(w, "não consegui gravar o fornecedor", ferr)
 		return
-	}
-
-	status, motivo := "lido", ""
-	if motivos := ex.MotivosDeRejeicao(); len(motivos) > 0 {
-		status, motivo = "falhou", strings.Join(motivos, "; ")
 	}
 
 	campos := camposLidos(ex, fornecedorID)
@@ -319,6 +319,25 @@ func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 	saida := respostaDocumento(ex, status, temPCOEnviado(ordem["pco_enviado_em"]))
 	saida["motivo"] = motivo
 	web.Responder(w, http.StatusOK, saida)
+}
+
+func (m *Modulo) exValidadaParaSalvar(ctx context.Context, clienteID, id string, d documentoJSON) (Extraida, error) {
+	ex := jsonParaExtraida(d)
+	if ex.Numero == "" {
+		return Extraida{}, fmt.Errorf("A ordem de compra precisa de número.")
+	}
+	if len(ex.Itens) == 0 {
+		return Extraida{}, fmt.Errorf("A ordem de compra precisa de ao menos um item.")
+	}
+	for _, it := range ex.Itens {
+		if strings.TrimSpace(it.Descricao) == "" {
+			return Extraida{}, fmt.Errorf("Todo item precisa de descrição.")
+		}
+	}
+	if err := m.numeroLivre(ctx, clienteID, id, ex.Numero); err != nil {
+		return Extraida{}, err
+	}
+	return ex, nil
 }
 
 func (m *Modulo) ordemParaDocumento(ctx context.Context, clienteID, id string) (map[string]any, error) {

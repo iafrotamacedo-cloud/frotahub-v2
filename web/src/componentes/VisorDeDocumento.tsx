@@ -25,6 +25,7 @@ import { usePedirFoco } from './Foco'
 
 export function VisorDeDocumento({
   titulo, caminho, endereco, nomeSugerido, voltar, acoes, barAcoes, destaque, barraAlta,
+  sobreDocumento, chavePDF, blobArquivo, folhaProporcional,
 }: {
   /** O que a barra diz que é este documento. */
   titulo: ReactNode
@@ -49,6 +50,14 @@ export function VisorDeDocumento({
   destaque?: ReactNode
   /** Barra mais alta quando há vários motivos empilhados. */
   barraAlta?: boolean
+  /** Camada sobre o PDF — ex.: caixas de reparo híbrido. */
+  sobreDocumento?: ReactNode
+  /** Força recarga do iframe quando a URL muda por blob local. */
+  chavePDF?: number | string
+  /** Blob já em memória (prévia local), para "salvar como" sem buscar de novo. */
+  blobArquivo?: Blob | null
+  /** Folha A4 proporcional — overlays batem com o PDF (reparo de OC). */
+  folhaProporcional?: boolean
 }) {
   usePedirFoco()
 
@@ -59,7 +68,7 @@ export function VisorDeDocumento({
     // O endereço pronto não passa por busca nenhuma: ele já é exibível, e
     // baixá-lo aqui só para mostrar seria pedir o arquivo duas vezes.
     if (endereco) {
-      setArq({ url: endereco, blob: null, nome: nomeSugerido ?? 'documento' })
+      setArq({ url: endereco, blob: blobArquivo ?? null, nome: nomeSugerido ?? 'documento' })
       return
     }
     if (!caminho) return
@@ -85,7 +94,7 @@ export function VisorDeDocumento({
       vivo = false
       if (local) URL.revokeObjectURL(local)
     }
-  }, [caminho, endereco, nomeSugerido])
+  }, [caminho, endereco, nomeSugerido, blobArquivo, chavePDF])
 
   // SALVAR NÃO PEDE O ARQUIVO DE NOVO — quando ele já está na mão.
   //   O que veio do motor já é blob. O que veio do armazém é um endereço, e aí
@@ -125,15 +134,24 @@ export function VisorDeDocumento({
 
       {erro && <p className="erro">{erro}</p>}
 
-      <div className="orc-visor-doc">
+      <div className={'orc-visor-doc' + (sobreDocumento ? ' orc-visor-doc--sobre' : '') + (folhaProporcional ? ' orc-visor-doc--folha' : '')}>
         {!arq
           ? <p className="orc-vazio">abrindo o documento…</p>
-          : ehImagem(arq.url, nomeSugerido)
-            ? <img src={arq.url} alt="documento" />
-            // `toolbar=0` e `navpanes=0` tiram a régua e a coluna de miniaturas
-            // do leitor do navegador: numa folha só elas comem largura, e a
-            // largura aqui é onde os valores estão.
-            : <iframe src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
+          : folhaProporcional && !ehImagem(arq.url, nomeSugerido)
+            ? (
+              <div className="adm-folha-visor">
+                <iframe
+                  key={chavePDF}
+                  src={arq.url + '#toolbar=0&navpanes=0&view=Fit'}
+                  title="documento"
+                />
+                {sobreDocumento}
+              </div>
+            )
+            : ehImagem(arq.url, nomeSugerido)
+              ? <img src={arq.url} alt="documento" />
+              : <iframe key={chavePDF} src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
+        {!folhaProporcional && sobreDocumento}
       </div>
     </div>
   )

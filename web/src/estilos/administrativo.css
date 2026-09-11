@@ -106,6 +106,74 @@
 .adm-reparo-opcao:hover,.adm-reparo-opcao.escolhida{background:var(--red-050);color:var(--red)}
 .adm-reparo-botoes{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
+/* reparo híbrido — caixas sobre o PDF e pop-up ancorado */
+.orc-visor-doc--sobre{position:relative}
+.adm-campos-bloqueio{
+  position:absolute;inset:0;pointer-events:none;z-index:2;
+}
+.adm-campo-bloqueio{
+  position:absolute;pointer-events:auto;cursor:pointer;
+  display:flex;flex-direction:column;justify-content:center;gap:2px;
+  padding:6px 10px;border-radius:var(--r-s);text-align:left;
+  border:2px solid rgba(180,40,40,.55);
+  background:rgba(255,70,70,.16);
+  backdrop-filter:blur(1px);
+  transition:background .2s,border-color .2s,box-shadow .2s;
+  font:inherit;color:var(--ink);
+}
+.adm-campo-bloqueio:hover:not(:disabled){
+  box-shadow:0 0 0 2px rgba(255,255,255,.35);
+  background:rgba(255,70,70,.24);
+}
+.adm-campo-bloqueio.ok{
+  border-color:rgba(40,130,60,.65);
+  background:rgba(60,180,90,.14);
+}
+.adm-campo-bloqueio.ok:hover{
+  box-shadow:0 0 0 2px rgba(255,255,255,.35);
+  background:rgba(60,180,90,.22);
+}
+.adm-campo-bloqueio:disabled{opacity:.65;cursor:wait}
+.adm-campo-bloqueio-rotulo{
+  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:rgba(0,0,0,.55);
+}
+.adm-campo-bloqueio-valor{
+  font-size:12px;font-weight:600;line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.adm-campo-bloqueio.erro .adm-campo-bloqueio-valor{color:var(--err)}
+.adm-campo-bloqueio.ok .adm-campo-bloqueio-valor{color:#1a6b32}
+.adm-reparo-painel{
+  position:fixed;z-index:1200;max-width:400px;width:min(400px,92vw);
+  padding:16px 18px 14px;border-radius:var(--r-l);
+  border:1px solid var(--line);background:var(--card);
+  box-shadow:0 16px 40px rgba(0,0,0,.28);
+}
+.adm-reparo-painel h3{margin:0 0 6px;font-size:15px;color:var(--ink)}
+.adm-reparo-dica{margin:8px 0 0;font-size:11.5px;color:var(--mut)}
+.adm-salvar-reparo{font-size:12px;padding:0 16px;height:34px}
+.adm-erro-flutuante{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:1100;margin:0;padding:10px 16px;border-radius:var(--r-s);
+  background:var(--err);color:#fff;font-size:13px;max-width:min(520px,92vw);
+}
+
+/* folha A4 proporcional no visor — overlays alinhados ao PDF 019731 */
+.orc-visor-doc--folha{
+  display:flex;align-items:center;justify-content:center;
+  background:#2a2627;padding:12px;
+}
+.adm-folha-visor{
+  position:relative;aspect-ratio:595/842;
+  height:100%;max-height:100%;max-width:100%;
+  width:auto;background:#fff;border-radius:2px;overflow:hidden;
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+}
+.adm-folha-visor iframe{
+  position:absolute;inset:0;border:0;width:100%;height:100%;
+}
+
 /* ---------- cabeçalho: o botão de leitura em lote ---------- */
 .adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 

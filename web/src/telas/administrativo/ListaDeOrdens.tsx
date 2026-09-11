@@ -1,4 +1,4 @@
-// rev 2 — a lista de uma vista de Ordens de Compra, compartilhada
+// rev 3 — a lista de uma vista de Ordens de Compra, compartilhada
 //
 // EXTRAÍDA DE `OcsInseridas.tsx` QUANDO PCO PRECISOU DA MESMA TELA
 //
@@ -12,16 +12,15 @@
 //   vive. Estas listas são as vistas de controle — Compras (Processadas/
 //   Rejeitadas) e PCO (Pendentes/Enviados) — não o lugar de trabalhar a OC.
 //
-// EDITAR DOCUMENTO (11/09/2026)
-//   Só rejeitadas: a processada já passou nos filtros, não se mexe. EDITAR
-//   abre a folha da OC; salvar gera um PDF novo e substitui o arquivo. Se
-//   passar nos filtros, "Salvar e voltar" devolve à lista.
+// REPARO HÍBRIDO (11/09/2026)
+//   Rejeitadas › REPARAR: PDF na tela, caixas nos campos bloqueados, pop-up
+//   ao lado. OK antevê o PDF; Salvar grava BD, R2 e filas.
 import { useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
-import { EditorDeOC } from './EditorDeOC'
+import { RepararOrdemOC } from './RepararOrdemOC'
 import {
   type OrdemDeCompra, type EstadoDocumentoOC, type VistaDasOrdens,
   motivoRejeicaoSimplificado,
@@ -44,9 +43,7 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     motivos: string[]
     motivoCompleto?: string | null
     reparar: boolean
-    corrigida: boolean
   } | null>(null)
-  const [editando, setEditando] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -87,45 +84,31 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
         motivos,
         motivoCompleto: reparar ? o.erro_leitura : undefined,
         reparar,
-        corrigida: false,
       })
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
     }
   }
 
-  function aoDocumentoSalvo(r: EstadoDocumentoOC) {
-    if (!vendo) return
-    const ordemId = vendo.ordemId
-    const lido = r.status === 'lido'
-    const motivos = lido ? [] : (r.motivos?.length ? r.motivos : [])
-    setEditando(false)
-    void (async () => {
-      try {
-        const arq = await motor<{ url: string }>(`/administrativo/compras/ordens/${ordemId}/arquivo`)
-        setVendo(v => v && v.ordemId === ordemId ? {
-          ...v,
-          endereco: arq.url,
-          motivos,
-          motivoCompleto: r.motivo ?? v.motivoCompleto,
-          corrigida: lido,
-        } : v)
-        const lista = await motor<{ ordens: OrdemDeCompra[] }>('/administrativo/compras/ordens?vista=' + vista)
-        setOrdens(lista.ordens)
-      } catch {
-        setVendo(v => v && v.ordemId === ordemId ? { ...v, motivos, corrigida: lido } : v)
-      }
-    })()
+  async function aoReparoSalvo(_r: EstadoDocumentoOC) {
+    setVendo(null)
+    try {
+      const lista = await motor<{ ordens: OrdemDeCompra[] }>('/administrativo/compras/ordens?vista=' + vista)
+      setOrdens(lista.ordens)
+    } catch { /* lista recarrega na próxima visita */ }
   }
 
-  const podeEditar = vista === 'rejeitadas'
-
-  if (editando && vendo) {
+  if (vendo?.reparar) {
     return (
-      <EditorDeOC
+      <RepararOrdemOC
         ordemId={vendo.ordemId}
-        voltar={() => setEditando(false)}
-        aoSalvar={aoDocumentoSalvo}
+        enderecoInicial={vendo.endereco}
+        nome={vendo.nome}
+        titulo={vendo.titulo}
+        motivos={vendo.motivos}
+        motivoCompleto={vendo.motivoCompleto}
+        voltar={() => setVendo(null)}
+        aoSalvar={r => void aoReparoSalvo(r)}
       />
     )
   }
@@ -138,20 +121,10 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
         nomeSugerido={vendo.nome}
         titulo={vendo.titulo}
         barraAlta={barraAlta}
-        barAcoes={podeEditar && !vendo.corrigida ? (
-          <button type="button" className="orc-bt adm-editar" onClick={() => setEditando(true)}>
-            EDITAR
-          </button>
-        ) : undefined}
         destaque={vendo.motivos.length > 0 ? (
           vendo.motivos.map((m, i) => (
             <span key={i} className="adm-motivo-barra" title={vendo.motivoCompleto ?? undefined}>{m}</span>
           ))
-        ) : undefined}
-        acoes={vendo.reparar && vendo.corrigida ? (
-          <button type="button" className="bt bt-forte adm-salvar-voltar" onClick={voltar}>
-            Salvar e voltar
-          </button>
         ) : undefined}
         voltar={() => setVendo(null)}
       />
