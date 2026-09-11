@@ -45,10 +45,13 @@ export function RepararOrdemOC({
   useEffect(() => () => { revogarLocal() }, [revogarLocal])
 
   useEffect(() => {
+    let vivo = true
     void (async () => {
       try {
         const r = await motor<EstadoDocumentoOC>(`/administrativo/compras/ordens/${ordemId}/documento`)
-        setDocumento(fecharConta(r.documento))
+        if (!vivo) return
+        const doc = fecharConta(r.documento)
+        setDocumento(doc)
         setValidacao({
           precisa_fornecedor: r.precisa_fornecedor,
           precisa_faturamento: r.precisa_faturamento,
@@ -56,12 +59,26 @@ export function RepararOrdemOC({
           status: r.status,
         })
         setCamposIniciais({ fornecedor: r.precisa_fornecedor, faturamento: r.precisa_faturamento })
+
+        // A PRÉVIA ABRE JÁ NO NOSSO LAYOUT, NUNCA NO PDF ORIGINAL
+        //
+        //	O arquivo original (armazém) tem o layout que o Obra Prima mandou —
+        //	endereço mais comprido, I.E. vazio, o que for — e as caixas de
+        //	regioesReparoOC.ts são calibradas em cima do NOSSO desenho
+        //	(documento_pdf.go), não do original. Mostrar o original aqui fazia
+        //	as caixas caírem em qualquer lugar que não os campos de verdade.
+        //	Redesenhar já na entrada (mesmo `?antever=1` que a edição usa)
+        //	garante que a prévia é exatamente o PDF que "Salvar" vai gravar, e
+        //	é a MESMA régua das caixas — sem isso, calibrar é mirar num alvo
+        //	que nem está na tela.
+        await antever(doc)
       } catch (e) {
-        setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o documento.')
+        if (vivo) setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o documento.')
       } finally {
-        setCarregando(false)
+        if (vivo) setCarregando(false)
       }
     })()
+    return () => { vivo = false }
   }, [ordemId])
 
   const aplicarPdfPreview = useCallback((base64: string) => {
