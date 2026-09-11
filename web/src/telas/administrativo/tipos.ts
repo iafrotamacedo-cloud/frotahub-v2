@@ -40,9 +40,11 @@ export interface LoteDeLeitura {
   motivos: string[]
 }
 
-/** O que `GET /administrativo/compras/ordens/painel` devolve — os dois
- *  cartões do hub "OCs Inseridas". */
+/** O que `GET /administrativo/compras/ordens/painel` devolve — alimenta os
+ *  cartões do hub de Compras: "Inserir OC" (fila) e "OCs Inseridas", que se
+ *  abre em Processadas/Rejeitadas. */
 export interface PainelDeOrdens {
+  fila: number
   processadas: number
   rejeitadas: number
   previa?: {

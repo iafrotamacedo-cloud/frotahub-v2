@@ -31,6 +31,7 @@ import { MinhaConta } from './telas/MinhaConta'
 import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
+import { Compras } from './telas/administrativo/Compras'
 import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
@@ -375,6 +376,32 @@ function Casca() {
               abrirExtra={sobra => navegar(caminho, sobra)}
               abrir={rota => {
                 const filho = atual.sub?.find(f => f.rota === rota)
+                if (filho) navegar([...caminho, filho])
+              }}
+            />
+          ) : atual?.tela === 'compras' ? (
+            // COMPRAS VEM ANTES DO PAINEL GENÉRICO, PELO MESMO MOTIVO DE
+            // ESTATÍSTICAS LOGO ACIMA
+            //
+            //	"Compras" tem `sub` — cairia no ramo de baixo e ganharia o
+            //	painel de MENU comum (sem contador, sem `filhos`). O cartão
+            //	"OCs Inseridas" precisa se ABRIR em Processadas/Rejeitadas
+            //	dentro do próprio espaço (o mesmo desenho de "Correções" em
+            //	Orçamentos) — só existe num painel de dados.
+            //
+            //	As chaves com ":" são os FILHOS de "OCs Inseridas" — não são
+            //	rotas de verdade na árvore de menu, por isso não estão em
+            //	`atual.sub`. Navegam para o MESMO item "OCs Inseridas", com o
+            //	pedaço depois de ":" como sub-endereço (`extra`) — é assim que
+            //	`OcsInseridas.tsx` já sabia abrir a lista certa.
+            <Compras
+              aoEscolher={chave => {
+                if (chave.startsWith('ocs-inseridas:')) {
+                  const filho = atual.sub!.find(f => f.rota === 'ocs-inseridas')
+                  if (filho) navegar([...caminho, filho], [chave.split(':')[1]])
+                  return
+                }
+                const filho = atual.sub!.find(f => f.rota === chave)
                 if (filho) navegar([...caminho, filho])
               }}
             />

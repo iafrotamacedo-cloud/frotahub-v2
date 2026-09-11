@@ -63,16 +63,24 @@ func (m *Modulo) listarOrdens(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /administrativo/compras/ordens/painel — o hub "OCs Inseridas"
+// GET /administrativo/compras/ordens/painel — o hub de Compras
 // ---------------------------------------------------------------------------
 
-// painelDeOrdens é o que alimenta os dois cartões (Processadas/Rejeitadas) —
-// uma consulta por contador, com `count=exact` (Content-Range), mais uma
-// prévia pequena de cada. Mesma ideia de `orcamentos.painel`: "o painel é UMA
-// pergunta ao banco por cartão, não uma leitura da lista inteira".
+// painelDeOrdens alimenta os cartões do painel de Compras: "Inserir OC" (o
+// que está na fila) e "OCs Inseridas", que se abre em Processadas/
+// Rejeitadas — uma consulta por contador, com `count=exact` (Content-Range),
+// mais uma prévia pequena de cada uma das duas vistas já lidas. Mesma ideia
+// de `orcamentos.painel`: "o painel é UMA pergunta ao banco por cartão, não
+// uma leitura da lista inteira".
 func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r)
 	if p == nil {
+		return
+	}
+	fila, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "fila")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as ordens na fila", err)
 		return
 	}
 	processadas, err := m.bd.BuscarContando(r.Context(),
@@ -88,6 +96,7 @@ func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Responder(w, http.StatusOK, map[string]any{
+		"fila":        fila,
 		"processadas": processadas,
 		"rejeitadas":  rejeitadas,
 		"previa": map[string]any{
