@@ -11,7 +11,6 @@
 //   Seis colunas fixas: O.C., obra/centro (sem cidade), valor, inserida em,
 //   motivo simplificado em vermelho, e reparar (PDF em tela inteira).
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { Icone } from '../../componentes/Icone'
 import { ajustarCelulas } from '../trilogo/encolher'
 import { quando } from '../trilogo/tipos'
 import {
@@ -110,7 +109,7 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
                   aria-label="Reparar"
                   onClick={() => (onReparar ?? onVer)(o)}
                 >
-                  <Icone nome="chave-inglesa" />
+                  REPARAR
                 </button>
               </td>
             </tr>
