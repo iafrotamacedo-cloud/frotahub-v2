@@ -118,10 +118,24 @@
   overflow: hidden;
 }
 
-/* Compras e PCO: painéis com poucos cartões — metade da largura cheia. */
+/* Compras e PCO: cartões com teto, não painel pela metade.
+   Cada coluna pode crescer no flex até metade da largura que teria dividindo
+   a linha em partes iguais (antes não havia teto). */
 .orc-painel--estreito .pn {
-  width: 50%;
-  max-width: 50%;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: none;
+}
+.orc-painel--estreito.orc-painel--2 .pn-col {
+  flex: 1 1 0;
+  max-width: calc((100% - 14px) / 4);
+}
+.orc-painel--estreito.orc-painel--3 .pn-col {
+  flex: 1 1 0;
+  max-width: calc((100% - 28px) / 6);
+}
+.orc-painel--estreito .pn-col.aberta {
+  max-width: none;
 }
 
 .pn-col {
@@ -431,7 +445,7 @@
    Cinco colunas de 190px são ilegíveis; cinco cartões de altura fixa, não. */
 @media (max-width: 1080px) {
   .pn { flex-direction: column; }
-  .orc-painel--estreito .pn { width: 100%; max-width: none; }
+  .orc-painel--estreito .pn-col { max-width: none; }
   .pn-col { min-height: 168px; }
   .pn-col .pn-previa { display: none; }
   .pn-col .pn-medida { margin-top: 14px; }

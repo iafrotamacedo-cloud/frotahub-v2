@@ -68,7 +68,7 @@ export function Pco({ onde, abrir, voltar }: Props) {
   if (!dados) return <Carregando />
 
   return (
-    <div className="orc-painel orc-painel--estreito">
+    <div className="orc-painel orc-painel--estreito orc-painel--2">
       <Painel etapas={montarEtapas(dados)} aoEscolher={abrir} />
     </div>
   )

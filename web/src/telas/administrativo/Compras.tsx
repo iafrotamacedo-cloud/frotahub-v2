@@ -47,7 +47,7 @@ export function Compras({ aoEscolher }: Props) {
   if (!dados) return <Carregando />
 
   return (
-    <div className="orc-painel orc-painel--estreito">
+    <div className="orc-painel orc-painel--estreito orc-painel--3">
       <Painel etapas={montarEtapas(dados)} aoEscolher={aoEscolher} />
     </div>
   )

@@ -83,6 +83,15 @@ function Casca() {
   useEffect(() => {
     if (grupoAberto) setAbertos(a => (a.includes(grupoAberto) ? a : [...a, grupoAberto]))
   }, [grupoAberto])
+
+  // "OCs Inseridas" sem sub-endereço é tela órfã (dois cartões antigos). O hub é Compras.
+  useEffect(() => {
+    const ultimo = caminho[caminho.length - 1]
+    if (ultimo?.tela === 'ocs-inseridas' && extra.length === 0 && caminho.length > 1) {
+      irPara(caminho.slice(0, -1))
+    }
+  }, [caminho, extra, irPara])
+
   const [navAberta, setNavAberta] = useState(false)
 
   // A barra lateral recolhida é uma escolha da pessoa, e ela não deve ter que
@@ -293,14 +302,22 @@ function Casca() {
               className="tp-voltar"
               aria-label="Voltar"
               title="Voltar"
-              onClick={() =>
+              onClick={() => {
+                // "OCs Inseridas" não é hub — só passagem para Processadas/Rejeitadas.
+                // Limpar só o `extra` cairia na tela órfã de dois cartões (rev antiga).
+                if (atual?.tela === 'ocs-inseridas') {
+                  navegar(caminho.slice(0, -1))
+                  return
+                }
                 // Dentro de uma sub-tela, voltar FECHA um passo. Lista dentro
                 // de Expectativa usa dois extras (`lista`, depois o ticket):
                 // um clique não pode desfazer os dois.
-                extra.length > 0
-                  ? navegar(caminho, extra.slice(0, -1))
-                  : navegar(caminho.slice(0, -1))
-              }
+                if (extra.length > 0) {
+                  navegar(caminho, extra.slice(0, -1))
+                } else {
+                  navegar(caminho.slice(0, -1))
+                }
+              }}
             >
               ←
             </button>
