@@ -4,7 +4,7 @@ import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { PainelReparoOC, type ValoresReparoPainel } from './PainelReparoOC'
-import { REGIAO_FATURAMENTO, REGIAO_FORNECEDOR, REGIAO_OBRA } from './regioesReparoOC'
+import { REGIAO_FATURAMENTO, REGIAO_FORNECEDOR, REGIAO_OBRA, pixelsDoRetangulo, type RetanguloOC } from './regioesReparoOC'
 import type { DocumentoOC, EstadoDocumentoOC } from './tipos'
 
 interface Props {
@@ -178,13 +178,21 @@ export function RepararOrdemOC({
   const barraAlta = (validacao.motivos.length || motivos.length) > 1
   const motivosBarra = validacao.motivos.length > 0 ? validacao.motivos : motivos
 
-  const overlays = (
+  // A escala vem do FolhaPdfZoom (canvas + pdf.js) — a MESMA que ele usou pra
+  // desenhar o PDF naquele momento. Sem isso, dar zoom deixava as caixas
+  // para trás (o leitor nativo do navegador não avisava a página do zoom).
+  function estiloDaCaixa(regiao: RetanguloOC, escala: number) {
+    const px = pixelsDoRetangulo(regiao, escala)
+    return { top: px.top, left: px.left, width: px.width, height: px.height }
+  }
+
+  const overlays = (escala: number) => (
     <div className="adm-campos-bloqueio" aria-hidden={anteverendo}>
       {camposIniciais.fornecedor ? (
         <button
           type="button"
           className={'adm-campo-bloqueio' + (validacao.precisa_fornecedor ? ' erro' : ' ok')}
-          style={REGIAO_FORNECEDOR}
+          style={estiloDaCaixa(REGIAO_FORNECEDOR, escala)}
           disabled={anteverendo}
           onClick={e => abrirPopup('fornecedor', e.currentTarget)}
           title={validacao.precisa_fornecedor ? 'Clique para corrigir o CNPJ do fornecedor' : 'Clique para ajustar o fornecedor'}
@@ -198,7 +206,7 @@ export function RepararOrdemOC({
           <button
             type="button"
             className={'adm-campo-bloqueio' + (validacao.precisa_faturamento ? ' erro' : ' ok')}
-            style={REGIAO_FATURAMENTO}
+            style={estiloDaCaixa(REGIAO_FATURAMENTO, escala)}
             disabled={anteverendo}
             onClick={e => abrirPopup('faturamento', e.currentTarget)}
             title={validacao.precisa_faturamento ? 'Clique para corrigir o faturamento' : 'Clique para ajustar o faturamento'}
@@ -208,7 +216,7 @@ export function RepararOrdemOC({
           <button
             type="button"
             className={'adm-campo-bloqueio' + (validacao.precisa_faturamento ? ' erro' : ' ok')}
-            style={REGIAO_OBRA}
+            style={estiloDaCaixa(REGIAO_OBRA, escala)}
             disabled={anteverendo}
             onClick={e => abrirPopup('faturamento', e.currentTarget)}
             title={validacao.precisa_faturamento ? 'Clique para corrigir obra / centro de custo' : 'Clique para ajustar a obra'}

@@ -22,6 +22,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { arquivoDoMotor, salvarArquivo } from '../motor/cliente'
 import { usePedirFoco } from './Foco'
+import { FolhaPdfZoom } from './FolhaPdfZoom'
 
 export function VisorDeDocumento({
   titulo, caminho, endereco, nomeSugerido, voltar, acoes, barAcoes, destaque, barraAlta,
@@ -50,13 +51,18 @@ export function VisorDeDocumento({
   destaque?: ReactNode
   /** Barra mais alta quando há vários motivos empilhados. */
   barraAlta?: boolean
-  /** Camada sobre o PDF — ex.: caixas de reparo híbrido. */
-  sobreDocumento?: ReactNode
-  /** Força recarga do iframe quando a URL muda por blob local. */
+  /**
+   * Camada sobre o PDF — ex.: caixas de reparo híbrido. Só vale com
+   * `folhaProporcional`: o PDF aí é desenhado por nós (FolhaPdfZoom, canvas
+   * + pdf.js), e a função recebe a escala atual do zoom pra calcular onde
+   * cada caixa cai — sem isso, zoom e overlay se descolam.
+   */
+  sobreDocumento?: (escala: number) => ReactNode
+  /** Força recarga do PDF quando a URL muda por blob local. */
   chavePDF?: number | string
   /** Blob já em memória (prévia local), para "salvar como" sem buscar de novo. */
   blobArquivo?: Blob | null
-  /** Folha A4 proporcional — overlays batem com o PDF (reparo de OC). */
+  /** Folha desenhada em canvas, com zoom próprio — overlays batem com o PDF (reparo de OC). */
   folhaProporcional?: boolean
 }) {
   usePedirFoco()
@@ -134,24 +140,14 @@ export function VisorDeDocumento({
 
       {erro && <p className="erro">{erro}</p>}
 
-      <div className={'orc-visor-doc' + (sobreDocumento ? ' orc-visor-doc--sobre' : '') + (folhaProporcional ? ' orc-visor-doc--folha' : '')}>
+      <div className={'orc-visor-doc' + (folhaProporcional ? ' orc-visor-doc--folha' : '')}>
         {!arq
           ? <p className="orc-vazio">abrindo o documento…</p>
           : folhaProporcional && !ehImagem(arq.url, nomeSugerido)
-            ? (
-              <div className="adm-folha-visor">
-                <iframe
-                  key={chavePDF}
-                  src={arq.url + '#toolbar=0&navpanes=0&view=Fit'}
-                  title="documento"
-                />
-                {sobreDocumento}
-              </div>
-            )
+            ? <FolhaPdfZoom url={arq.url} chave={chavePDF} overlay={sobreDocumento} />
             : ehImagem(arq.url, nomeSugerido)
               ? <img src={arq.url} alt="documento" />
               : <iframe key={chavePDF} src={arq.url + '#toolbar=0&navpanes=0&view=FitH'} title="documento" />}
-        {!folhaProporcional && sobreDocumento}
       </div>
     </div>
   )

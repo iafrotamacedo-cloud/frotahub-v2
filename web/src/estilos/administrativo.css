@@ -70,9 +70,14 @@
   border-color:var(--gray);color:var(--ink);background:var(--bg);
 }
 
-/* motivo na barra escura do visor (Reparar OC) */
+/* motivo na barra escura do visor (Reparar OC)
+   .orc-barra (orcamentos.css) trava a altura em flex:0 0 46px — um
+   flex-basis fixo, que um `height:auto` sozinho não sobrepõe. Sem soltar o
+   `flex` aqui também, a barra nunca crescia e o segundo motivo vazava por
+   cima dela (achado testando com dois motivos de verdade, 11/09/2026). */
 .orc-barra--alta{
-  height:auto;min-height:46px;flex-wrap:wrap;padding:8px 16px;align-content:center;
+  height:auto;min-height:46px;flex:0 0 auto;flex-wrap:wrap;
+  padding:8px 16px;align-items:flex-start;align-content:center;
 }
 .adm-motivos-barra{
   display:flex;flex-direction:column;gap:4px;flex:1 1 200px;min-width:0;
@@ -106,8 +111,9 @@
 .adm-reparo-opcao:hover,.adm-reparo-opcao.escolhida{background:var(--red-050);color:var(--red)}
 .adm-reparo-botoes{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
-/* reparo híbrido — caixas sobre o PDF e pop-up ancorado */
-.orc-visor-doc--sobre{position:relative}
+/* reparo híbrido — caixas sobre o PDF e pop-up ancorado
+   A camada de caixas é filha de .adm-pdf-folha (FolhaPdfZoom.tsx), que tem
+   o tamanho EXATO do canvas em pixel — não um retângulo proporcional. */
 .adm-campos-bloqueio{
   position:absolute;inset:0;pointer-events:none;z-index:2;
 }
@@ -152,26 +158,36 @@
   background:var(--err);color:#fff;font-size:13px;max-width:min(520px,92vw);
 }
 
-/* folha A4 proporcional no visor — overlays alinhados ao PDF 019731
-   MESMA MOLDURA DO VISOR PADRÃO (.orc-visor-doc), SÓ CENTRALIZADA
-     A caixa escura de antes destoava do resto do sistema — o padrão é o
-     visor claro que Orçamento já usa (FichaDoOrcamento.tsx). A proporção
-     fixa continua (as caixas do reparo híbrido são calibradas em % dentro
-     dela), mas a moldura ao redor é a mesma .orc-visor-doc de sempre —
-     só troca o iframe esticado por uma folha centralizada, em vez de
-     também trocar a cor de fundo. */
-.orc-visor-doc--folha{
-  display:flex;align-items:center;justify-content:center;padding:16px;
+/* O PDF desenhado por nós (FolhaPdfZoom.tsx, canvas + pdf.js) — MESMA
+   MOLDURA DO VISOR PADRÃO (.orc-visor-doc), zoom e rolagem próprios.
+     A folha ocupa a altura inteira disponível (é a escala inicial que o
+     componente calcula, não um retângulo pequeno fixo) e a rolagem é a do
+     navegador — .adm-pdf-rolagem só tem overflow:auto, sem reinventar
+     nada. Zoom é redesenhar o canvas maior/menor: as caixas do overlay
+     recebem essa MESMA escala (ver RepararOrdemOC.tsx), então acompanham
+     tanto o zoom quanto a rolagem sem sincronização nenhuma à parte —
+     canvas e caixas são o mesmo elemento posicionado, um em cima do outro. */
+.orc-visor-doc--folha{padding:0}
+.adm-pdf-zoom-area{display:flex;flex-direction:column;flex:1 1 auto;width:100%;min-height:0}
+.adm-pdf-zoom-barra{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:6px;border-bottom:1px solid var(--d-line);
 }
-.adm-folha-visor{
-  position:relative;aspect-ratio:595/842;
-  height:100%;max-height:100%;max-width:100%;
-  width:auto;background:#fff;border-radius:4px;overflow:hidden;
-  box-shadow:0 1px 4px rgba(0,0,0,.12);
+.adm-pdf-zoom-barra button{
+  width:26px;height:26px;border-radius:var(--r-s);border:1px solid var(--d-line);
+  background:var(--d-card2);color:var(--d-txt);font-size:15px;line-height:1;cursor:pointer;
 }
-.adm-folha-visor iframe{
-  position:absolute;inset:0;border:0;width:100%;height:100%;
+.adm-pdf-zoom-barra button:disabled{opacity:.5;cursor:default}
+.adm-pdf-zoom-barra span{font-size:12px;color:var(--d-mut);min-width:38px;text-align:center}
+.adm-pdf-rolagem{
+  flex:1 1 auto;min-height:0;overflow:auto;
+  display:flex;justify-content:center;padding:16px;
 }
+.adm-pdf-folha{
+  position:relative;flex:0 0 auto;background:#fff;border-radius:4px;
+  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.12);height:max-content;
+}
+.adm-pdf-folha canvas{display:block}
 
 /* ---------- cabeçalho: o botão de leitura em lote ---------- */
 .adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}

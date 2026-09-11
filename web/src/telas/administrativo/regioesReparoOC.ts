@@ -1,22 +1,37 @@
-// rev 1 — caixas do reparo híbrido, calibradas no layout 019731 (documento_pdf.go)
+// rev 2 — caixas do reparo híbrido, calibradas no layout 019731 (documento_pdf.go)
 //
 // A4 retrato: 595 × 842 pt. `topo` no Go = distância do topo da página até a
-// faixa/linha. Percentuais = topo/842 e altura/842; horizontal ocX0=19.44 … ocX1=576.
+// faixa/linha. Os retângulos abaixo ficam em PONTOS PDF (não mais em % de
+// CSS) — desde a troca para VisorDePdfComOverlay.tsx (canvas + pdf.js), a
+// caixa precisa da MESMA escala que o canvas usa pra desenhar, não de um
+// percentual fixo de um contêiner proporcional. Ver `pixelsDoRetangulo`.
 
-const A4_H = 842
-const A4_W = 595
+export const A4_LARGURA = 595
+export const A4_ALTURA = 842
+
 const OC_X0 = 19.44
 const OC_X1 = 576
 const OC_FAIXA_H = 18.03
 const OC_LINHA = 14.4
 
-/** Converte retângulo em pontos PDF para CSS % dentro da folha. */
-function regiao(topo: number, altura: number, esq = OC_X0, dir = OC_X1) {
+export interface RetanguloOC {
+  topo: number
+  esquerda: number
+  largura: number
+  altura: number
+}
+
+function retangulo(topo: number, altura: number, esq = OC_X0, dir = OC_X1): RetanguloOC {
+  return { topo, esquerda: esq, largura: dir - esq, altura }
+}
+
+/** Retângulo em pontos PDF → posição em pixel na escala atual do canvas. */
+export function pixelsDoRetangulo(r: RetanguloOC, escala: number) {
   return {
-    top: `${((topo / A4_H) * 100).toFixed(2)}%`,
-    left: `${((esq / A4_W) * 100).toFixed(2)}%`,
-    width: `${(((dir - esq) / A4_W) * 100).toFixed(2)}%`,
-    height: `${((altura / A4_H) * 100).toFixed(2)}%`,
+    top: r.topo * escala,
+    left: r.esquerda * escala,
+    width: r.largura * escala,
+    height: r.altura * escala,
   }
 }
 
@@ -47,15 +62,13 @@ y += OC_LINHA * 3 + 32.0 // tel, vend, e-mail + espaço → faixa obra
 const TOPO_OBRA = y
 
 /** Bloco inteiro DADOS DO FATURAMENTO (faixa + nome + CNPJ + I.E.). */
-export const REGIAO_FATURAMENTO = regiao(TOPO_FATURAMENTO, TOPO_FORNECEDOR - TOPO_FATURAMENTO)
+export const REGIAO_FATURAMENTO: RetanguloOC = retangulo(TOPO_FATURAMENTO, TOPO_FORNECEDOR - TOPO_FATURAMENTO)
 
 /** Linha do CNPJ do fornecedor (valor à esq. da coluna Endereço). */
-export const REGIAO_FORNECEDOR = regiao(TOPO_FORN_CNPJ - 1, OC_LINHA + 2, 85, 355)
+export const REGIAO_FORNECEDOR: RetanguloOC = retangulo(TOPO_FORN_CNPJ - 1, OC_LINHA + 2, 85, 355)
 
 /** Faixa OBRA/CENTRO DE CUSTO + valor. */
-export const REGIAO_OBRA = regiao(TOPO_OBRA, OC_FAIXA_H + 1, OC_X0, 470)
+export const REGIAO_OBRA: RetanguloOC = retangulo(TOPO_OBRA, OC_FAIXA_H + 1, OC_X0, 470)
 
 /** Só a linha do CNPJ de faturamento (refino visual opcional). */
-export const REGIAO_FAT_CNPJ = regiao(TOPO_FAT_CNPJ - 1, OC_LINHA + 2, 85, 355)
-
-export const PROPORCAO_FOLHA_OC = `${A4_W} / ${A4_H}`
+export const REGIAO_FAT_CNPJ: RetanguloOC = retangulo(TOPO_FAT_CNPJ - 1, OC_LINHA + 2, 85, 355)
