@@ -17,25 +17,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { TabelaDeOrdens } from './TabelaDeOrdens'
 import {
-  emReais, emDataHora,
   type OrdemDeCompra, type ResultadoDaInsercao,
   type VistaDasOrdens, type OrdensPorLer, type LoteDeLeitura,
 } from './tipos'
-
-const NOME_STATUS: Record<OrdemDeCompra['status'], string> = {
-  inserido: 'na fila',
-  lendo: 'lendo…',
-  lido: 'lida',
-  falhou: 'falhou',
-}
-
-const CLASSE_STATUS: Record<OrdemDeCompra['status'], string> = {
-  inserido: 'pino-off',
-  lendo: 'pino-warn',
-  lido: 'pino-ok',
-  falhou: 'pino-err',
-}
 
 const TITULO_DA_VISTA: Record<VistaDasOrdens, string> = {
   fila: 'Na fila',
@@ -216,51 +202,13 @@ export function InserirOC() {
       ) : ordens.length === 0 ? (
         <div className="vazio">{VAZIA_DA_VISTA[vista]}</div>
       ) : (
-        <div className="tabela-rolo">
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Arquivo</th>
-                <th>Inserida em</th>
-                <th>Leitura</th>
-                <th className="acoes-col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordens.map(o => (
-                <tr key={o.id}>
-                  <td>
-                    {o.nome_arquivo}
-                    {(o.numero || o.comprador_nome || o.total) && (
-                      <div className="adm-dica">
-                        {o.numero ? `nº ${o.numero}` : ''}
-                        {o.numero && o.comprador_nome ? ' · ' : ''}
-                        {o.comprador_nome ?? ''}
-                        {o.total ? ` · ${emReais(o.total)}` : ''}
-                      </div>
-                    )}
-                    {o.erro_leitura && <div className="adm-dica adm-dica-alerta">{o.erro_leitura}</div>}
-                  </td>
-                  <td>{emDataHora(o.criado_em)}</td>
-                  <td><span className={'pino ' + CLASSE_STATUS[o.status]}>{NOME_STATUS[o.status]}</span></td>
-                  <td className="acoes">
-                    {(o.status === 'inserido' || o.status === 'falhou') && (
-                      <button
-                        type="button"
-                        className="bt bt-mini"
-                        disabled={lendoUma === o.id || lote?.rodando}
-                        onClick={() => void lerUma(o.id)}
-                      >
-                        {lendoUma === o.id ? 'lendo…' : o.status === 'falhou' ? 'ler de novo' : 'ler'}
-                      </button>
-                    )}
-                    <button type="button" className="bt bt-mini" onClick={() => void abrirArquivo(o)}>ver</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TabelaDeOrdens
+          ordens={ordens}
+          onVer={o => void abrirArquivo(o)}
+          onLer={id => void lerUma(id)}
+          lendoId={lendoUma}
+          loteRodando={lote?.rodando}
+        />
       )}
     </>
   )

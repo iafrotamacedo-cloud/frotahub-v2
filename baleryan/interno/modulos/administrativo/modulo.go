@@ -58,6 +58,7 @@ func Novo(bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
 
 func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/compras/ordens", m.listarOrdens)
+	mux.HandleFunc("GET /administrativo/compras/ordens/painel", m.painelDeOrdens)
 	mux.HandleFunc("POST /administrativo/compras/ordens", m.inserirOrdens)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}", m.verOrdem)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/arquivo", m.arquivoDaOrdem)

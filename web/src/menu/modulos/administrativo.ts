@@ -1,10 +1,15 @@
-// rev 4 — o bloco de menu do Administrativo
+// rev 5 — o bloco de menu do Administrativo
 //
 // Fica no seu próprio arquivo, e não dentro de `arvore.ts`, porque este módulo
 // cresce sem pedir edição da árvore além do import. Quem ainda não tem tela
-// (PCO, Notas fiscais, e as duas de Compras) cai no `<EmBreve>` do `App.tsx`.
-// Sem `breve`, o desenho é o mesmo da tela inicial — ícone da marca, seta,
-// barra cheia — em vez da versão apagada.
+// (PCO, Notas fiscais, e Equalizar Propostas) cai no `<EmBreve>` do
+// `App.tsx`. Sem `breve`, o desenho é o mesmo da tela inicial — ícone da
+// marca, seta, barra cheia — em vez da versão apagada.
+//
+// "OCs Inseridas" (10/09/2026) entra ENTRE "Inserir OC" e "Equalizar
+// Propostas", pedido explícito do dono: é o hub das duas leituras que já
+// aconteceram (processadas/rejeitadas) — ver `telas/administrativo/
+// OcsInseridas.tsx`, mesmo desenho de `Orcamentos.tsx`.
 import type { ItemMenu } from '../arvore'
 
 export const administrativoMenu: ItemMenu = {
@@ -28,6 +33,14 @@ export const administrativoMenu: ItemMenu = {
           // Migração 059: só CEO ganha a rotina por padrão. Quem for inserir
           // no dia a dia (Nadyson) precisa dela na categoria pela tela de
           // Acesso — sem isso o item nem aparece no menu (P-17).
+          rotina: 'COMPRAS_ORDENS_GERENCIAR',
+        },
+        {
+          t: 'OCs Inseridas',
+          rota: 'ocs-inseridas',
+          icone: 'lista',
+          desc: 'As ordens de compra já lidas — processadas e rejeitadas',
+          tela: 'ocs-inseridas',
           rotina: 'COMPRAS_ORDENS_GERENCIAR',
         },
         {

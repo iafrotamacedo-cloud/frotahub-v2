@@ -32,6 +32,7 @@ import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { InserirOC } from './telas/administrativo/InserirOC'
+import { OcsInseridas } from './telas/administrativo/OcsInseridas'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Hub as ServicosHub } from './telas/servicos/Hub'
 import { Funcionarios } from './telas/funcionarios/Funcionarios'
@@ -130,7 +131,7 @@ function Casca() {
   const ehEscura = caminho.length === 0 || !!atual?.sub?.length
     || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados' || atual?.tela === 'servicos-hub'
     || atual?.tela === 'consolidacao' || atual?.tela === 'a-pagar' || atual?.tela === 'faturar'
-    || atual?.tela === 'inserir-oc'
+    || atual?.tela === 'inserir-oc' || atual?.tela === 'ocs-inseridas'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -403,6 +404,14 @@ function Casca() {
             <APagar />
           ) : atual?.tela === 'inserir-oc' ? (
             <InserirOC />
+          ) : atual?.tela === 'ocs-inseridas' ? (
+            // A sub-tela também vem do endereço — mesmo motivo de `Orcamentos`
+            // logo abaixo: voltar tem que fechar a lista, não sair do sistema.
+            <OcsInseridas
+              onde={extra[0]}
+              abrir={onde => navegar(caminho, [onde])}
+              voltar={() => navegar(caminho)}
+            />
           ) : atual?.tela === 'consolidacao' ? (
             <Consolidacao />
           ) : atual?.tela === 'servicos-hub' ? (

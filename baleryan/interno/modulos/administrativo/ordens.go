@@ -62,6 +62,53 @@ func (m *Modulo) listarOrdens(w http.ResponseWriter, r *http.Request) {
 	web.Responder(w, http.StatusOK, map[string]any{"ordens": ouVazio(linhas)})
 }
 
+// ---------------------------------------------------------------------------
+// GET /administrativo/compras/ordens/painel — o hub "OCs Inseridas"
+// ---------------------------------------------------------------------------
+
+// painelDeOrdens é o que alimenta os dois cartões (Processadas/Rejeitadas) —
+// uma consulta por contador, com `count=exact` (Content-Range), mais uma
+// prévia pequena de cada. Mesma ideia de `orcamentos.painel`: "o painel é UMA
+// pergunta ao banco por cartão, não uma leitura da lista inteira".
+func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
+	p := m.quem(w, r)
+	if p == nil {
+		return
+	}
+	processadas, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "processadas")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as ordens processadas", err)
+		return
+	}
+	rejeitadas, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "rejeitadas")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as ordens rejeitadas", err)
+		return
+	}
+	web.Responder(w, http.StatusOK, map[string]any{
+		"processadas": processadas,
+		"rejeitadas":  rejeitadas,
+		"previa": map[string]any{
+			"processadas": m.previaDasOrdens(r.Context(), p.ClienteID, "processadas"),
+			"rejeitadas":  m.previaDasOrdens(r.Context(), p.ClienteID, "rejeitadas"),
+		},
+	})
+}
+
+// previaDasOrdens busca só o suficiente para as últimas linhas do cartão —
+// falhar aqui não derruba o painel (os contadores já responderam): o cartão
+// fica sem prévia, não sem número.
+func (m *Modulo) previaDasOrdens(ctx context.Context, clienteID, vista string) []map[string]any {
+	var linhas []map[string]any
+	caminho := filtroDasOrdens(clienteID, vista) + "&select=nome_arquivo,numero,erro_leitura,criado_em&limit=6"
+	if err := m.bd.Buscar(ctx, caminho, &linhas); err != nil {
+		return []map[string]any{}
+	}
+	return ouVazio(linhas)
+}
+
 // filtroDasOrdens decide a consulta a partir da vista pedida — o mesmo
 // desenho de "um lugar só decide a vista" que `orcamentos.filtroDosDocumentos`
 // já usa (CORE-06).

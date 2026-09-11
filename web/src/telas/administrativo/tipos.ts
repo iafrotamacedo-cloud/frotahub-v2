@@ -40,6 +40,24 @@ export interface LoteDeLeitura {
   motivos: string[]
 }
 
+/** O que `GET /administrativo/compras/ordens/painel` devolve — os dois
+ *  cartões do hub "OCs Inseridas". */
+export interface PainelDeOrdens {
+  processadas: number
+  rejeitadas: number
+  previa?: {
+    processadas?: LinhaDaPreviaDeOrdem[]
+    rejeitadas?: LinhaDaPreviaDeOrdem[]
+  }
+}
+
+export interface LinhaDaPreviaDeOrdem {
+  nome_arquivo: string
+  numero: string | null
+  erro_leitura: string | null
+  criado_em: string
+}
+
 export interface ResultadoDaInsercao {
   nome: string
   id?: string
