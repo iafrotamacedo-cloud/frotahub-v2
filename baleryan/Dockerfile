@@ -23,7 +23,12 @@ RUN go build -trimpath -ldflags="-s -w" -o /baleryan ./cmd/baleryan
 # ---------- etapa 2: rodar ----------
 FROM alpine:3.20
 # Certificados: sem eles o motor não consegue falar HTTPS com o Supabase.
-RUN apk add --no-cache ca-certificates tzdata && adduser -D -u 10001 motor
+# poppler-utils: dá o `pdftotext` que a leitura da Ordem de Compra usa
+# (administrativo/leitura.go) — determinística, sem IA, com `-layout` para a
+# tabela de itens sair na ordem certa. É o poppler de verdade, não o xpdf: as
+# flags e o comportamento de `-layout` são diferentes entre os dois programas
+# (ver o cabeçalho de leitura.go).
+RUN apk add --no-cache ca-certificates tzdata poppler-utils && adduser -D -u 10001 motor
 USER motor
 COPY --from=construir /baleryan /baleryan
 EXPOSE 8000

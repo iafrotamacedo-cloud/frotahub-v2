@@ -1,0 +1,86 @@
+                                                                                                                                 10/09/2026
+                    FROTA MACEDO ENGENHARIA LTDA
+                    Engenheiro Heitor de Oliveira Albuquerque, 295 - Cidade dos Funcionários - Fortaleza/CE                   Página     1/2
+                    85 2181 - 1386 - frotamacedoengenharia@gmail.com - CNPJ: 27.363.223/0001-70
+
+
+                    ORDEM DE COMPRA 019731
+                    MERCADINHOS SÃO LUIZ VILLAS - MSL VILLAS - AQUIRAZ
+
+DADOS DA ORDEM DE COMPRA               019731
+
+         Data: 02/09/2026                                                   Previsão da entrega: 10/09/2026
+ Cond. pgto.: 1 parcela                                                               Forma pgto.: Boleto
+Observação:
+
+RESPONSÁVEL PELA COMPRA
+
+        Nome: FROTA MACEDO ENGENHARIA LTDA                                            Comprador: Nadyson Ferreira
+                                                                                             Email: compras@frotamacedo.com.br
+
+
+DADOS DO FATURAMENTO
+
+        Nome: MERCADINHOS SÃO LUIZ VILLAS                                                Endereço: ROD. CE -040, 1980, KM 19 LOJA 11 -
+        CNPJ: 03720882003920                                                                       PARQUE ARCO IRIS, Aquiraz - CE,
+                                                                                                   61700-000
+           I.E.:
+
+
+
+DADOS DO FORNECEDOR
+
+        Nome: S V COMERCIO DE MATERIAL ELETRICO LTDA                                     Endereço: Avenida Bezerra de Menezes, 420 -
+        CNPJ: 35088657000137                                                                       Farias Brito, Fortaleza - CE, 60325-000
+      Telefone:
+     Vendedor: Contato principal
+        E-mail: CONTABILIDADE@SVELETRICA.COM
+
+
+
+OBRA/CENTRO DE CUSTO:           MSL VILLAS - AQUIRAZ                                                                CNO:
+ENDEREÇO ENTREGA:                                                        ENDEREÇO COBRANÇA:
+     Endereço: ROD. CE 040 KM - 20, S/N, VILLAS JARDIM -                                 Endereço: ROD. CE 040 KM - 20, S/N, VILLAS
+               JACUNDÁ, Aquiraz, CE - 61700-000                                                    JARDIM - JACUNDÁ, Aquiraz, CE -
+                                                                                                   61700-000
+    Recebedor:
+
+N. Item                                                   Qtd.           Unit. (R$)       Subtotal (R$)       Desc. (R$)         Total (R$)
+1     ABRAÇADEIRA PVC WETZEL 3/4" -                      20,00                    0,77              15,40            0,00               15,40
+      BRANCO                                              UN
+2     BUCHA NYLON S-8 COM PARAFUSO                       50,00                    0,19                9,50           0,00                9,50
+                                                          UN
+3     CONDULETE PVC 3/4" BRANCO -                         3,00                    4,38              13,14            0,00               13,14
+      WETZEL                                              UN
+4     CONECTOR BOX PVC 3/4" BRANCO -                      6,00                    0,97                5,82           0,00                5,82
+      WETZEL                                              UN
+5     CURVA 90º WETZEL BRANCO 3/4                         2,00                    2,19                4,38           0,00                4,38
+                                                          UN
+6     DISJUNTOR DR 25A - DR bipolar                       2,00                 125,53              251,06            0,00              251,06
+      sheneider 25A                                       UN
+7     DISJUNTOR MONOPOLAR 20A -                           2,00                    9,15              18,30            0,00               18,30
+      sheneider                                           UN
+8     ELETRODUTO DE PVC RIGIDO WETZEL                     5,00                   12,98              64,90            0,00               64,90
+      BRANCO 3/4''                                        UN
+                                                                                                                          10/09/2026
+                FROTA MACEDO ENGENHARIA LTDA
+                Engenheiro Heitor de Oliveira Albuquerque, 295 - Cidade dos Funcionários - Fortaleza/CE                 Página     2/2
+                85 2181 - 1386 - frotamacedoengenharia@gmail.com - CNPJ: 27.363.223/0001-70
+
+
+                ORDEM DE COMPRA 019731
+                MERCADINHOS SÃO LUIZ VILLAS - MSL VILLAS - AQUIRAZ
+
+N. Item                                               Qtd.           Unit. (R$)       Subtotal (R$)       Desc. (R$)      Total (R$)
+9   LUVA PVC 3/4" BRANCO - WETZEL                     5,00                    1,16                5,80           0,00              5,80
+                                                      UN
+10 TOMADA BRANCA 2P + T DE 20A PARA                  2,00                    13,80              27,60            0,00             27,60
+   CONDULETE BRANCA - com tampa para               Unidades
+   condulete pvc Branco wetzel3/4
+
+                                                                   Subtotal                    415,90            0,00            415,90
+
+                                                                   Frete                                                           0,00
+
+                                                                   Total                                                         415,90
+

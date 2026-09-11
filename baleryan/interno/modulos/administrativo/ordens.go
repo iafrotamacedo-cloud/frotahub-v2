@@ -1,12 +1,13 @@
-// rev 1 — Compras: inserir e listar Ordens de Compra
+// rev 2 — Compras: inserir, listar e ler Ordens de Compra
 //
-// SÓ ISTO, POR ORA
+// TRÊS VISTAS, MESMO DESENHO DE `orcamentos.filtroDosDocumentos`
 //
-//	A leitura do PDF (extrair número, fornecedor, itens — o que a migração 059
-//	deixou nulo de propósito) depende de um leitor próprio para o formato do
-//	Obra Prima, ainda não construído. Até lá toda OC inserida fica em
-//	`status = 'inserido'`, visível na fila, esperando esse próximo passo —
-//	exatamente como a migração previu.
+//	`fila` (padrão) — ainda não lida, ou sendo lida agora: `inserido`/`lendo`.
+//	`processadas` — passou nos dois filtros de negócio: `status = lido`.
+//	`rejeitadas` — falhou algum dos dois, ou o PDF não deu para ler: `falhou`.
+//
+//	Um lugar só decide a consulta por vista (`filtroDasOrdens`), como a
+//	mesma ideia já provada em Orçamentos — CORE-06.
 //
 // POR QUE `nome_arquivo` (migração 060, e não a 059)
 //
@@ -51,14 +52,29 @@ func (m *Modulo) listarOrdens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var linhas []map[string]any
-	caminho := "ordens_compra?cliente_id=eq." + banco.Escapar(p.ClienteID) +
-		"&select=id,nome_arquivo,status,erro_leitura,numero,comprador_nome,total,criado_em" +
-		"&order=criado_em.desc&limit=" + fmt.Sprint(TetoDaLista)
+	caminho := filtroDasOrdens(p.ClienteID, r.URL.Query().Get("vista")) +
+		"&select=id,nome_arquivo,status,erro_leitura,numero,comprador_nome,fornecedor_id,total,criado_em" +
+		"&limit=" + fmt.Sprint(TetoDaLista)
 	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
 		m.erro(w, "não consegui listar as ordens de compra", err)
 		return
 	}
 	web.Responder(w, http.StatusOK, map[string]any{"ordens": ouVazio(linhas)})
+}
+
+// filtroDasOrdens decide a consulta a partir da vista pedida — o mesmo
+// desenho de "um lugar só decide a vista" que `orcamentos.filtroDosDocumentos`
+// já usa (CORE-06).
+func filtroDasOrdens(clienteID, vista string) string {
+	base := "ordens_compra?cliente_id=eq." + banco.Escapar(clienteID)
+	switch vista {
+	case "processadas":
+		return base + "&status=eq.lido&order=criado_em.desc"
+	case "rejeitadas":
+		return base + "&status=eq.falhou&order=criado_em.desc"
+	default:
+		return base + "&status=in.(inserido,lendo)&order=criado_em.desc"
+	}
 }
 
 // ---------------------------------------------------------------------------

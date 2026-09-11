@@ -1,6 +1,8 @@
-/* rev 1 — Compras: a caixa de inserção da OC
+/* rev 2 — Compras: a caixa de inserção e a leitura da OC
    Botões, tabela, selos e avisos já são globais (telas.css/funcionarios.css,
-   P-19) — só a caixa de arrastar-e-soltar é própria deste módulo. */
+   P-19) — a caixa de arrastar-e-soltar, o painel de progresso da leitura em
+   lote e o seletor de vista são próprios deste módulo. Nenhum valor novo:
+   tudo em cima dos tokens já existentes (--ink, --red, --r-l etc — P-25). */
 .adm-insercao{
   background:var(--card);border:1px dashed var(--line);border-radius:var(--r-l);
   padding:16px;margin:0 0 16px;
@@ -12,4 +14,54 @@
 .adm-insercao .caixa{
   flex:1;min-width:200px;font-size:13px;color:var(--mut);
   border:1px solid var(--line-2);border-radius:var(--r-s);padding:9px 12px;background:var(--bg);
+}
+
+/* ---------- a dica sob o nome do arquivo (rev 2) ----------
+   O mesmo gap que `Claude outputs/2026-09-10_reparo_regressao_fase5.md`
+   sinalizou: `.dica` só tinha variantes locais (`.jn-corpo .dica`,
+   `.cartao .dica`) em telas.css/base.css, nenhuma para uma célula de tabela
+   solta. Em vez de mexer nos arquivos globais, este módulo usa a própria
+   classe (`.adm-dica`), do mesmo jeito que já resolve o resto sozinho. */
+.adm-dica{margin:4px 0 0;font-size:11.8px;color:var(--mut)}
+.adm-dica-alerta{color:var(--err)}
+
+/* ---------- cabeçalho: o botão de leitura em lote ---------- */
+.adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* ---------- o cabeçalho da lista e o seletor de vista ---------- */
+.adm-lista-cab{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:22px 0 10px;
+}
+.adm-lista-cab h2{margin:0;font-size:15px}
+.adm-vista{
+  font:inherit;font-size:12.8px;color:var(--txt);background:var(--card);
+  border:1px solid var(--line);border-radius:var(--r-s);padding:7px 10px;
+  transition:border-color var(--transicao);
+}
+.adm-vista.ligado{border-color:var(--red);color:var(--red)}
+
+/* ---------- o painel de progresso da leitura em lote ----------
+   Mesmo desenho de `orc-lote` em Orçamentos — a leitura de uma OC leva
+   segundos, várias levam minutos, e sem barra a pessoa não sabe se o sistema
+   está trabalhando ou travado. */
+.adm-lote{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  padding:14px 16px;margin:0 0 16px;
+}
+.adm-lote-topo{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  font-size:13px;color:var(--txt);margin:0 0 8px;
+}
+.adm-lote-barra{
+  height:6px;border-radius:999px;background:var(--line-2);overflow:hidden;
+}
+.adm-lote-barra span{
+  display:block;height:100%;background:var(--red);
+  transition:width var(--transicao);
+}
+.adm-lote-fim{margin-top:10px}
+.adm-lote-fim p{margin:0 0 8px;font-size:13px;color:var(--txt)}
+.adm-lote-motivos{
+  margin:0 0 10px;padding-left:18px;font-size:12.6px;color:var(--err);
 }

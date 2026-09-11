@@ -1,13 +1,15 @@
-// rev 1 — o módulo Administrativo: Compras
+// rev 2 — o módulo Administrativo: Compras
 //
-// PRIMEIRO PASSO SÓ: INSERIR E LISTAR
+// PASSO 1: INSERIR E LISTAR. PASSO 2 (10/09/2026): LER
 //
 //	O pedido do dono (10/09/2026) foi específico: uma tela de inserção com um
-//	botão para escolher o arquivo, um para inserir, e uma lista da fila embaixo.
-//	Não entra aqui a leitura do PDF (extrair número, fornecedor, itens) — isso
-//	depende de um leitor próprio para o formato do Obra Prima, que é passo
-//	seguinte, não este (ver migração 059). Por isso este módulo não tem rota de
-//	"ler": a OC nasce e fica em `status = 'inserido'` até esse leitor existir.
+//	botão para escolher o arquivo, um para inserir, e uma lista da fila
+//	embaixo — isso é o Passo 1. O Passo 2 acrescenta a leitura determinística
+//	do PDF (`leitura.go`/`ler.go`): número, comprador, fornecedor, itens e
+//	totais, mais os dois filtros de negócio que decidem `lido` ou `falhou`
+//	(ver o cabeçalho de `leitura.go`). As três vistas (fila/processadas/
+//	rejeitadas) seguem o mesmo desenho de Orçamentos — `filtroDasOrdens` em
+//	`ordens.go` é quem decide a consulta.
 //
 // PCO, Notas fiscais e Locações ainda não têm código nenhum — continuam em
 // `<EmBreve>` no front até ganharem a vez (ver `claude/fase5-administrativo-
@@ -59,6 +61,9 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/compras/ordens", m.inserirOrdens)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}", m.verOrdem)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/arquivo", m.arquivoDaOrdem)
+	// A leitura da OC (Passo 2, 10/09/2026) — ver o cabeçalho de `ler.go`.
+	mux.HandleFunc("GET /administrativo/compras/ordens/porler", m.ordensPorLer)
+	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/ler", m.lerOrdem)
 }
 
 // ---------------------------------------------------------------------------
