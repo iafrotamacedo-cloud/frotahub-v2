@@ -12,17 +12,18 @@
 //   vive. Estas listas são as vistas de controle — Compras (Processadas/
 //   Rejeitadas) e PCO (Pendentes/Enviados) — não o lugar de trabalhar a OC.
 //
-// REPARAR (11/09/2026)
-//   Rejeitadas: PDF em tela inteira, motivo na barra, EDITAR abre o pop-up de
-//   correção manual; quando vira `lido`, "Salvar e voltar" devolve à lista.
+// EDITAR DOCUMENTO (11/09/2026)
+//   Só rejeitadas: a processada já passou nos filtros, não se mexe. EDITAR
+//   abre a folha da OC; salvar gera um PDF novo e substitui o arquivo. Se
+//   passar nos filtros, "Salvar e voltar" devolve à lista.
 import { useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
-import { JanelaReparoOC } from './JanelaReparoOC'
+import { EditorDeOC } from './EditorDeOC'
 import {
-  type OrdemDeCompra, type ResultadoReparoOC, type VistaDasOrdens,
+  type OrdemDeCompra, type EstadoDocumentoOC, type VistaDasOrdens,
   motivoRejeicaoSimplificado,
 } from './tipos'
 
@@ -93,54 +94,67 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     }
   }
 
-  function aoReparoSalvo(r: ResultadoReparoOC) {
+  function aoDocumentoSalvo(r: EstadoDocumentoOC) {
     if (!vendo) return
-    if (r.status === 'lido') {
-      setVendo({ ...vendo, motivos: [], corrigida: true })
-      return
-    }
-    setVendo({
-      ...vendo,
-      motivos: r.motivos?.length ? r.motivos : [motivoRejeicaoSimplificado(r.motivo ?? null)],
-      motivoCompleto: r.motivo ?? vendo.motivoCompleto,
-      corrigida: false,
-    })
+    const ordemId = vendo.ordemId
+    const lido = r.status === 'lido'
+    const motivos = lido ? [] : (r.motivos?.length ? r.motivos : [])
+    setEditando(false)
+    void (async () => {
+      try {
+        const arq = await motor<{ url: string }>(`/administrativo/compras/ordens/${ordemId}/arquivo`)
+        setVendo(v => v && v.ordemId === ordemId ? {
+          ...v,
+          endereco: arq.url,
+          motivos,
+          motivoCompleto: r.motivo ?? v.motivoCompleto,
+          corrigida: lido,
+        } : v)
+        const lista = await motor<{ ordens: OrdemDeCompra[] }>('/administrativo/compras/ordens?vista=' + vista)
+        setOrdens(lista.ordens)
+      } catch {
+        setVendo(v => v && v.ordemId === ordemId ? { ...v, motivos, corrigida: lido } : v)
+      }
+    })()
+  }
+
+  const podeEditar = vista === 'rejeitadas'
+
+  if (editando && vendo) {
+    return (
+      <EditorDeOC
+        ordemId={vendo.ordemId}
+        voltar={() => setEditando(false)}
+        aoSalvar={aoDocumentoSalvo}
+      />
+    )
   }
 
   if (vendo) {
     const barraAlta = vendo.motivos.length > 1
     return (
-      <>
-        <VisorDeDocumento
-          endereco={vendo.endereco}
-          nomeSugerido={vendo.nome}
-          titulo={vendo.titulo}
-          barraAlta={barraAlta}
-          barAcoes={vendo.reparar && !vendo.corrigida ? (
-            <button type="button" className="orc-bt adm-editar" onClick={() => setEditando(true)}>
-              EDITAR
-            </button>
-          ) : undefined}
-          destaque={vendo.motivos.length > 0 ? (
-            vendo.motivos.map((m, i) => (
-              <span key={i} className="adm-motivo-barra" title={vendo.motivoCompleto ?? undefined}>{m}</span>
-            ))
-          ) : undefined}
-          acoes={vendo.reparar && vendo.corrigida ? (
-            <button type="button" className="bt bt-forte adm-salvar-voltar" onClick={voltar}>
-              Salvar e voltar
-            </button>
-          ) : undefined}
-          voltar={() => setVendo(null)}
-        />
-        {editando && (
-          <JanelaReparoOC
-            ordemId={vendo.ordemId}
-            fechar={() => setEditando(false)}
-            aoSalvar={aoReparoSalvo}
-          />
-        )}
-      </>
+      <VisorDeDocumento
+        endereco={vendo.endereco}
+        nomeSugerido={vendo.nome}
+        titulo={vendo.titulo}
+        barraAlta={barraAlta}
+        barAcoes={podeEditar && !vendo.corrigida ? (
+          <button type="button" className="orc-bt adm-editar" onClick={() => setEditando(true)}>
+            EDITAR
+          </button>
+        ) : undefined}
+        destaque={vendo.motivos.length > 0 ? (
+          vendo.motivos.map((m, i) => (
+            <span key={i} className="adm-motivo-barra" title={vendo.motivoCompleto ?? undefined}>{m}</span>
+          ))
+        ) : undefined}
+        acoes={vendo.reparar && vendo.corrigida ? (
+          <button type="button" className="bt bt-forte adm-salvar-voltar" onClick={voltar}>
+            Salvar e voltar
+          </button>
+        ) : undefined}
+        voltar={() => setVendo(null)}
+      />
     )
   }
 

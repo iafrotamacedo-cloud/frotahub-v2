@@ -137,33 +137,3 @@ func limparDadosTestePCO(ctx context.Context, bd *banco.Cliente, arm *armazem.Cl
 	}
 	return len(ordens), nil
 }
-
-func apagarArquivoSeOrfao(ctx context.Context, bd *banco.Cliente, arm *armazem.Cliente, sha string) error {
-	esc := banco.Escapar(sha)
-	var refs []map[string]any
-	if err := bd.Buscar(ctx, "ordens_compra?arquivo_sha256=eq."+esc+"&select=id&limit=1", &refs); err != nil {
-		return err
-	}
-	if len(refs) > 0 {
-		return nil
-	}
-	if err := bd.Buscar(ctx, "documentos?arquivo_sha256=eq."+esc+"&select=id&limit=1", &refs); err != nil {
-		return err
-	}
-	if len(refs) > 0 {
-		return nil
-	}
-
-	var arqs []map[string]any
-	if err := bd.Buscar(ctx, "arquivos?sha256=eq."+esc+"&select=chave_r2&limit=1", &arqs); err != nil {
-		return err
-	}
-	if len(arqs) == 0 {
-		return nil
-	}
-	chave, _ := arqs[0]["chave_r2"].(string)
-	if arm != nil && chave != "" {
-		_ = arm.Apagar(ctx, chave) // 404 no R2 não é erro
-	}
-	return bd.Apagar(ctx, "arquivos", "sha256=eq."+esc)
-}

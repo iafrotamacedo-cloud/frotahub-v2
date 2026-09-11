@@ -76,6 +76,10 @@ type ItemExtraido struct {
 
 // Extraida é tudo que a leitura consegue tirar do PDF — preenchido o quanto
 // der, nunca fingindo que um campo ausente é zero.
+//
+// Os campos extra (endereço, I.E., CNO, e-mail…) alimentam o editor de
+// documento. A leitura de negócio (filtros, banco) continua olhando só o
+// que já olhava: número, CNPJs, itens, totais.
 type Extraida struct {
 	Numero           string
 	Data             string // ISO, "" quando não achou
@@ -93,6 +97,26 @@ type Extraida struct {
 	Frete            regras.Dinheiro
 	Total            regras.Dinheiro
 	Itens            []ItemExtraido
+
+	TituloObra          string
+	DataImpressao       string // dd/mm/aaaa, como no letreiro
+	Observacao          string
+	EmitenteRazao       string
+	EmitenteEndereco    string
+	EmitenteContato     string
+	EmitenteCNPJ        string
+	ResponsavelNome     string
+	ResponsavelEmail    string
+	FaturamentoIE       string
+	FaturamentoEndereco string
+	FornecedorTelefone  string
+	FornecedorVendedor  string
+	FornecedorEmail     string
+	FornecedorEndereco  string
+	CNO                 string
+	EnderecoEntrega     string
+	Recebedor           string
+	EnderecoCobranca    string
 }
 
 // MotivosDeRejeicao aplica os dois filtros do pedido do dono. Lista vazia
@@ -160,14 +184,17 @@ func textoDoPDF(ctx context.Context, pdf []byte) (string, error) {
 // ---------------------------------------------------------------------------
 
 var (
-	reNumero          = regexp.MustCompile(`(?m)^DADOS DA ORDEM DE COMPRA\s+(\d+)`)
+	reNumero          = regexp.MustCompile(`(?m)^\s*DADOS DA ORDEM DE COMPRA\s+(\d+)`)
 	reData            = regexp.MustCompile(`Data:\s*(\d{2}/\d{2}/\d{4})`)
-	rePrevisao        = regexp.MustCompile(`Previsão da entrega:\s*(\d{2}/\d{2}/\d{4})`)
+	rePrevisao        = regexp.MustCompile(`Previs[aã]o da entrega:\s*(\d{2}/\d{2}/\d{4})`)
 	reCondPgto        = regexp.MustCompile(`Cond\.\s*pgto\.:\s*(\S(?:.*?\S)?)\s{2,}`)
+	reCondPgtoSimples = regexp.MustCompile(`(?m)Cond\.\s*pgto\.:\s*(\S(?:.*\S)?)\s*$`)
 	reFormaPgto       = regexp.MustCompile(`(?m)Forma pgto\.:\s*(\S(?:.*\S)?)\s*$`)
 	reComprador       = regexp.MustCompile(`(?m)Comprador:\s*(\S(?:.*\S)?)\s*$`)
-	reObraCentroCusto = regexp.MustCompile(`(?m)^OBRA/CENTRO DE CUSTO:\s*(\S(?:.*?\S)?)\s{2,}`)
+	reObraCentroCusto = regexp.MustCompile(`(?mi)^\s*OBRA\s*/\s*CENTRO DE CUSTO:\s*(\S(?:.*?\S)?)\s{2,}`)
+	reObraSimples     = regexp.MustCompile(`(?mi)^\s*OBRA\s*/\s*CENTRO DE CUSTO:\s*(\S(?:.*\S)?)\s*$`)
 	reNomeDoBloco     = regexp.MustCompile(`(?m)^\s*Nome:\s*(\S(?:.*?\S)?)\s{2,}`)
+	reNomeSimples     = regexp.MustCompile(`(?m)^\s*Nome:\s*(\S(?:.*\S)?)\s*$`)
 	reCNPJDoBloco     = regexp.MustCompile(`CNPJ:\s*([\d./\-]+)`)
 )
 
@@ -194,6 +221,8 @@ func ExtrairDoTexto(texto string) (Extraida, error) {
 	}
 	if m := reCondPgto.FindStringSubmatch(texto); m != nil {
 		e.CondPgto = strings.TrimSpace(m[1])
+	} else if m := reCondPgtoSimples.FindStringSubmatch(texto); m != nil {
+		e.CondPgto = strings.TrimSpace(m[1])
 	}
 	if m := reFormaPgto.FindStringSubmatch(texto); m != nil {
 		e.FormaPgto = strings.TrimSpace(m[1])
@@ -202,6 +231,8 @@ func ExtrairDoTexto(texto string) (Extraida, error) {
 		e.CompradorInterno = strings.TrimSpace(m[1])
 	}
 	if m := reObraCentroCusto.FindStringSubmatch(texto); m != nil {
+		e.ObraCentroCusto = strings.TrimSpace(m[1])
+	} else if m := reObraSimples.FindStringSubmatch(texto); m != nil {
 		e.ObraCentroCusto = strings.TrimSpace(m[1])
 	}
 
@@ -212,44 +243,75 @@ func ExtrairDoTexto(texto string) (Extraida, error) {
 	//	texto inteiro pegaria sempre a primeira ocorrência — errado nas duas
 	//	vezes que importam. Recortar o bloco antes é o que garante que "Nome:"
 	//	respondido é o do bloco certo.
-	blocoFaturamento := blocoEntre(texto, "DADOS DO FATURAMENTO", "DADOS DO FORNECEDOR")
-	if m := reNomeDoBloco.FindStringSubmatch(blocoFaturamento); m != nil {
-		e.CompradorNome = strings.TrimSpace(m[1])
-	}
+	blocoFaturamento := blocoEntreVar(texto, []string{"DADOS DO FATURAMENTO"}, []string{"DADOS DO FORNECEDOR"})
+	e.CompradorNome = nomeDoBloco(blocoFaturamento)
 	if m := reCNPJDoBloco.FindStringSubmatch(blocoFaturamento); m != nil {
 		e.CompradorCNPJ = soDigitos(m[1])
 	}
 
-	blocoFornecedor := blocoEntre(texto, "DADOS DO FORNECEDOR", "OBRA/CENTRO DE CUSTO")
-	if m := reNomeDoBloco.FindStringSubmatch(blocoFornecedor); m != nil {
-		e.FornecedorNome = strings.TrimSpace(m[1])
-	}
+	blocoFornecedor := blocoEntreVar(texto, []string{"DADOS DO FORNECEDOR"},
+		[]string{"OBRA/CENTRO DE CUSTO", "OBRA / CENTRO DE CUSTO"})
+	e.FornecedorNome = nomeDoBloco(blocoFornecedor)
 	if m := reCNPJDoBloco.FindStringSubmatch(blocoFornecedor); m != nil {
 		e.FornecedorCNPJ = soDigitos(m[1])
 	}
 
 	e.Itens = extrairItens(texto)
 	extrairTotais(texto, &e)
+	extrairCamposExtras(texto, &e)
 
 	return e, nil
+}
+
+func nomeDoBloco(bloco string) string {
+	if m := reNomeDoBloco.FindStringSubmatch(bloco); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	if m := reNomeSimples.FindStringSubmatch(bloco); m != nil {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
 }
 
 // blocoEntre devolve o texto entre dois marcadores, sem incluir nenhum dos
 // dois. `fim == ""` ou não encontrado devolve até o final do texto.
 func blocoEntre(texto, inicio, fim string) string {
-	i := strings.Index(texto, inicio)
+	return blocoEntreVar(texto, []string{inicio}, []string{fim})
+}
+
+// blocoEntreVar aceita variantes do mesmo marcador (acento, espaço) — outros
+// modelos de OC usam as mesmas palavras, nem sempre com o mesmo ç.
+func blocoEntreVar(texto string, inicios, fins []string) string {
+	i, n := indiceMarcador(texto, inicios...)
 	if i < 0 {
 		return ""
 	}
-	resto := texto[i+len(inicio):]
-	if fim == "" {
+	resto := texto[i+n:]
+	if len(fins) == 0 || (len(fins) == 1 && fins[0] == "") {
 		return resto
 	}
-	j := strings.Index(resto, fim)
+	j, _ := indiceMarcador(resto, fins...)
 	if j < 0 {
 		return resto
 	}
 	return resto[:j]
+}
+
+func indiceMarcador(texto string, variantes ...string) (pos, tamanho int) {
+	pos = -1
+	for _, v := range variantes {
+		if v == "" {
+			continue
+		}
+		i := strings.Index(texto, v)
+		if i < 0 {
+			continue
+		}
+		if pos < 0 || i < pos {
+			pos, tamanho = i, len(v)
+		}
+	}
+	return pos, tamanho
 }
 
 func soDigitos(s string) string {
@@ -318,6 +380,9 @@ var (
 	// coluna ("Qtd. Unit. (R$)...") está nessa mesma linha física, depois de
 	// "N. Item", não numa linha à parte.
 	rePaginaNova = regexp.MustCompile(`(?s)FROTA MACEDO ENGENHARIA LTDA.*?N\. Item[^\n]*\n?`)
+	// Outros modelos (e o PDF que a gente mesmo gera, se o emitente mudar o
+	// nome) repetem "Página X/Y" + "ORDEM DE COMPRA" + o cabeçalho da tabela.
+	rePaginaNovaGenerica = regexp.MustCompile(`(?is)(?:[^\n]+\n){0,4}[^\n]*P[aá]gina\s+\d+\s*/\s*\d+[^\n]*\n.*?N\. Item[^\n]*\n?`)
 )
 
 // extrairItens lê a tabela linha a linha, entre o cabeçalho "N. Item" e o
@@ -332,6 +397,7 @@ func extrairItens(texto string) []ItemExtraido {
 	corpo := texto[inicio:]
 	corpo = reDataSozinhaNaLinha.ReplaceAllString(corpo, "")
 	corpo = rePaginaNova.ReplaceAllString(corpo, "")
+	corpo = rePaginaNovaGenerica.ReplaceAllString(corpo, "")
 	if loc := reFimDaTabela.FindStringIndex(corpo); loc != nil {
 		corpo = corpo[:loc[0]]
 	}

@@ -83,6 +83,8 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/compras/obras-centro", m.buscarObrasCentro)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/reparo", m.estadoReparo)
 	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/reparo", m.aplicarReparo)
+	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/documento", m.verDocumento)
+	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/documento", m.salvarDocumento)
 	// O hub de PCO (10/09/2026) — ver o cabeçalho de `painelDoPCO` em ordens.go.
 	mux.HandleFunc("GET /administrativo/compras/pco/painel", m.painelDoPCO)
 	// O envio por e-mail (11/09/2026) — ver o cabeçalho de `pco_enviar.go`.

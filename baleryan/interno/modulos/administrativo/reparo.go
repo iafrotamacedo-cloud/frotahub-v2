@@ -17,6 +17,7 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
 
@@ -261,6 +262,12 @@ func extraidaDoBanco(ordem map[string]any) Extraida {
 	ex.CompradorInterno = strCampo(ordem["comprador_interno"])
 	ex.CondPgto = strCampo(ordem["cond_pgto"])
 	ex.FormaPgto = strCampo(ordem["forma_pgto"])
+	ex.Data = interpretarData(strCampo(ordem["data"]))
+	ex.PrevisaoEntrega = interpretarData(strCampo(ordem["previsao_entrega"]))
+	ex.Subtotal = regras.DinheiroDe(numeroDeJSON(ordem["subtotal"]))
+	ex.Desconto = regras.DinheiroDe(numeroDeJSON(ordem["desconto"]))
+	ex.Frete = regras.DinheiroDe(numeroDeJSON(ordem["frete"]))
+	ex.Total = regras.DinheiroDe(numeroDeJSON(ordem["total"]))
 	return ex
 }
 

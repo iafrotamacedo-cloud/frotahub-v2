@@ -158,3 +158,60 @@ export interface ResultadoReparoOC {
   precisa_fornecedor: boolean
   precisa_faturamento: boolean
 }
+
+export interface ItemDocumentoOC {
+  descricao: string
+  qtd: number
+  unidade: string
+  valor_unit: number
+  desconto: number
+  total: number
+}
+
+export interface DocumentoOC {
+  numero: string
+  data: string
+  previsao_entrega: string
+  cond_pgto: string
+  forma_pgto: string
+  observacao: string
+  titulo: string
+  data_impressao: string
+  emitente_razao: string
+  emitente_endereco: string
+  emitente_contato: string
+  emitente_cnpj: string
+  responsavel_nome: string
+  responsavel_email: string
+  comprador_interno: string
+  comprador_nome: string
+  comprador_cnpj: string
+  faturamento_ie: string
+  faturamento_endereco: string
+  fornecedor_nome: string
+  fornecedor_cnpj: string
+  fornecedor_telefone: string
+  fornecedor_vendedor: string
+  fornecedor_email: string
+  fornecedor_endereco: string
+  obra_centro_custo: string
+  cno: string
+  endereco_entrega: string
+  recebedor: string
+  endereco_cobranca: string
+  subtotal: number
+  desconto: number
+  frete: number
+  total: number
+  itens: ItemDocumentoOC[]
+}
+
+export interface EstadoDocumentoOC {
+  documento: DocumentoOC
+  status: string
+  pco_enviado: boolean
+  motivos: string[]
+  precisa_fornecedor: boolean
+  precisa_faturamento: boolean
+  motivo?: string
+}
