@@ -27,7 +27,7 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
 }) {
   const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
   const [erro, setErro] = useState('')
-  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+  const [vendo, setVendo] = useState<{ endereco: string; nome: string; titulo: string } | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -41,10 +41,15 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     })()
   }, [vista])
 
-  async function abrirArquivo(o: OrdemDeCompra) {
+  async function abrirArquivo(o: OrdemDeCompra, reparar = false) {
     try {
       const r = await motor<{ url: string }>(`/administrativo/compras/ordens/${o.id}/arquivo`)
-      setVendo({ endereco: r.url, nome: o.nome_arquivo })
+      const rotulo = o.numero || o.nome_arquivo.replace(/\.pdf$/i, '') || o.nome_arquivo
+      setVendo({
+        endereco: r.url,
+        nome: o.nome_arquivo,
+        titulo: reparar ? `Reparar · O.C. ${rotulo}` : o.nome_arquivo,
+      })
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
     }
@@ -55,7 +60,7 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
       <VisorDeDocumento
         endereco={vendo.endereco}
         nomeSugerido={vendo.nome}
-        titulo={vendo.nome}
+        titulo={vendo.titulo}
         voltar={() => setVendo(null)}
       />
     )
@@ -77,7 +82,12 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
       ) : ordens.length === 0 ? (
         <div className="vazio">{vazia}</div>
       ) : (
-        <TabelaDeOrdens ordens={ordens} onVer={o => void abrirArquivo(o)} />
+        <TabelaDeOrdens
+          ordens={ordens}
+          vista={vista}
+          onVer={o => void abrirArquivo(o)}
+          onReparar={vista === 'rejeitadas' ? o => void abrirArquivo(o, true) : undefined}
+        />
       )}
     </>
   )

@@ -44,6 +44,25 @@
 .adm-tabela .acoes-col,.adm-tabela td.acoes{width:220px;overflow:visible}
 .adm-tabela td.acoes{text-align:right;display:flex;gap:6px;justify-content:flex-end;align-items:center}
 
+/* ---------- rejeitadas: seis colunas, obra auto-ajusta pelo maior nome ---------- */
+.adm-tabela--rejeitadas{table-layout:auto;min-width:760px}
+.adm-tabela--rejeitadas .c-obra{
+  width:auto;max-width:none;min-width:0;white-space:nowrap;
+}
+.adm-tabela--rejeitadas .c-obra>span{display:inline}
+.adm-tabela--rejeitadas .c-motivo{
+  min-width:160px;max-width:360px;overflow:hidden;
+}
+.adm-tabela--rejeitadas .c-motivo>span{
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.adm-motivo-rejeicao{color:var(--err);font-size:12.5px;font-weight:500}
+.adm-tabela--rejeitadas .c-reparar{width:52px;text-align:center;padding:0 6px}
+.adm-reparar{
+  display:inline-grid;place-items:center;width:32px;height:32px;padding:0;
+}
+.adm-reparar svg{width:16px;height:16px}
+
 /* ---------- cabeçalho: o botão de leitura em lote ---------- */
 .adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 
