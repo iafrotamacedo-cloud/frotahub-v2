@@ -159,16 +159,22 @@
   background:var(--err);color:#fff;font-size:13px;max-width:min(520px,92vw);
 }
 
-/* folha A4 proporcional no visor — overlays alinhados ao PDF 019731 */
+/* folha A4 proporcional no visor — overlays alinhados ao PDF 019731
+   MESMA MOLDURA DO VISOR PADRÃO (.orc-visor-doc), SÓ CENTRALIZADA
+     A caixa escura de antes destoava do resto do sistema — o padrão é o
+     visor claro que Orçamento já usa (FichaDoOrcamento.tsx). A proporção
+     fixa continua (as caixas do reparo híbrido são calibradas em % dentro
+     dela), mas a moldura ao redor é a mesma .orc-visor-doc de sempre —
+     só troca o iframe esticado por uma folha centralizada, em vez de
+     também trocar a cor de fundo. */
 .orc-visor-doc--folha{
-  display:flex;align-items:center;justify-content:center;
-  background:#2a2627;padding:12px;
+  display:flex;align-items:center;justify-content:center;padding:16px;
 }
 .adm-folha-visor{
   position:relative;aspect-ratio:595/842;
   height:100%;max-height:100%;max-width:100%;
-  width:auto;background:#fff;border-radius:2px;overflow:hidden;
-  box-shadow:0 8px 28px rgba(0,0,0,.35);
+  width:auto;background:#fff;border-radius:4px;overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.12);
 }
 .adm-folha-visor iframe{
   position:absolute;inset:0;border:0;width:100%;height:100%;
