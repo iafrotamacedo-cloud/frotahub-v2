@@ -30,11 +30,28 @@ import (
 	"fmt"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/smtp"
 	"net/textproto"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+)
+
+// TEMPO LIMITE — SEM ISSO, UM FIREWALL QUE ENGOLE O PACOTE PRENDE TUDO
+//
+//	Visto ao vivo em 11/09/2026: o Render tentou a porta 465 do HostGator,
+//	e como o pacote foi silenciosamente descartado (não recusado — CSF/LFD
+//	de hospedagem compartilhada costuma fazer isso), a chamada ficou presa
+//	pelo tempo padrão do sistema operacional (minutos) em vez de falhar na
+//	hora. `net.Dialer.Timeout` cobre a conexão; `conexao.SetDeadline` cobre
+//	o resto da conversa (auth, envio) — sem isso, um servidor que trava NO
+//	MEIO da troca (depois de conectar) prenderia do mesmo jeito.
+const (
+	tempoLimiteConexao  = 15 * time.Second
+	tempoLimiteConversa = 30 * time.Second
 )
 
 // Anexo é um arquivo para grudar no e-mail — sempre um .zip, no caso do PCO.
@@ -65,8 +82,8 @@ func (c *Cliente) Ligado() bool { return c.cfg.Ligado() }
 
 // Enviar manda a mensagem pela caixa configurada (SMTP_USUARIO). Porta 465
 // usa TLS desde o primeiro byte (o padrão de hospedagem compartilhada);
-// qualquer outra porta (587, em geral) negocia STARTTLS — net/smtp faz
-// isso sozinho dentro de SendMail.
+// qualquer outra porta (587, em geral) negocia STARTTLS depois de conectar
+// em texto puro.
 func (c *Cliente) Enviar(ctx context.Context, m Mensagem) error {
 	if !c.Ligado() {
 		return errors.New("o envio de e-mail não está configurado neste servidor (falta o SMTP do HostGator)")
@@ -83,36 +100,48 @@ func (c *Cliente) Enviar(ctx context.Context, m Mensagem) error {
 		return fmt.Errorf("não consegui montar o e-mail: %w", err)
 	}
 
-	if c.cfg.Porta == 465 {
-		err = enviarComTLSImediato(c.cfg, m.Para, corpo)
-	} else {
-		endereco := fmt.Sprintf("%s:%d", c.cfg.Servidor, c.cfg.Porta)
-		auth := smtp.PlainAuth("", c.cfg.Usuario, c.cfg.Senha, c.cfg.Servidor)
-		err = smtp.SendMail(endereco, auth, c.cfg.Usuario, m.Para, corpo)
-	}
-	if err != nil {
+	if err := enviarSMTP(c.cfg, m.Para, corpo); err != nil {
 		return fmt.Errorf("o servidor de e-mail (%s) recusou o envio: %w", c.cfg.Servidor, err)
 	}
 	return nil
 }
 
-// enviarComTLSImediato é o caminho da porta 465: TLS já na conexão, sem
-// STARTTLS — net/smtp.SendMail não sabe fazer isso sozinho, então a
-// conversa SMTP é feita à mão aqui, igual ao exemplo da documentação do
-// pacote.
-func enviarComTLSImediato(cfg config.SMTP, para []string, corpo []byte) error {
-	endereco := fmt.Sprintf("%s:%d", cfg.Servidor, cfg.Porta)
-	conexao, err := tls.Dial("tcp", endereco, &tls.Config{ServerName: cfg.Servidor})
+// enviarSMTP conecta, autentica e manda — com prazo em cada etapa (ver o
+// comentário de tempoLimiteConexao/tempoLimiteConversa acima). Os dois
+// caminhos (465 direto, 587 com STARTTLS) usam o MESMO dialer, unificados
+// aqui em vez de smtp.SendMail (que não deixa configurar timeout nenhum).
+func enviarSMTP(cfg config.SMTP, para []string, corpo []byte) error {
+	endereco := net.JoinHostPort(cfg.Servidor, strconv.Itoa(cfg.Porta))
+	dialer := &net.Dialer{Timeout: tempoLimiteConexao}
+
+	var conexao net.Conn
+	var err error
+	if cfg.Porta == 465 {
+		conexao, err = tls.DialWithDialer(dialer, "tcp", endereco, &tls.Config{ServerName: cfg.Servidor})
+	} else {
+		conexao, err = dialer.Dial("tcp", endereco)
+	}
 	if err != nil {
 		return fmt.Errorf("não consegui conectar: %w", err)
 	}
 	defer conexao.Close()
+	if err := conexao.SetDeadline(time.Now().Add(tempoLimiteConversa)); err != nil {
+		return err
+	}
 
 	cliente, err := smtp.NewClient(conexao, cfg.Servidor)
 	if err != nil {
 		return err
 	}
 	defer cliente.Close()
+
+	if cfg.Porta != 465 {
+		if ok, _ := cliente.Extension("STARTTLS"); ok {
+			if err := cliente.StartTLS(&tls.Config{ServerName: cfg.Servidor}); err != nil {
+				return fmt.Errorf("STARTTLS recusado: %w", err)
+			}
+		}
+	}
 
 	auth := smtp.PlainAuth("", cfg.Usuario, cfg.Senha, cfg.Servidor)
 	if err := cliente.Auth(auth); err != nil {
