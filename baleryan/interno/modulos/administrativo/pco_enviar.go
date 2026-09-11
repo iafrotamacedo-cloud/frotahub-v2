@@ -283,7 +283,7 @@ func (m *Modulo) enviarLote(w http.ResponseWriter, r *http.Request, p *seguranca
 	var confirmadas []struct {
 		ID string `json:"id"`
 	}
-	filtroCAS := "ordens_compra?id=in.(" + strings.Join(ids, ",") + ")&pco_enviado_em=is.null"
+	filtroCAS := "id=in.(" + strings.Join(ids, ",") + ")&pco_enviado_em=is.null"
 	if err := m.bd.AtualizarDevolvendo(r.Context(), "ordens_compra", filtroCAS,
 		map[string]any{"pco_enviado_em": agora.Format(time.RFC3339)}, &confirmadas); err != nil {
 		m.erro(w, "não consegui marcar as OCs como enviadas", err)

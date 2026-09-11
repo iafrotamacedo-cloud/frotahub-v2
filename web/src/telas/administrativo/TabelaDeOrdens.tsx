@@ -74,14 +74,20 @@ export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando, onE
               <td>{emDataHora(o.criado_em)}</td>
               <td><span className={'pino ' + CLASSE_STATUS[o.status]}>{NOME_STATUS[o.status]}</span></td>
               <td className="acoes">
-                {onLer && (o.status === 'inserido' || o.status === 'falhou') && (
+                {onLer && (o.status === 'inserido' || o.status === 'falhou' || o.status === 'lendo') && (
                   <button
                     type="button"
                     className="bt bt-mini"
                     disabled={lendoId === o.id || loteRodando}
                     onClick={() => onLer(o.id)}
                   >
-                    {lendoId === o.id ? 'lendo…' : o.status === 'falhou' ? 'ler de novo' : 'ler'}
+                    {lendoId === o.id
+                      ? 'lendo…'
+                      : o.status === 'falhou'
+                        ? 'ler de novo'
+                        : o.status === 'lendo'
+                          ? 'retomar'
+                          : 'ler'}
                   </button>
                 )}
                 {onEnviar && (

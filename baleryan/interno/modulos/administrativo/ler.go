@@ -12,7 +12,7 @@
 // BLOQUEIO OTIMISTA, MESMO DESENHO DE ORÇAMENTOS
 //
 //	A condição vai no FILTRO do `AtualizarDevolvendo`
-//	(`status=in.(inserido,falhou)`), não numa leitura seguida de escrita.
+//	(`status=in.(inserido,falhou,lendo)`), não numa leitura seguida de escrita.
 //	Duas leituras da mesma OC não colidem: só quem recebe a linha de volta
 //	ganhou o direito de ler.
 //
@@ -23,16 +23,14 @@
 //	`leitura.FalhaTemporaria` em Orçamentos: falha do servidor não é falha do
 //	documento, e a pessoa tenta de novo depois de o servidor ser consertado.
 //
-// O QUE ESTE MÓDULO NÃO TEM, DE PROPÓSITO: RECUPERAÇÃO DE "lendo" PRESO
+// RETOMAR "lendo" PRESO
 //
-//	Orçamentos disputa a leitura com um robô (o GitHub Actions), por isso
-//	precisa de uma tabela `jobs` com timeout e recolhimento de órfão. Aqui só
-//	existe o clique — sem concorrente nenhum — então o CAS direto no status
-//	da própria OC basta. O preço: se o motor cair NO MEIO da leitura (entre
-//	tomar o "lendo" e gravar o desfecho), a OC fica presa em "lendo" até
-//	alguém arrumar à mão no banco. Aceito conscientemente pelo tamanho do
-//	risco (uma corrida de milissegundos, não um robô que roda sozinho por
-//	horas) — registrado aqui para não parecer descuido se aparecer um dia.
+//	Orçamentos disputa a leitura com um robô (GitHub Actions) e precisa de
+//	`jobs` com timeout. Aqui só existe o clique — sem concorrente — mas um
+//	UPDATE que falha no meio (ex.: CHECK do `comprador_cnpj` antes da
+//	correção de 11/09/2026) também deixava a OC presa em "lendo". Por isso o
+//	CAS aceita `lendo` de novo: "ler"/"ler todas" retomam a leitura em vez de
+//	exigir arrumar à mão no banco.
 package administrativo
 
 import (
@@ -55,6 +53,10 @@ import (
 // quando o corte acontece a tela DIZ que aconteceu.
 const TetoDaLeitura = 500
 
+// statusPorLer são os status que o botão "ler" pode tomar — inclui `lendo`
+// para retomar OCs presas (ver cabeçalho).
+const statusPorLer = "inserido,falhou,lendo"
+
 // ---------------------------------------------------------------------------
 // GET /administrativo/compras/ordens/porler
 // ---------------------------------------------------------------------------
@@ -66,7 +68,7 @@ func (m *Modulo) ordensPorLer(w http.ResponseWriter, r *http.Request) {
 	}
 	var linhas []map[string]any
 	total, err := m.bd.BuscarContando(r.Context(), "ordens_compra?cliente_id=eq."+
-		banco.Escapar(p.ClienteID)+"&status=in.(inserido,falhou)&order=criado_em"+
+		banco.Escapar(p.ClienteID)+"&status=in.("+statusPorLer+")&order=criado_em"+
 		"&select=id,nome_arquivo,status&limit="+strconv.Itoa(TetoDaLeitura), &linhas)
 	if err != nil {
 		m.erro(w, "não consegui listar as ordens por ler", err)
@@ -96,7 +98,7 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 
 	var tomadas []map[string]any
 	if err := m.bd.AtualizarDevolvendo(r.Context(), "ordens_compra",
-		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&status=in.(inserido,falhou)",
+		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&status=in.("+statusPorLer+")",
 		map[string]any{"status": "lendo", "erro_leitura": nil}, &tomadas); err != nil {
 		m.erro(w, "não consegui começar a leitura desta ordem de compra", err)
 		return
@@ -114,7 +116,11 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 	sha, _ := tomadas[0]["arquivo_sha256"].(string)
 
 	if sha == "" {
-		m.terminarLeitura(r.Context(), p, id, "falhou", "esta ordem de compra não tem arquivo guardado", nil, nil)
+		if errGravar := m.terminarLeitura(r.Context(), p, id, "falhou", "esta ordem de compra não tem arquivo guardado", nil, nil); errGravar != nil {
+			m.voltarParaInserido(r.Context(), id)
+			m.erro(w, "não consegui gravar a rejeição desta ordem de compra", errGravar)
+			return
+		}
 		web.Responder(w, http.StatusOK, map[string]any{"status": "falhou",
 			"motivo": "esta ordem de compra não tem arquivo guardado"})
 		return
@@ -145,7 +151,11 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 				"Não consegui ler agora: "+doServidor.Motivo+". Tente de novo em instantes.")
 			return
 		}
-		m.terminarLeitura(r.Context(), p, id, "falhou", err.Error(), nil, nil)
+		if errGravar := m.terminarLeitura(r.Context(), p, id, "falhou", err.Error(), nil, nil); errGravar != nil {
+			m.voltarParaInserido(r.Context(), id)
+			m.erro(w, "rejeitei a ordem de compra mas não consegui gravar o resultado", errGravar)
+			return
+		}
 		web.Responder(w, http.StatusOK, map[string]any{"status": "falhou", "motivo": err.Error()})
 		return
 	}
@@ -164,7 +174,11 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 	// REJEITADA: os dois filtros são sobre comprador e fornecedor, não sobre
 	// os itens — uma OC rejeitada por CNPJ errado ainda tem itens válidos, e
 	// quem vai corrigir e reenviar se beneficia de ver o que já foi lido.
-	m.terminarLeitura(r.Context(), p, id, status, motivo, camposLidos(ex, fornecedorID), &ex)
+	if err := m.terminarLeitura(r.Context(), p, id, status, motivo, camposLidos(ex, fornecedorID), &ex); err != nil {
+		m.voltarParaInserido(r.Context(), id)
+		m.erro(w, "li a ordem de compra mas não consegui gravar o resultado", err)
+		return
+	}
 
 	web.Responder(w, http.StatusOK, map[string]any{
 		"status": status,
@@ -180,7 +194,7 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 func motivoDeNaoLer(status string) string {
 	switch status {
 	case "lendo":
-		return "Esta ordem de compra já está sendo lida agora. Espere terminar e atualize a lista."
+		return "Esta ordem de compra não está em condição de ser lida agora."
 	case "lido":
 		return "Esta ordem de compra já foi lida."
 	default:
@@ -228,7 +242,7 @@ func camposLidos(ex Extraida, fornecedorID string) map[string]any {
 		"previsao_entrega":  textoOuNil(ex.PrevisaoEntrega),
 		"comprador_interno": textoOuNil(ex.CompradorInterno),
 		"comprador_nome":    textoOuNil(ex.CompradorNome),
-		"comprador_cnpj":    textoOuNil(ex.CompradorCNPJ),
+		"comprador_cnpj":    compradorCNPJParaBanco(ex.CompradorCNPJ),
 		"subtotal":          ex.Subtotal.Float(),
 		"desconto":          ex.Desconto.Float(),
 		"frete":             ex.Frete.Float(),
@@ -238,6 +252,18 @@ func camposLidos(ex Extraida, fornecedorID string) map[string]any {
 		campos["fornecedor_id"] = fornecedorID
 	}
 	return campos
+}
+
+// compradorCNPJParaBanco grava o CNPJ de faturamento só quando passa no CHECK
+// da migração 059 (`^03720882`). CNPJ inválido continua visível no
+// `erro_leitura` (MotivosDeRejeicao), mas não pode ir para a coluna — senão o
+// UPDATE de uma OC rejeitada falha e ela fica presa em "lendo".
+func compradorCNPJParaBanco(cnpj string) any {
+	cnpj = strings.TrimSpace(cnpj)
+	if cnpj == "" || !strings.HasPrefix(cnpj, CNPJRaizPermitida) {
+		return nil
+	}
+	return cnpj
 }
 
 // terminarLeitura fecha a OC com o desfecho final — status, motivo, os
@@ -252,13 +278,14 @@ func camposLidos(ex Extraida, fornecedorID string) map[string]any {
 //	encolhe ao mínimo a janela em que a OC fica em "lendo" — ver o
 //	cabeçalho do arquivo sobre por que não existe recuperação de órfão aqui.
 func (m *Modulo) terminarLeitura(ctx context.Context, p *seguranca.Principal, id, status, motivo string,
-	camposLidos map[string]any, ex *Extraida) {
+	camposLidos map[string]any, ex *Extraida) error {
 	campos := map[string]any{"status": status, "erro_leitura": textoOuNil(motivo)}
 	for k, v := range camposLidos {
 		campos[k] = v
 	}
 	if err := m.bd.Atualizar(ctx, "ordens_compra", "id=eq."+id, campos); err != nil {
 		log.Printf("administrativo: fechando a leitura da OC %s como %q: %v", id, status, err)
+		return err
 	}
 
 	if ex != nil {
@@ -272,6 +299,7 @@ func (m *Modulo) terminarLeitura(ctx context.Context, p *seguranca.Principal, id
 	_ = m.hist.Registrar(ctx, p, "administrativo", id, acao, map[string]historico.Mudanca{
 		"status": {De: nil, Para: status},
 	})
+	return nil
 }
 
 // gravarItens apaga e reinsere tudo a cada leitura — nunca soma em cima.

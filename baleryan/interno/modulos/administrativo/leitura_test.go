@@ -233,3 +233,15 @@ func TestDinheiroBR(t *testing.T) {
 		}
 	}
 }
+
+func TestCompradorCNPJParaBanco(t *testing.T) {
+	if got := compradorCNPJParaBanco(""); got != nil {
+		t.Errorf("vazio deveria ser nil, veio %v", got)
+	}
+	if got := compradorCNPJParaBanco("03720882003920"); got != "03720882003920" {
+		t.Errorf("CNPJ válido deveria gravar, veio %v", got)
+	}
+	if got := compradorCNPJParaBanco("45612378000123"); got != nil {
+		t.Errorf("CNPJ fora da raiz deve ser nil (CHECK do banco), veio %v", got)
+	}
+}
