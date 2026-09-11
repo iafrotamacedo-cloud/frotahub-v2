@@ -1,23 +1,16 @@
-// rev 1 — a tabela de Ordens de Compra, compartilhada
+// rev 2 — a tabela de Ordens de Compra, compartilhada
 //
 // EXTRAÍDA DE `InserirOC.tsx` (rev 2) QUANDO "OCs Inseridas" GANHOU TELA
 // PRÓPRIA
 //
-//	A mesma tabela (arquivo, data, selo de leitura, ações) aparecia em dois
-//	lugares: a fila de "Inserir OC" e as listas de "Processadas"/"Rejeitadas"
-//	do novo hub. Duas cópias da mesma linha são duas chances de uma delas
-//	ficar para trás quando o selo ganhar uma cor nova (CORE-06).
-//
-//	`onLer` é opcional: passe-o só onde o botão "ler"/"ler de novo" faz
-//	sentido (a fila). Nas listas de Processadas/Rejeitadas a ação já
-//	aconteceu — a tabela ali é só para ver.
-//
-//	`onEnviar` (11/09/2026) é o mesmo desenho, para o botão de PCO: passe-o só
-//	na lista de "Pendentes de envio" — cada linha ali já É elegível (a vista
-//	só traz `status=lido AND pco_enviado_em is null`), então o botão aparece
-//	em toda linha, sem precisar checar status de novo aqui.
+// FORMATO TRÍLOGO (11/09/2026)
+//   Colunas separadas (número, obra, valor, data) no mesmo desenho compacto
+//   de `servicos.css` / DadosTrilogo — não filename + dica numa célula só.
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { ajustarCelulas } from '../trilogo/encolher'
+import { quando } from '../trilogo/tipos'
 import {
-  emReais, emDataHora, type OrdemDeCompra,
+  emReais, type OrdemDeCompra,
 } from './tipos'
 
 const NOME_STATUS: Record<OrdemDeCompra['status'], string> = {
@@ -45,34 +38,50 @@ export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando, onE
   onEnviar?: (id: string) => void
   enviandoId?: string | null
 }) {
+  const corpo = useRef<HTMLTableSectionElement>(null)
+  useLayoutEffect(() => { ajustarCelulas(corpo.current) }, [ordens])
+  useEffect(() => {
+    let t: number | undefined
+    function aoRedimensionar() {
+      window.clearTimeout(t)
+      t = window.setTimeout(() => ajustarCelulas(corpo.current), 120)
+    }
+    window.addEventListener('resize', aoRedimensionar)
+    return () => { window.clearTimeout(t); window.removeEventListener('resize', aoRedimensionar) }
+  }, [])
+
   return (
-    <div className="tabela-rolo">
-      <table className="tabela">
+    <div className="tabela-rolo tri-painel">
+      <table className="tabela adm-tabela">
         <thead>
           <tr>
-            <th>Arquivo</th>
-            <th>Inserida em</th>
-            <th>Leitura</th>
+            <th className="c-oc">OC</th>
+            <th className="c-obra">Obra / centro</th>
+            <th className="c-valor">Valor (R$)</th>
+            <th className="c-data">Inserida em</th>
+            <th className="c-leitura">Leitura</th>
             <th className="acoes-col"></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={corpo}>
           {ordens.map(o => (
             <tr key={o.id}>
-              <td>
-                {o.nome_arquivo}
-                {(o.numero || o.comprador_nome || o.total) && (
-                  <div className="adm-dica">
-                    {o.numero ? `nº ${o.numero}` : ''}
-                    {o.numero && o.comprador_nome ? ' · ' : ''}
-                    {o.comprador_nome ?? ''}
-                    {o.total ? ` · ${emReais(o.total)}` : ''}
-                  </div>
-                )}
-                {o.erro_leitura && <div className="adm-dica adm-dica-alerta">{o.erro_leitura}</div>}
+              <td className="c-oc">
+                <span className="tri-num" title={o.nome_arquivo}>{rotuloOC(o)}</span>
               </td>
-              <td>{emDataHora(o.criado_em)}</td>
-              <td><span className={'pino ' + CLASSE_STATUS[o.status]}>{NOME_STATUS[o.status]}</span></td>
+              <td className="c-obra" data-encolhe="obra" data-base="13" data-peso="400">
+                <span title={tituloObra(o)}>{obraDaLinha(o)}</span>
+              </td>
+              <td className="c-valor">{o.total != null ? emReais(o.total) : '—'}</td>
+              <td className="c-data tri-fraco">{quando(o.criado_em)}</td>
+              <td className="c-leitura">
+                <span className={'pino ' + CLASSE_STATUS[o.status]}>{NOME_STATUS[o.status]}</span>
+                {o.erro_leitura && (
+                  <span className="adm-dica adm-dica-alerta adm-dica-bloco" title={o.erro_leitura}>
+                    {o.erro_leitura}
+                  </span>
+                )}
+              </td>
               <td className="acoes">
                 {onLer && (o.status === 'inserido' || o.status === 'falhou' || o.status === 'lendo') && (
                   <button
@@ -108,4 +117,20 @@ export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando, onE
       </table>
     </div>
   )
+}
+
+function rotuloOC(o: OrdemDeCompra): string {
+  if (o.numero) return o.numero
+  return o.nome_arquivo.replace(/\.pdf$/i, '') || '—'
+}
+
+function obraDaLinha(o: OrdemDeCompra): string {
+  const t = (o.obra_centro_custo || o.comprador_nome || '').replace(/\s+/g, ' ').trim()
+  return t || '—'
+}
+
+function tituloObra(o: OrdemDeCompra): string | undefined {
+  const obra = obraDaLinha(o)
+  if (obra === '—') return o.nome_arquivo
+  return `${obra} · ${o.nome_arquivo}`
 }

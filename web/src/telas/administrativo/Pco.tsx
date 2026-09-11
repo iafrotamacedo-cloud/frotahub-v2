@@ -29,7 +29,7 @@ import { ListaDeOrdens } from './ListaDeOrdens'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
 import {
   emReais,
-  type PainelDoPCO, type LinhaDaPreviaDeOrdem, type OrdemDeCompra, type ResultadoDoEnvio,
+  type PainelDoPCO, type OrdemDeCompra, type ResultadoDoEnvio,
 } from './tipos'
 
 interface Props {
@@ -68,19 +68,15 @@ export function Pco({ onde, abrir, voltar }: Props) {
   if (!dados) return <Carregando />
 
   return (
-    <div className="orc-painel">
+    <div className="orc-painel orc-painel--estreito">
       <Painel etapas={montarEtapas(dados)} aoEscolher={abrir} />
     </div>
   )
 }
 
+// MESMO DESENHO DE `Compras.tsx` (card simplificado)
+//   Só contador + título — a lista de arquivos fica na sub-tela ao clicar.
 function montarEtapas(d: PainelDoPCO): Etapa[] {
-  const linhas = (l?: LinhaDaPreviaDeOrdem[]) =>
-    (l ?? []).map(x => ({
-      texto: x.numero ? `${x.nome_arquivo} · nº ${x.numero}` : x.nome_arquivo,
-      fim: emDia(x.criado_em),
-    }))
-
   return [
     {
       chave: 'pendentes',
@@ -89,9 +85,6 @@ function montarEtapas(d: PainelDoPCO): Etapa[] {
       icone: <IconeRelogio />,
       numero: d.pendentes,
       rotulo: 'ordens',
-      previaTitulo: 'últimas processadas',
-      previa: linhas(d.previa?.pendentes),
-      previaVazia: 'nada pendente de envio',
       rodape: 'aguardando o envio',
     },
     {
@@ -101,9 +94,6 @@ function montarEtapas(d: PainelDoPCO): Etapa[] {
       icone: <IconeOk />,
       numero: d.enviados,
       rotulo: 'ordens',
-      previaTitulo: 'últimas enviadas',
-      previa: linhas(d.previa?.enviados),
-      previaVazia: 'nenhuma OC enviada ainda',
     },
   ]
 }
@@ -237,11 +227,6 @@ function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
       )}
     </>
   )
-}
-
-function emDia(s: string): string {
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 /* Os ícones vivem aqui, e não no `Icone` compartilhado, porque são deste

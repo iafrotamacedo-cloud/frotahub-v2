@@ -24,6 +24,25 @@
    classe (`.adm-dica`), do mesmo jeito que já resolve o resto sozinho. */
 .adm-dica{margin:4px 0 0;font-size:11.8px;color:var(--mut)}
 .adm-dica-alerta{color:var(--err)}
+.adm-dica-bloco{
+  display:block;margin-top:4px;max-width:220px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+/* ---------- tabela no visual do Trílogo (como sv-tabela em servicos.css) ---------- */
+.adm-tabela{font-size:13px;min-width:920px;table-layout:fixed}
+.adm-tabela th{padding:8px 9px;font-size:9.5px}
+.adm-tabela td{padding:0 9px;height:38px;white-space:nowrap;overflow:hidden;vertical-align:middle}
+.adm-tabela td[data-encolhe]>span{
+  display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.adm-tabela .c-oc{width:72px}
+.adm-tabela .c-obra{min-width:140px}
+.adm-tabela .c-valor{width:96px;text-align:right;font-variant-numeric:tabular-nums}
+.adm-tabela .c-data{width:118px}
+.adm-tabela .c-leitura{width:112px;overflow:visible;white-space:normal}
+.adm-tabela .acoes-col,.adm-tabela td.acoes{width:220px;overflow:visible}
+.adm-tabela td.acoes{text-align:right;display:flex;gap:6px;justify-content:flex-end;align-items:center}
 
 /* ---------- cabeçalho: o botão de leitura em lote ---------- */
 .adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}

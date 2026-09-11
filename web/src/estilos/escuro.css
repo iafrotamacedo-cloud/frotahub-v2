@@ -118,6 +118,12 @@
   overflow: hidden;
 }
 
+/* Compras e PCO: painéis com poucos cartões — metade da largura cheia. */
+.orc-painel--estreito .pn {
+  width: 50%;
+  max-width: 50%;
+}
+
 .pn-col {
   flex: 1 1 0;
   min-width: 0;
@@ -425,6 +431,7 @@
    Cinco colunas de 190px são ilegíveis; cinco cartões de altura fixa, não. */
 @media (max-width: 1080px) {
   .pn { flex-direction: column; }
+  .orc-painel--estreito .pn { width: 100%; max-width: none; }
   .pn-col { min-height: 168px; }
   .pn-col .pn-previa { display: none; }
   .pn-col .pn-medida { margin-top: 14px; }

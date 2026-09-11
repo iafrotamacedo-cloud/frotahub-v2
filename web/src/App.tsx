@@ -14,7 +14,7 @@
 //	(Inserir OC) enxertada por cima, em vez de a rev 11 por cima da peça
 //	nova. Ver `claude/coordenacao-modulos-paralelos.md`: sessões paralelas
 //	editando o mesmo arquivo têm que confirmar a base antes de sobrescrever.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSessao } from './sessao/useSessao'
 import { ehBuilder } from './sessao/tipos'
 import { arvoreVisivel, type ItemMenu } from './menu/arvore'
@@ -44,7 +44,6 @@ import { Painel } from './componentes/Painel'
 import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { Estatisticas, type TelaEstatistica } from './telas/estatisticas/Estatisticas'
-import { useExpiracao } from './sessao/inatividade'
 import { ChatRogue } from './telas/rogueworker/ChatRogue'
 
 // A CASCA MORA DENTRO DO PROVEDOR
@@ -95,18 +94,12 @@ function Casca() {
   useEffect(() => {
     try { localStorage.setItem('fh-menu-recolhido', recolhida ? '1' : '0') } catch { /* navegador sem armazenamento: só não lembra */ }
   }, [recolhida])
-  const [expirou, setExpirou] = useState(false)
   // O miolo da barra vira chat. Logo e rodapé ficam. Recolhida, abrir a
   // Worker traz a barra de volta — senão o chat nasceria invisível.
   const [chatAberto, setChatAberto] = useState(false)
 
-  // A sessão acaba por tempo: 3 h parada, 24 h no total. O relógio só corre com
-  // alguém dentro — na tela de login não há sessão para expirar.
-  const expirar = useCallback(() => { setExpirou(true); void sair() }, [sair])
-  useExpiracao(!!perfil, expirar)
-
   if (carregando) return <div className="auth" />
-  if (!perfil) return <Login entrar={entrar} expirou={expirou} />
+  if (!perfil) return <Login entrar={entrar} />
 
   const atual = caminho[caminho.length - 1]
 

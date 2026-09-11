@@ -10,6 +10,7 @@ export interface OrdemDeCompra {
   status: 'inserido' | 'lendo' | 'lido' | 'falhou'
   erro_leitura: string | null
   numero: string | null
+  obra_centro_custo: string | null
   comprador_nome: string | null
   /** Presente quando a leitura já achou um fornecedor com nome e CNPJ. */
   fornecedor_id: string | null
