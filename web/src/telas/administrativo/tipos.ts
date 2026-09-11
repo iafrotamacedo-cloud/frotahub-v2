@@ -73,6 +73,24 @@ export interface LinhaDaPreviaDeOrdem {
   criado_em: string
 }
 
+/** Um destinatário do e-mail de PCO (migração 061). */
+export interface Destinatario {
+  id: string
+  email: string
+  ativo: boolean
+  criado_em: string
+}
+
+/** O que `POST /administrativo/compras/pco/enviar` (geral ou uma OC)
+ *  devolve. "nunca enviar vazio" é `enviado: false` sem `erro` nenhum — não
+ *  é falha, é "não tinha nada para mandar". */
+export interface ResultadoDoEnvio {
+  enviado: boolean
+  motivo?: string
+  quantidade?: number
+  valor_total?: number
+}
+
 export interface ResultadoDaInsercao {
   nome: string
   id?: string

@@ -410,6 +410,21 @@ func (g Groq) Ligado() bool { return g.Chave != "" }
 //	oficial da Groq para esse ID é `openai/gpt-oss-20b`.
 const ModeloGroqPadrao = "openai/gpt-oss-20b"
 
+// Brevo envia o pacote de PCO por e-mail (11/09/2026) — substitui o envio
+// manual pelo Outlook que a skill `pco-organizer` fazia. Sem chave, o motor
+// sobe normalmente: a rota de envio responde erro claro na hora de usar, em
+// vez de travar a subida por uma peça que nem todo ambiente precisa (o
+// mesmo raciocínio de `IA`/`Groq`).
+type Brevo struct {
+	Chave string
+	// O remetente aparece no "De:" do e-mail — precisa ser um domínio
+	// verificado no Brevo, senão eles recusam o envio.
+	Remetente     string
+	NomeRemetente string
+}
+
+func (b Brevo) Ligado() bool { return b.Chave != "" }
+
 // Runtime é como o processo roda.
 type Runtime struct {
 	Porta       int
@@ -427,6 +442,7 @@ type Config struct {
 	Trilogo  Trilogo
 	IA       IA
 	Groq     Groq
+	Brevo    Brevo
 	Runtime  Runtime
 	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
 	Papel     string
@@ -446,6 +462,7 @@ func (c Config) Resumo() map[string]any {
 		"r2":       c.R2.Ligado(),
 		"ia":       c.IA.Ligada(),
 		"groq":     c.Groq.Ligado(),
+		"brevo":    c.Brevo.Ligado(),
 		"trilogo":  c.Trilogo.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
@@ -534,6 +551,14 @@ func Carregar() (*Config, error) {
 		LimitePorRodada: l.inteiro("GROQ_LIMITE_POR_RODADA", 200, 1, 5000),
 	}
 
+	// O envio de PCO. Sem chave, a rota de envio responde erro claro — o
+	// motor não deixa de subir por causa dela (mesmo raciocínio de IA/Groq).
+	brevo := Brevo{
+		Chave:         l.segredo("BREVO_API_KEY", false, 0, ""),
+		Remetente:     l.texto("BREVO_REMETENTE", "pco@frotamacedo.com.br", false, ""),
+		NomeRemetente: l.texto("BREVO_NOME_REMETENTE", "Frota Macedo Engenharia", false, ""),
+	}
+
 	// QUEM ESTÁ LIGANDO
 	//   O motor e o robô rodam o mesmo pacote de configuração, mas precisam de
 	//   coisas diferentes. Exigir do robô o tempero do PIN — que ele nunca usa —
@@ -549,7 +574,7 @@ func Carregar() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Runtime: rt,
+		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Brevo: brevo, Runtime: rt,
 		Papel: papel,
 		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),

@@ -35,6 +35,7 @@ import { Compras } from './telas/administrativo/Compras'
 import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
 import { Pco } from './telas/administrativo/Pco'
+import { DestinatariosPCO } from './telas/administrativo/DestinatariosPCO'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Hub as ServicosHub } from './telas/servicos/Hub'
 import { Funcionarios } from './telas/funcionarios/Funcionarios'
@@ -446,6 +447,8 @@ function Casca() {
               abrir={onde => navegar(caminho, [onde])}
               voltar={() => navegar(caminho)}
             />
+          ) : atual?.tela === 'pco-destinatarios' ? (
+            <DestinatariosPCO />
           ) : atual?.tela === 'consolidacao' ? (
             <Consolidacao />
           ) : atual?.tela === 'servicos-hub' ? (

@@ -125,10 +125,10 @@ func main() {
 	// cronograma e EAP. Sem armazém — este módulo ainda não guarda arquivo
 	// nenhum (RDO e as fotos de diário de obra ficam para a Fase 3).
 	planejamento.Novo(bd, seg, m.perm, hist).Montar(mux)
-	// Administrativo > Compras: primeiro passo é só inserir e listar a OC — a
-	// leitura do PDF ainda não existe (ver `administrativo/ordens.go`). Mesmo
-	// armazém dos outros dois, pelo mesmo motivo.
-	administrativo.Novo(bd, seg, m.perm, arm, hist).Montar(mux)
+	// Administrativo > Compras: inserir, ler e enviar a OC por e-mail (PCO).
+	// Mesmo armazém dos outros módulos, pelo mesmo motivo; `cfg` entra porque
+	// o envio precisa da chave do Brevo.
+	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist).Montar(mux)
 	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
 	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
 	// escrever nas tabelas deles.

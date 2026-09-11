@@ -25,6 +25,8 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/brevo"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -33,6 +35,14 @@ import (
 
 // RotinaOrdens é a única rotina deste primeiro passo — migração 059.
 const RotinaOrdens = "COMPRAS_ORDENS_GERENCIAR"
+
+// As duas rotinas do PCO (migração 061) — SEPARADAS de propósito: editar
+// quem recebe o e-mail é uma coisa, apertar o botão de enviar é outra (ver
+// o cabeçalho da migração).
+const (
+	RotinaPCODestinatarios = "COMPRAS_PCO_DESTINATARIOS"
+	RotinaPCOEnviar        = "COMPRAS_PCO_ENVIAR"
+)
 
 // TamanhoMaximo de um arquivo de OC aceito na inserção. Mesmo teto de
 // Orçamentos: PDF de OC digital não passa de poucos MB.
@@ -44,16 +54,21 @@ const TamanhoMaximo = 25 << 20
 const TetoDaLista = 500
 
 type Modulo struct {
-	bd   *banco.Cliente
-	seg  *seguranca.Servico
-	perm *permissao.Servico
-	arm  *armazem.Cliente
-	hist *historico.Servico
+	cfg   *config.Config
+	bd    *banco.Cliente
+	seg   *seguranca.Servico
+	perm  *permissao.Servico
+	arm   *armazem.Cliente
+	hist  *historico.Servico
+	brevo *brevo.Cliente
 }
 
-func Novo(bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
+func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
 	arm *armazem.Cliente, hist *historico.Servico) *Modulo {
-	return &Modulo{bd: bd, seg: seg, perm: perm, arm: arm, hist: hist}
+	return &Modulo{
+		cfg: cfg, bd: bd, seg: seg, perm: perm, arm: arm, hist: hist,
+		brevo: brevo.Novo(cfg.Brevo),
+	}
 }
 
 func (m *Modulo) Montar(mux *http.ServeMux) {
@@ -67,6 +82,14 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/ler", m.lerOrdem)
 	// O hub de PCO (10/09/2026) — ver o cabeçalho de `painelDoPCO` em ordens.go.
 	mux.HandleFunc("GET /administrativo/compras/pco/painel", m.painelDoPCO)
+	// O envio por e-mail (11/09/2026) — ver o cabeçalho de `pco_enviar.go`.
+	mux.HandleFunc("POST /administrativo/compras/pco/enviar", m.enviarPCO)
+	mux.HandleFunc("POST /administrativo/compras/pco/ordens/{id}/enviar", m.enviarUmaPCO)
+	// Os destinatários — ver o cabeçalho de `destinatarios.go`.
+	mux.HandleFunc("GET /administrativo/compras/pco/destinatarios", m.listarDestinatarios)
+	mux.HandleFunc("POST /administrativo/compras/pco/destinatarios", m.criarDestinatario)
+	mux.HandleFunc("PATCH /administrativo/compras/pco/destinatarios/{id}", m.alterarDestinatario)
+	mux.HandleFunc("GET /administrativo/compras/pco/destinatarios/{id}/historico", m.historicoDestinatario)
 }
 
 // ---------------------------------------------------------------------------

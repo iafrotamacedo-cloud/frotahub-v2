@@ -31,6 +31,8 @@ const VERBOS: Record<string, string> = {
   reativou: 'reativou',
   trocou_senha: 'trocou a senha',
   alterou_permissoes: 'mexeu nas permissões',
+  cadastrou: 'cadastrou',
+  ativou: 'ativou',
 }
 
 const CAMPOS: Record<string, string> = {
@@ -40,6 +42,7 @@ const CAMPOS: Record<string, string> = {
   codigo: 'Código',
   nivel: 'Nível',
   ativo: 'Situação',
+  email: 'E-mail',
 }
 
 function valor(v: unknown): string {

@@ -24,8 +24,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { ListaDeOrdens } from './ListaDeOrdens'
-import { type PainelDoPCO, type LinhaDaPreviaDeOrdem } from './tipos'
+import { TabelaDeOrdens } from './TabelaDeOrdens'
+import {
+  emReais,
+  type PainelDoPCO, type LinhaDaPreviaDeOrdem, type OrdemDeCompra, type ResultadoDoEnvio,
+} from './tipos'
 
 interface Props {
   /** A sub-tela aberta, vinda do endereço. Vazio = o painel. */
@@ -50,10 +55,7 @@ export function Pco({ onde, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   if (onde === 'pendentes') {
-    return (
-      <ListaDeOrdens vista="pco-pendentes" titulo="Pendentes de envio"
-        vazia="Nenhuma OC pendente de envio." voltar={voltar} />
-    )
+    return <PendentesDeEnvio voltar={voltar} />
   }
   if (onde === 'enviados') {
     return (
@@ -104,6 +106,137 @@ function montarEtapas(d: PainelDoPCO): Etapa[] {
       previaVazia: 'nenhuma OC enviada ainda',
     },
   ]
+}
+
+// ---------------------------------------------------------------------------
+// Pendentes de envio — a ÚNICA das quatro listas de OC com ação de escrita
+// (as outras três — fila de Inserir OC à parte — são só consulta). Por isso
+// não usa `ListaDeOrdens` (que é read-only de propósito): tem botão por
+// linha ("uma por OC") e um geral ("enviar tudo"), os dois pedidos
+// explicitamente pelo dono, com a MESMA rota do motor por trás — ver o
+// cabeçalho de `pco_enviar.go`.
+// ---------------------------------------------------------------------------
+
+function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
+  const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
+  const [erro, setErro] = useState('')
+  const [recado, setRecado] = useState('')
+  // '*' = o lote geral está enviando (desliga todos os botões de linha
+  // também, para não brigar pela mesma OC no meio do lote).
+  const [enviandoId, setEnviandoId] = useState<string | null>(null)
+  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+
+  const carregar = useCallback(async () => {
+    try {
+      const r = await motor<{ ordens: OrdemDeCompra[] }>('/administrativo/compras/ordens?vista=pco-pendentes')
+      setOrdens(r.ordens)
+    } catch (e) {
+      setOrdens([])
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar a lista.')
+    }
+  }, [])
+
+  useEffect(() => { void carregar() }, [carregar])
+
+  function recadoDoEnvio(r: ResultadoDoEnvio, singular: string, plural: string): string {
+    if (!r.enviado) return r.motivo ?? 'Nada para enviar.'
+    const n = r.quantidade ?? 0
+    return `${n} ${n === 1 ? singular : plural}${r.valor_total ? ` · ${emReais(r.valor_total)}` : ''}.`
+  }
+
+  async function enviarUma(id: string) {
+    setEnviandoId(id)
+    setErro('')
+    setRecado('')
+    try {
+      const r = await motor<ResultadoDoEnvio>(`/administrativo/compras/pco/ordens/${id}/enviar`, { metodo: 'POST' })
+      setRecado(recadoDoEnvio(r, 'OC enviada', 'OCs enviadas'))
+      await carregar()
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui enviar esta OC.')
+    } finally {
+      setEnviandoId(null)
+    }
+  }
+
+  async function enviarTodas() {
+    if (!ordens?.length) return
+    setEnviandoId('*')
+    setErro('')
+    setRecado('')
+    try {
+      const r = await motor<ResultadoDoEnvio>('/administrativo/compras/pco/enviar', { metodo: 'POST' })
+      setRecado(recadoDoEnvio(r, 'OC enviada', 'OCs enviadas'))
+      await carregar()
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui enviar o lote.')
+    } finally {
+      setEnviandoId(null)
+    }
+  }
+
+  async function abrirArquivo(o: OrdemDeCompra) {
+    try {
+      const r = await motor<{ url: string }>(`/administrativo/compras/ordens/${o.id}/arquivo`)
+      setVendo({ endereco: r.url, nome: o.nome_arquivo })
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
+    }
+  }
+
+  if (vendo) {
+    return (
+      <VisorDeDocumento
+        endereco={vendo.endereco}
+        nomeSugerido={vendo.nome}
+        titulo={vendo.nome}
+        voltar={() => setVendo(null)}
+      />
+    )
+  }
+
+  return (
+    <>
+      <header className="hero hero-linha">
+        <div>
+          <button type="button" className="bt bt-neutro" onClick={voltar}>← voltar</button>
+          <h1>Pendentes de envio</h1>
+        </div>
+        {ordens && ordens.length > 0 && (
+          <button
+            type="button"
+            className="bt bt-forte"
+            disabled={enviandoId !== null}
+            title="Manda um e-mail só, com todas as OCs pendentes anexadas num zip."
+            onClick={() => void enviarTodas()}
+          >
+            {enviandoId === '*' ? 'Enviando…' : `Enviar tudo (${ordens.length})`}
+          </button>
+        )}
+      </header>
+
+      {recado && (
+        <div className="recado" role="status">
+          {recado}
+          <button type="button" onClick={() => setRecado('')} aria-label="Fechar aviso">×</button>
+        </div>
+      )}
+      {erro && <div className="erro-caixa">{erro}</div>}
+
+      {ordens === null ? (
+        <Carregando texto="Carregando..." />
+      ) : ordens.length === 0 ? (
+        <div className="vazio">Nenhuma OC pendente de envio.</div>
+      ) : (
+        <TabelaDeOrdens
+          ordens={ordens}
+          onVer={o => void abrirArquivo(o)}
+          onEnviar={id => void enviarUma(id)}
+          enviandoId={enviandoId}
+        />
+      )}
+    </>
+  )
 }
 
 function emDia(s: string): string {

@@ -61,6 +61,7 @@ export type Icone =
 export type Tela =
   | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
+  | 'pco-destinatarios'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -325,6 +326,17 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         icone: 'pessoa',
         desc: 'Os seus dados e a sua senha',
         tela: 'minha-conta',
+      },
+      {
+        // Rotina, não `soBuilder` (11/09/2026, pedido do dono): editar quem
+        // recebe o e-mail de PCO é liberável por categoria, como qualquer
+        // outra rotina — não fica preso ao builder feito Usuários/Categorias.
+        t: 'PCO — Destinatários',
+        rota: 'pco-destinatarios',
+        icone: 'balao',
+        desc: 'Quem recebe o e-mail do pacote de PCO',
+        tela: 'pco-destinatarios',
+        rotina: 'COMPRAS_PCO_DESTINATARIOS',
       },
     ],
   },

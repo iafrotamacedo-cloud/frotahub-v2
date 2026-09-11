@@ -11,6 +11,11 @@
 //	`onLer` é opcional: passe-o só onde o botão "ler"/"ler de novo" faz
 //	sentido (a fila). Nas listas de Processadas/Rejeitadas a ação já
 //	aconteceu — a tabela ali é só para ver.
+//
+//	`onEnviar` (11/09/2026) é o mesmo desenho, para o botão de PCO: passe-o só
+//	na lista de "Pendentes de envio" — cada linha ali já É elegível (a vista
+//	só traz `status=lido AND pco_enviado_em is null`), então o botão aparece
+//	em toda linha, sem precisar checar status de novo aqui.
 import {
   emReais, emDataHora, type OrdemDeCompra,
 } from './tipos'
@@ -29,13 +34,16 @@ const CLASSE_STATUS: Record<OrdemDeCompra['status'], string> = {
   falhou: 'pino-err',
 }
 
-export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando }: {
+export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando, onEnviar, enviandoId }: {
   ordens: OrdemDeCompra[]
   onVer: (o: OrdemDeCompra) => void
   /** Ausente = tabela só de consulta, sem botão de ler. */
   onLer?: (id: string) => void
   lendoId?: string | null
   loteRodando?: boolean
+  /** Ausente = sem botão de enviar (Enviados, Processadas, Rejeitadas). */
+  onEnviar?: (id: string) => void
+  enviandoId?: string | null
 }) {
   return (
     <div className="tabela-rolo">
@@ -74,6 +82,16 @@ export function TabelaDeOrdens({ ordens, onVer, onLer, lendoId, loteRodando }: {
                     onClick={() => onLer(o.id)}
                   >
                     {lendoId === o.id ? 'lendo…' : o.status === 'falhou' ? 'ler de novo' : 'ler'}
+                  </button>
+                )}
+                {onEnviar && (
+                  <button
+                    type="button"
+                    className="bt bt-mini"
+                    disabled={enviandoId === o.id || enviandoId === '*'}
+                    onClick={() => onEnviar(o.id)}
+                  >
+                    {enviandoId === o.id ? 'enviando…' : 'enviar'}
                   </button>
                 )}
                 <button type="button" className="bt bt-mini" onClick={() => onVer(o)}>ver</button>
