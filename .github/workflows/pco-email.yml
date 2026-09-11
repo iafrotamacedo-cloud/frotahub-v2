@@ -1,0 +1,52 @@
+name: PCO — enviar por e-mail
+# Manda o pacote de OCs pendentes de envio ao cliente, por Brevo — ver o
+# cabeçalho de baleryan/interno/modulos/administrativo/pco_enviar.go.
+#
+# MESMA ROTA DO BOTÃO MANUAL, NÃO UM ROBÔ À PARTE
+#
+#   Ao contrário dos outros robôs deste repositório (Trílogo, leitor de
+#   notas, Serviços — todos `go run ./cmd/...` falando direto com o
+#   Supabase), este workflow não roda Go nenhum: ele bate na MESMA rota HTTP
+#   que o botão "Enviar tudo" da tela PCO usa
+#   (POST /administrativo/compras/pco/enviar), só que autenticado pela chave
+#   de robô em vez de um login. É a regra de "enviar o PCO" existindo uma
+#   vez só (CORE-06) — ver o cabeçalho de `pco_enviar.go`.
+#
+# NUNCA ENVIA VAZIO
+#
+#   A rota já garante isso sozinha: sem OC pendente, ela responde
+#   `"enviado": false` e não toca no Brevo. Este workflow não precisa (e não
+#   deve) decidir isso de novo.
+on:
+  # 20h em Fortaleza (UTC−3) = 23h UTC — pedido do dono, 11/09/2026.
+  schedule:
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}
+
+# Duas rodadas ao mesmo tempo (o cron batendo em cima de um clique manual,
+# por exemplo) não dariam erro — a trava de verdade é o CAS no banco, dentro
+# da rota (ver `pco_enviar.go`) — mas não há razão para o Actions rodar duas
+# cópias do mesmo pedido HTTP ao mesmo tempo.
+concurrency:
+  group: pco-email
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chamar a rota de envio
+        env:
+          ROBOT_KEY: ${{ secrets.ROBOT_KEY }}
+        run: |
+          resposta=$(curl -sS -w '\n%{http_code}' -X POST \
+            -H "X-Robot-Key: $ROBOT_KEY" \
+            https://baleryan.onrender.com/administrativo/compras/pco/enviar)
+          codigo=$(echo "$resposta" | tail -n1)
+          corpo=$(echo "$resposta" | sed '$d')
+          echo "$corpo"
+          if [ "$codigo" -ge 300 ]; then
+            echo "A rota respondeu HTTP $codigo — ver o corpo acima."
+            exit 1
+          fi
