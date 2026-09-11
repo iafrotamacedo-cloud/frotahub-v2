@@ -26,7 +26,13 @@ let y = TOPO_LETREIRO_FIM
 // DADOS DA ORDEM
 y += OC_FAIXA_H + 5.6 + OC_LINHA + OC_LINHA + 2.2 + 19.4
 // RESPONSÁVEL
-y += OC_FAIXA_H + 5.9 + OC_LINHA + OC_LINHA + 31.9
+//
+//	Só UMA linha de altura aqui (Nome/Comprador → Email), não duas — era um
+//	OC_LINHA a mais, que empurrava Faturamento/Fornecedor/Obra ~14,4pt pra
+//	baixo do lugar real. Achado renderizando OCs_Teste/OC_20021_* com
+//	PyMuPDF e buscando o texto de verdade: "DADOS DO FATURAMENTO" está em
+//	y≈260,45, não y≈273,1 (11/09/2026).
+y += OC_FAIXA_H + 5.9 + OC_LINHA + 31.9
 // FATURAMENTO
 const TOPO_FATURAMENTO = y
 y += OC_FAIXA_H + 7.6 + OC_LINHA // nome
