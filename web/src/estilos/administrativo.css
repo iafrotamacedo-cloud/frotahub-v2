@@ -111,39 +111,32 @@
 .adm-campos-bloqueio{
   position:absolute;inset:0;pointer-events:none;z-index:2;
 }
+/* SÓ A BORDA — o texto por cima escondia o documento, que é a própria
+   informação que a pessoa está conferindo. A caixa marca ONDE mexer; o
+   "editar" é só o alvo do clique, não uma segunda cópia dos dados. */
 .adm-campo-bloqueio{
   position:absolute;pointer-events:auto;cursor:pointer;
-  display:flex;flex-direction:column;justify-content:center;gap:2px;
-  padding:6px 10px;border-radius:var(--r-s);text-align:left;
+  display:flex;align-items:center;justify-content:center;
+  padding:0;border-radius:var(--r-s);background:none;
   border:2px solid rgba(180,40,40,.55);
-  background:rgba(255,70,70,.16);
-  backdrop-filter:blur(1px);
-  transition:background .2s,border-color .2s,box-shadow .2s;
-  font:inherit;color:var(--ink);
+  transition:border-color .2s,box-shadow .2s,background .2s;
+  font:inherit;
 }
 .adm-campo-bloqueio:hover:not(:disabled){
   box-shadow:0 0 0 2px rgba(255,255,255,.35);
-  background:rgba(255,70,70,.24);
+  background:rgba(255,70,70,.10);
 }
-.adm-campo-bloqueio.ok{
-  border-color:rgba(40,130,60,.65);
-  background:rgba(60,180,90,.14);
-}
+.adm-campo-bloqueio.ok{border-color:rgba(40,130,60,.65)}
 .adm-campo-bloqueio.ok:hover{
   box-shadow:0 0 0 2px rgba(255,255,255,.35);
-  background:rgba(60,180,90,.22);
+  background:rgba(60,180,90,.10);
 }
 .adm-campo-bloqueio:disabled{opacity:.65;cursor:wait}
-.adm-campo-bloqueio-rotulo{
-  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  color:rgba(0,0,0,.55);
+.adm-campo-bloqueio-link{
+  font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  padding:1px 6px;border-radius:3px;background:rgba(180,40,40,.85);color:#fff;
 }
-.adm-campo-bloqueio-valor{
-  font-size:12px;font-weight:600;line-height:1.25;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.adm-campo-bloqueio.erro .adm-campo-bloqueio-valor{color:var(--err)}
-.adm-campo-bloqueio.ok .adm-campo-bloqueio-valor{color:#1a6b32}
+.adm-campo-bloqueio.ok .adm-campo-bloqueio-link{background:rgba(30,120,55,.85)}
 .adm-reparo-painel{
   position:fixed;z-index:1200;max-width:400px;width:min(400px,92vw);
   padding:16px 18px 14px;border-radius:var(--r-l);

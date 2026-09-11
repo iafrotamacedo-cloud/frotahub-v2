@@ -189,10 +189,7 @@ export function RepararOrdemOC({
           onClick={e => abrirPopup('fornecedor', e.currentTarget)}
           title={validacao.precisa_fornecedor ? 'Clique para corrigir o CNPJ do fornecedor' : 'Clique para ajustar o fornecedor'}
         >
-          <span className="adm-campo-bloqueio-rotulo">Fornecedor · CNPJ</span>
-          <span className="adm-campo-bloqueio-valor">
-            {documento.fornecedor_cnpj || '(vazio)'}
-          </span>
+          <span className="adm-campo-bloqueio-link">editar</span>
         </button>
       ) : null}
 
@@ -206,11 +203,7 @@ export function RepararOrdemOC({
             onClick={e => abrirPopup('faturamento', e.currentTarget)}
             title={validacao.precisa_faturamento ? 'Clique para corrigir o faturamento' : 'Clique para ajustar o faturamento'}
           >
-            <span className="adm-campo-bloqueio-rotulo">Faturamento · CNPJ</span>
-            <span className="adm-campo-bloqueio-valor">
-              {documento.comprador_cnpj || '(vazio)'}
-              {documento.comprador_nome ? ` · ${documento.comprador_nome}` : ''}
-            </span>
+            <span className="adm-campo-bloqueio-link">editar</span>
           </button>
           <button
             type="button"
@@ -220,10 +213,7 @@ export function RepararOrdemOC({
             onClick={e => abrirPopup('faturamento', e.currentTarget)}
             title={validacao.precisa_faturamento ? 'Clique para corrigir obra / centro de custo' : 'Clique para ajustar a obra'}
           >
-            <span className="adm-campo-bloqueio-rotulo">Obra / centro de custo</span>
-            <span className="adm-campo-bloqueio-valor">
-              {documento.obra_centro_custo || '(vazio)'}
-            </span>
+            <span className="adm-campo-bloqueio-link">editar</span>
           </button>
         </>
       ) : null}
