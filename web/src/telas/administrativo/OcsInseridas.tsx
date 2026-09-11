@@ -20,9 +20,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
-import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
-import { TabelaDeOrdens } from './TabelaDeOrdens'
-import { type OrdemDeCompra, type PainelDeOrdens, type VistaDasOrdens } from './tipos'
+import { ListaDeOrdens } from './ListaDeOrdens'
+import { type PainelDeOrdens } from './tipos'
 
 interface Props {
   /** A sub-tela aberta, vinda do endereço. Vazio = o painel. */
@@ -47,10 +46,10 @@ export function OcsInseridas({ onde, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   if (onde === 'processadas') {
-    return <ListaDeOrdens vista="processadas" titulo="Processadas" voltar={voltar} />
+    return <ListaDeOrdens vista="processadas" titulo="Processadas" vazia="Nenhuma OC processada ainda." voltar={voltar} />
   }
   if (onde === 'rejeitadas') {
-    return <ListaDeOrdens vista="rejeitadas" titulo="Rejeitadas" voltar={voltar} />
+    return <ListaDeOrdens vista="rejeitadas" titulo="Rejeitadas" vazia="Nenhuma OC rejeitada." voltar={voltar} />
   }
 
   if (erro) return <p className="erro">{erro}</p>
@@ -100,76 +99,6 @@ function montarEtapas(d: PainelDeOrdens): Etapa[] {
 function emDia(s: string): string {
   const d = new Date(s)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-}
-
-// ---------------------------------------------------------------------------
-// a lista de cada cartão — só consulta, sem inserção nem botão de ler
-// (a leitura e a releitura acontecem em "Inserir OC", que é onde a fila vive)
-// ---------------------------------------------------------------------------
-
-function ListaDeOrdens({ vista, titulo, voltar }: {
-  vista: Extract<VistaDasOrdens, 'processadas' | 'rejeitadas'>
-  titulo: string
-  voltar: () => void
-}) {
-  const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
-  const [erro, setErro] = useState('')
-  const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await motor<{ ordens: OrdemDeCompra[] }>('/administrativo/compras/ordens?vista=' + vista)
-        setOrdens(r.ordens)
-      } catch (e) {
-        setOrdens([])
-        setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar a lista.')
-      }
-    })()
-  }, [vista])
-
-  async function abrirArquivo(o: OrdemDeCompra) {
-    try {
-      const r = await motor<{ url: string }>(`/administrativo/compras/ordens/${o.id}/arquivo`)
-      setVendo({ endereco: r.url, nome: o.nome_arquivo })
-    } catch (e) {
-      setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
-    }
-  }
-
-  if (vendo) {
-    return (
-      <VisorDeDocumento
-        endereco={vendo.endereco}
-        nomeSugerido={vendo.nome}
-        titulo={vendo.nome}
-        voltar={() => setVendo(null)}
-      />
-    )
-  }
-
-  return (
-    <>
-      <header className="hero hero-linha">
-        <div>
-          <button type="button" className="bt bt-neutro" onClick={voltar}>← voltar</button>
-          <h1>{titulo}</h1>
-        </div>
-      </header>
-
-      {erro && <div className="erro-caixa">{erro}</div>}
-
-      {ordens === null ? (
-        <Carregando texto="Carregando..." />
-      ) : ordens.length === 0 ? (
-        <div className="vazio">
-          {vista === 'processadas' ? 'Nenhuma OC processada ainda.' : 'Nenhuma OC rejeitada.'}
-        </div>
-      ) : (
-        <TabelaDeOrdens ordens={ordens} onVer={o => void abrirArquivo(o)} />
-      )}
-    </>
-  )
 }
 
 /* Os ícones vivem aqui, e não no `Icone` compartilhado, porque são deste

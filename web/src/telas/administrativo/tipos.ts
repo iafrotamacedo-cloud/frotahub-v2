@@ -17,8 +17,10 @@ export interface OrdemDeCompra {
   criado_em: string
 }
 
-/** A vista da fila — mesmo desenho de três vistas de Orçamentos. */
-export type VistaDasOrdens = 'fila' | 'processadas' | 'rejeitadas'
+/** A vista da fila — mesmo desenho de três vistas de Orçamentos. As duas de
+ *  PCO não são uma fila nova de OCs: são a mesma "processadas", filtrada por
+ *  `pco_enviado_em` (ver o cabeçalho de `filtroDasOrdens` no motor). */
+export type VistaDasOrdens = 'fila' | 'processadas' | 'rejeitadas' | 'pco-pendentes' | 'pco-enviados'
 
 /** O que `GET /administrativo/compras/ordens/porler` devolve. */
 export interface OrdensPorLer {
@@ -50,6 +52,17 @@ export interface PainelDeOrdens {
   previa?: {
     processadas?: LinhaDaPreviaDeOrdem[]
     rejeitadas?: LinhaDaPreviaDeOrdem[]
+  }
+}
+
+/** O que `GET /administrativo/compras/pco/painel` devolve — alimenta os dois
+ *  cartões do hub de PCO: Pendentes de envio e Enviados. */
+export interface PainelDoPCO {
+  pendentes: number
+  enviados: number
+  previa?: {
+    pendentes?: LinhaDaPreviaDeOrdem[]
+    enviados?: LinhaDaPreviaDeOrdem[]
   }
 }
 

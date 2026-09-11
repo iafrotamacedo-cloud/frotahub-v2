@@ -23,13 +23,18 @@ import {
   type VistaDasOrdens, type OrdensPorLer, type LoteDeLeitura,
 } from './tipos'
 
-const TITULO_DA_VISTA: Record<VistaDasOrdens, string> = {
+// Só as três vistas que ESTA tela oferece — "fila" é o trabalho dela; as
+// duas de PCO vivem em `Pco.tsx`. Um tipo mais estreito que `VistaDasOrdens`
+// evita o `Record` ter que cobrir vistas que este `<select>` nunca mostra.
+type VistaDeInsercao = Extract<VistaDasOrdens, 'fila' | 'processadas' | 'rejeitadas'>
+
+const TITULO_DA_VISTA: Record<VistaDeInsercao, string> = {
   fila: 'Na fila',
   processadas: 'Processadas',
   rejeitadas: 'Rejeitadas',
 }
 
-const VAZIA_DA_VISTA: Record<VistaDasOrdens, string> = {
+const VAZIA_DA_VISTA: Record<VistaDeInsercao, string> = {
   fila: 'Nada na fila. Insira o PDF de uma OC para começar.',
   processadas: 'Nenhuma OC passou pela leitura ainda.',
   rejeitadas: 'Nenhuma OC foi rejeitada.',
@@ -37,7 +42,7 @@ const VAZIA_DA_VISTA: Record<VistaDasOrdens, string> = {
 
 export function InserirOC() {
   const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
-  const [vista, setVista] = useState<VistaDasOrdens>('fila')
+  const [vista, setVista] = useState<VistaDeInsercao>('fila')
   const [erro, setErro] = useState('')
   const [recado, setRecado] = useState('')
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
@@ -189,7 +194,7 @@ export function InserirOC() {
         <select
           className={'adm-vista' + (vista !== 'fila' ? ' ligado' : '')}
           value={vista}
-          onChange={e => setVista(e.target.value as VistaDasOrdens)}
+          onChange={e => setVista(e.target.value as VistaDeInsercao)}
         >
           <option value="fila">na fila</option>
           <option value="processadas">processadas</option>

@@ -106,6 +106,39 @@ func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ---------------------------------------------------------------------------
+// GET /administrativo/compras/pco/painel — o hub de PCO
+// ---------------------------------------------------------------------------
+
+// painelDoPCO alimenta os dois cartões de PCO: "Pendentes de envio" e
+// "Enviados" — a mesma ideia de `painelDeOrdens`, uma pergunta por contador.
+func (m *Modulo) painelDoPCO(w http.ResponseWriter, r *http.Request) {
+	p := m.quem(w, r)
+	if p == nil {
+		return
+	}
+	pendentes, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "pco-pendentes")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as OCs pendentes de envio", err)
+		return
+	}
+	enviados, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "pco-enviados")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as OCs enviadas", err)
+		return
+	}
+	web.Responder(w, http.StatusOK, map[string]any{
+		"pendentes": pendentes,
+		"enviados":  enviados,
+		"previa": map[string]any{
+			"pendentes": m.previaDasOrdens(r.Context(), p.ClienteID, "pco-pendentes"),
+			"enviados":  m.previaDasOrdens(r.Context(), p.ClienteID, "pco-enviados"),
+		},
+	})
+}
+
 // previaDasOrdens busca só o suficiente para as últimas linhas do cartão —
 // falhar aqui não derruba o painel (os contadores já responderam): o cartão
 // fica sem prévia, não sem número.
@@ -121,6 +154,16 @@ func (m *Modulo) previaDasOrdens(ctx context.Context, clienteID, vista string) [
 // filtroDasOrdens decide a consulta a partir da vista pedida — o mesmo
 // desenho de "um lugar só decide a vista" que `orcamentos.filtroDosDocumentos`
 // já usa (CORE-06).
+//
+// "pco-pendentes"/"pco-enviados" NÃO SÃO UMA SEGUNDA CÓPIA DA OC
+//
+//	É a mesma linha de `ordens_compra`, filtrada por `pco_enviado_em` — a
+//	coluna que a migração 059 já reservou para isto ("nasce vazia, a rotina
+//	agendada preenche depois"). Uma OC processada nasce em "pendente de
+//	envio" e, quando o envio existir (fase futura, ainda não construída),
+//	passa para "enviada" só por `pco_enviado_em` deixar de ser nulo — sem
+//	sair de "Processadas" em Compras, que continua mostrando todas, para
+//	sempre (é a planilha de controle do comprador).
 func filtroDasOrdens(clienteID, vista string) string {
 	base := "ordens_compra?cliente_id=eq." + banco.Escapar(clienteID)
 	switch vista {
@@ -128,6 +171,10 @@ func filtroDasOrdens(clienteID, vista string) string {
 		return base + "&status=eq.lido&order=criado_em.desc"
 	case "rejeitadas":
 		return base + "&status=eq.falhou&order=criado_em.desc"
+	case "pco-pendentes":
+		return base + "&status=eq.lido&pco_enviado_em=is.null&order=criado_em.desc"
+	case "pco-enviados":
+		return base + "&status=eq.lido&pco_enviado_em=not.is.null&order=pco_enviado_em.desc"
 	default:
 		return base + "&status=in.(inserido,lendo)&order=criado_em.desc"
 	}
