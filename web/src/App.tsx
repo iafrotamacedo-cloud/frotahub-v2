@@ -434,12 +434,20 @@ function Casca() {
           ) : atual?.tela === 'inserir-oc' ? (
             <InserirOC />
           ) : atual?.tela === 'ocs-inseridas' ? (
-            // A sub-tela também vem do endereço — mesmo motivo de `Orcamentos`
-            // logo abaixo: voltar tem que fechar a lista, não sair do sistema.
+            // ESTA TELA SÓ EXISTE COMO PASSAGEM
+            //
+            //	Ninguém chega aqui pelo menu — é só o jeito de `Compras.tsx`
+            //	abrir a lista de Processadas/Rejeitadas por baixo do card "OCs
+            //	Inseridas" (ver o comentário lá em cima, no ramo `compras`).
+            //	Por isso "voltar" não pode só limpar o sub-endereço (`extra`)
+            //	como `Orcamentos`/`Pco` fazem: isso deixaria a pessoa na tela
+            //	AVULSA de "OCs Inseridas" (com a lista de nomes, o desenho
+            //	antigo que o dono trocou pelo card em 10/09/2026) — tem que
+            //	tirar este item do caminho e voltar para "Compras".
             <OcsInseridas
               onde={extra[0]}
               abrir={onde => navegar(caminho, [onde])}
-              voltar={() => navegar(caminho)}
+              voltar={() => navegar(caminho.slice(0, -1))}
             />
           ) : atual?.tela === 'pco' ? (
             <Pco
