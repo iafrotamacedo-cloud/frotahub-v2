@@ -162,8 +162,8 @@ func TestFluxoCompleto30OCs(t *testing.T) {
 	}
 
 	// --- envio PCO (só as 15 processadas) ---
-	if !mod.brevo.Ligado() {
-		t.Log("BREVO_API_KEY ausente — pulando envio real; vistas já conferidas")
+	if !mod.correio.Ligado() {
+		t.Log("SMTP_SENHA ausente — pulando envio real; vistas já conferidas")
 		return
 	}
 

@@ -425,6 +425,24 @@ type Brevo struct {
 
 func (b Brevo) Ligado() bool { return b.Chave != "" }
 
+// SMTP envia o pacote de PCO pela caixa de e-mail do próprio domínio
+// (HostGator/cPanel, 11/09/2026) — substitui o Brevo, que exigia validação
+// de remetente ou autenticação de domínio inteira antes de aceitar o envio
+// (ver DIARIOS_CLAUDE/diario_110926_1045_pco.md). Sem senha, o motor sobe
+// normalmente — a rota de envio responde erro claro na hora de usar (mesmo
+// raciocínio de IA/Groq/Brevo).
+type SMTP struct {
+	Servidor string
+	Porta    int
+	// A caixa inteira (usuário de login E remetente do "De:") — ex.:
+	// pco@frotamacedo.com.br. Hospedagem compartilhada não separa os dois.
+	Usuario       string
+	Senha         string
+	NomeRemetente string
+}
+
+func (s SMTP) Ligado() bool { return s.Servidor != "" && s.Usuario != "" && s.Senha != "" }
+
 // Runtime é como o processo roda.
 type Runtime struct {
 	Porta       int
@@ -443,6 +461,7 @@ type Config struct {
 	IA       IA
 	Groq     Groq
 	Brevo    Brevo
+	SMTP     SMTP
 	Runtime  Runtime
 	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
 	Papel     string
@@ -463,6 +482,7 @@ func (c Config) Resumo() map[string]any {
 		"ia":       c.IA.Ligada(),
 		"groq":     c.Groq.Ligado(),
 		"brevo":    c.Brevo.Ligado(),
+		"smtp":     c.SMTP.Ligado(),
 		"trilogo":  c.Trilogo.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
@@ -559,6 +579,16 @@ func Carregar() (*Config, error) {
 		NomeRemetente: l.texto("BREVO_NOME_REMETENTE", "Frota Macedo Engenharia", false, ""),
 	}
 
+	// O e-mail do PCO agora sai pela caixa do próprio domínio (HostGator/
+	// cPanel), não mais pelo Brevo — ver interno/correio/correio.go.
+	smtpCfg := SMTP{
+		Servidor:      l.texto("SMTP_SERVIDOR", "mail.frotamacedo.com.br", false, ""),
+		Porta:         l.inteiro("SMTP_PORTA", 587, 1, 65535),
+		Usuario:       l.texto("SMTP_USUARIO", "pco@frotamacedo.com.br", false, ""),
+		Senha:         l.segredo("SMTP_SENHA", false, 0, ""),
+		NomeRemetente: l.texto("SMTP_NOME_REMETENTE", "Frota Macedo Engenharia", false, ""),
+	}
+
 	// QUEM ESTÁ LIGANDO
 	//   O motor e o robô rodam o mesmo pacote de configuração, mas precisam de
 	//   coisas diferentes. Exigir do robô o tempero do PIN — que ele nunca usa —
@@ -574,7 +604,7 @@ func Carregar() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Brevo: brevo, Runtime: rt,
+		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Brevo: brevo, SMTP: smtpCfg, Runtime: rt,
 		Papel: papel,
 		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),

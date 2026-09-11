@@ -1,4 +1,4 @@
-// rev 1 — PCO: enviar o pacote por e-mail (Brevo)
+// rev 2 — PCO: enviar o pacote por e-mail (SMTP do HostGator)
 //
 // O PEDIDO DO DONO (11/09/2026)
 //
@@ -19,14 +19,14 @@
 //	enviadas (`pco_enviado_em=is.null` no filtro do UPDATE). Só quem
 //	consegue a marca entra no e-mail. Isso é o que impede dois cliques (ou
 //	um clique em cima do robô agendado) de mandar duas mensagens com a
-//	mesma OC. Se o Brevo falhar DEPOIS da marca, ela volta para null — a OC
+//	mesma OC. Se o envio falhar DEPOIS da marca, ela volta para null — a OC
 //	continua pendente, não fica presa num limbo "marcada mas não enviada".
 //
 // NUNCA ENVIA VAZIO
 //
 //	Pedido explícito do dono. Zero pendentes (ou zero sobrando depois do
 //	CAS, porque outra chamada levou todas) é sucesso silencioso, não erro —
-//	a rota responde `"enviado": false` e não toca no Brevo.
+//	a rota responde `"enviado": false` e não toca no correio.
 package administrativo
 
 import (
@@ -40,7 +40,7 @@ import (
 	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/brevo"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/correio"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
@@ -310,7 +310,7 @@ func (m *Modulo) enviarLote(w http.ResponseWriter, r *http.Request, p *seguranca
 	}
 
 	if err := m.enviarPorEmail(r.Context(), p.ClienteID, enviar); err != nil {
-		// O Brevo falhou (ou não está configurado): desfaz a marca — a OC
+		// O envio falhou (ou não está configurado): desfaz a marca — a OC
 		// volta a ser "pendente de envio", não fica presa num limbo.
 		_ = m.bd.Atualizar(r.Context(), "ordens_compra",
 			"id=in.("+strings.Join(idsDe(enviar), ",")+")",
@@ -343,7 +343,7 @@ func idsDe(ordens []ordemParaEnvio) []string {
 }
 
 // enviarPorEmail monta o zip e o HTML, busca os destinatários ativos, e
-// chama o Brevo. Função pura quanto ao BANCO de OCs (só lê o que recebeu) —
+// chama o correio. Função pura quanto ao BANCO de OCs (só lê o que recebeu) —
 // a única escrita daqui para fora é buscar destinatários e baixar do
 // armazém, nenhuma delas em `ordens_compra`.
 func (m *Modulo) enviarPorEmail(ctx context.Context, clienteID string, ordens []ordemParaEnvio) error {
@@ -365,11 +365,11 @@ func (m *Modulo) enviarPorEmail(ctx context.Context, clienteID string, ordens []
 
 	html := montarHTMLDoEnvio(ordens, data)
 
-	return m.brevo.Enviar(ctx, brevo.Mensagem{
+	return m.correio.Enviar(ctx, correio.Mensagem{
 		Para:    destinatarios,
 		Assunto: fmt.Sprintf("Ordens de Compra (PCO) - %s - Frota Macedo Engenharia", data),
 		HTML:    html,
-		Anexos: []brevo.Anexo{
+		Anexos: []correio.Anexo{
 			{Nome: fmt.Sprintf("Pedidos_PCO_%s.zip", data), Conteudo: zipBytes},
 		},
 	})
@@ -419,7 +419,7 @@ func pastaSegura(nome string) string {
 }
 
 // montarHTMLDoEnvio monta o corpo do e-mail — adaptação do "Modelo 2" da
-// skill `pco-organizer` (a versão HTML com tabela de verdade; o Brevo manda
+// skill `pco-organizer` (a versão HTML com tabela de verdade; o envio manda
 // HTML sempre, então a versão Markdown/texto de fallback para o Outlook não
 // se aplica aqui).
 func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
