@@ -111,3 +111,50 @@ export function emDataHora(s: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return s
   return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
+
+export function motivoRejeicaoSimplificado(motivo: string | null): string {
+  if (!motivo?.trim()) return '—'
+  return motivo
+    .split(';')
+    .map(part => simplificarMotivoRejeicao(part.trim()))
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function simplificarMotivoRejeicao(s: string): string {
+  const lower = s.toLowerCase()
+  if (lower.includes('fornecedor') && (lower.includes('cnpj') || lower.includes('nome'))) {
+    return 'Fornecedor sem CNPJ'
+  }
+  if (lower.includes('faturamento') && lower.includes('não achei')) {
+    return 'Faturamento sem CNPJ'
+  }
+  if (lower.includes('faturamento') && (lower.includes('não começa') || lower.includes('frota macedo'))) {
+    return 'CNPJ de faturamento errado'
+  }
+  return s.replace(/\bfalhou\b/gi, '').replace(/\s+/g, ' ').trim()
+}
+
+export interface ObraCentroSugerida {
+  obra_centro_custo: string
+  comprador_cnpj?: string | null
+  comprador_nome?: string | null
+}
+
+export interface EstadoReparoOC {
+  precisa_fornecedor: boolean
+  precisa_faturamento: boolean
+  motivos: string[]
+  fornecedor_cnpj?: string | null
+  obra_centro_custo?: string | null
+  comprador_cnpj?: string | null
+  comprador_nome?: string | null
+}
+
+export interface ResultadoReparoOC {
+  status: 'lido' | 'falhou'
+  motivo?: string
+  motivos: string[]
+  precisa_fornecedor: boolean
+  precisa_faturamento: boolean
+}

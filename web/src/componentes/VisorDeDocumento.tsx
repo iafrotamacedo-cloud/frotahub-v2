@@ -24,7 +24,7 @@ import { arquivoDoMotor, salvarArquivo } from '../motor/cliente'
 import { usePedirFoco } from './Foco'
 
 export function VisorDeDocumento({
-  titulo, caminho, endereco, nomeSugerido, voltar, acoes,
+  titulo, caminho, endereco, nomeSugerido, voltar, acoes, barAcoes, destaque, barraAlta,
 }: {
   /** O que a barra diz que é este documento. */
   titulo: ReactNode
@@ -43,6 +43,12 @@ export function VisorDeDocumento({
   voltar: () => void
   /** Botões próprios da tela, antes do salvar. */
   acoes?: ReactNode
+  /** Entre o título e o destaque — ex.: EDITAR na reparação de OC. */
+  barAcoes?: ReactNode
+  /** Destaque na barra — ex.: motivo(s) da rejeição ao reparar uma OC. */
+  destaque?: ReactNode
+  /** Barra mais alta quando há vários motivos empilhados. */
+  barraAlta?: boolean
 }) {
   usePedirFoco()
 
@@ -97,9 +103,13 @@ export function VisorDeDocumento({
 
   return (
     <div className="orc-tela">
-      <div className="orc-barra">
+      <div className={'orc-barra' + (barraAlta ? ' orc-barra--alta' : '')}>
         <button type="button" className="orc-voltar" onClick={voltar}>← voltar</button>
         <b>{titulo}</b>
+        {barAcoes}
+        {destaque != null && destaque !== '' && (
+          <div className="adm-motivos-barra">{destaque}</div>
+        )}
         <span className="orc-ficha-direita">
           {acoes}
           <button

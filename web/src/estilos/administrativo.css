@@ -70,6 +70,42 @@
   border-color:var(--gray);color:var(--ink);background:var(--bg);
 }
 
+/* motivo na barra escura do visor (Reparar OC) */
+.orc-barra--alta{
+  height:auto;min-height:46px;flex-wrap:wrap;padding:8px 16px;align-content:center;
+}
+.adm-motivos-barra{
+  display:flex;flex-direction:column;gap:4px;flex:1 1 200px;min-width:0;
+}
+.adm-motivo-barra{
+  padding:5px 14px;border-radius:var(--r-s);
+  background:#fff;color:var(--err);font-weight:700;font-size:12px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.adm-editar{font-weight:700;letter-spacing:.04em;padding:0 12px;height:28px;font-size:11px}
+.adm-salvar-voltar{font-size:12px;padding:0 14px;height:34px}
+
+/* pop-up EDITAR */
+.adm-reparo-janela{max-width:440px;width:min(440px,92vw)}
+.adm-reparo-campo{display:flex;flex-direction:column;gap:6px;margin:14px 0 0}
+.adm-reparo-campo>span{font-size:12.5px;font-weight:600;color:var(--ink)}
+.adm-reparo-campo input{
+  font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);
+  border-radius:var(--r-s);background:var(--card);
+}
+.adm-reparo-busca{font-style:normal;font-size:11.5px;color:var(--mut)}
+.adm-reparo-lista{
+  list-style:none;margin:0;padding:0;max-height:180px;overflow:auto;
+  border:1px solid var(--line);border-radius:var(--r-s);background:var(--card);
+}
+.adm-reparo-opcao{
+  display:block;width:100%;text-align:left;padding:8px 10px;border:0;border-bottom:1px solid var(--line-2);
+  background:none;font:inherit;font-size:12.8px;cursor:pointer;color:var(--ink);
+}
+.adm-reparo-opcao:last-child{border-bottom:0}
+.adm-reparo-opcao:hover,.adm-reparo-opcao.escolhida{background:var(--red-050);color:var(--red)}
+.adm-reparo-botoes{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+
 /* ---------- cabeçalho: o botão de leitura em lote ---------- */
 .adm-hero-acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 

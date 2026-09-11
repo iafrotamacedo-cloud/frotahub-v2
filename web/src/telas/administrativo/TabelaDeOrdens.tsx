@@ -14,7 +14,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { ajustarCelulas } from '../trilogo/encolher'
 import { quando } from '../trilogo/tipos'
 import {
-  emReais, type OrdemDeCompra, type VistaDasOrdens,
+  emReais, motivoRejeicaoSimplificado, type OrdemDeCompra, type VistaDasOrdens,
 } from './tipos'
 
 const NOME_STATUS: Record<OrdemDeCompra['status'], string> = {
@@ -98,7 +98,7 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
               <td className="c-data tri-fraco">{quando(o.criado_em)}</td>
               <td className="c-motivo">
                 <span className="adm-motivo-rejeicao" title={o.erro_leitura ?? undefined}>
-                  {motivoRejeicao(o.erro_leitura)}
+                  {motivoRejeicaoSimplificado(o.erro_leitura)}
                 </span>
               </td>
               <td className="c-reparar">
@@ -184,29 +184,6 @@ function nomeObraSemCidade(o: OrdemDeCompra): string {
   if (t === '—') return t
   const corte = t.lastIndexOf(' - ')
   return corte > 0 ? t.slice(0, corte).trim() : t
-}
-
-function motivoRejeicao(motivo: string | null): string {
-  if (!motivo?.trim()) return '—'
-  return motivo
-    .split(';')
-    .map(part => simplificarMotivo(part.trim()))
-    .filter(Boolean)
-    .join(' · ')
-}
-
-function simplificarMotivo(s: string): string {
-  const lower = s.toLowerCase()
-  if (lower.includes('fornecedor') && (lower.includes('cnpj') || lower.includes('nome'))) {
-    return 'Fornecedor sem CNPJ'
-  }
-  if (lower.includes('faturamento') && lower.includes('não achei')) {
-    return 'Faturamento sem CNPJ'
-  }
-  if (lower.includes('faturamento') && (lower.includes('não começa') || lower.includes('frota macedo'))) {
-    return 'CNPJ de faturamento errado'
-  }
-  return s.replace(/\bfalhou\b/gi, '').replace(/\s+/g, ' ').trim()
 }
 
 function tituloObra(o: OrdemDeCompra): string | undefined {
