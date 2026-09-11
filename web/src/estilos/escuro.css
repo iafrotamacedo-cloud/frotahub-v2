@@ -118,9 +118,8 @@
   overflow: hidden;
 }
 
-/* Compras e PCO: cartões com teto, não painel pela metade.
-   Cada coluna pode crescer no flex até metade da largura que teria dividindo
-   a linha em partes iguais (antes não havia teto). */
+/* Compras e PCO: cartões com teto (×1,5 sobre a metade da fatia igual).
+   Fechado e aberto no hover mantêm a mesma proporção. */
 .orc-painel--estreito .pn {
   justify-content: flex-start;
   width: 100%;
@@ -128,24 +127,23 @@
 }
 .orc-painel--estreito.orc-painel--2 .pn-col {
   flex: 1 1 0;
-  max-width: calc((100% - 14px) / 4);
+  max-width: calc((100% - 14px) * 3 / 8);
   transition: flex-grow var(--transicao), max-width var(--transicao), border-color var(--transicao),
               box-shadow var(--transicao), transform var(--transicao);
 }
 .orc-painel--estreito.orc-painel--3 .pn-col {
   flex: 1 1 0;
-  max-width: calc((100% - 28px) / 6);
+  max-width: calc((100% - 28px) / 4);
   transition: flex-grow var(--transicao), max-width var(--transicao), border-color var(--transicao),
               box-shadow var(--transicao), transform var(--transicao);
 }
-/* Aberto: cresce o bastante para os sub-cartões, sem engolir a linha inteira. */
 .orc-painel--estreito.orc-painel--2 .pn-col.aberta {
-  flex-grow: 1.2;
-  max-width: calc((100% - 14px) / 3);
+  flex-grow: 1.8;
+  max-width: calc((100% - 14px) / 2);
 }
 .orc-painel--estreito.orc-painel--3 .pn-col.aberta {
-  flex-grow: 1.2;
-  max-width: calc((100% - 28px) / 4);
+  flex-grow: 1.8;
+  max-width: calc((100% - 28px) * 3 / 8);
 }
 
 .pn-col {
