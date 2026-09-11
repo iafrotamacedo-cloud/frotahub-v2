@@ -22,7 +22,7 @@ import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
 import { Icone } from '../../componentes/Icone'
-import type { PainelDeOrdens, LinhaDaPreviaDeOrdem } from './tipos'
+import type { PainelDeOrdens } from './tipos'
 
 interface Props {
   aoEscolher: (chave: string) => void
@@ -54,12 +54,6 @@ export function Compras({ aoEscolher }: Props) {
 }
 
 function montarEtapas(d: PainelDeOrdens): Etapa[] {
-  const linhas = (l?: LinhaDaPreviaDeOrdem[]) =>
-    (l ?? []).map(x => ({
-      texto: x.numero ? `${x.nome_arquivo} · nº ${x.numero}` : x.nome_arquivo,
-      fim: emDia(x.criado_em),
-    }))
-
   return [
     {
       chave: 'inserir-oc',
@@ -94,7 +88,6 @@ function montarEtapas(d: PainelDeOrdens): Etapa[] {
           titulo: 'Processadas',
           descricao: 'Passou nos dois filtros — fornecedor com CNPJ, faturamento para a Frota Macedo.',
           numero: d.processadas,
-          previa: linhas(d.previa?.processadas),
           previaVazia: 'nenhuma OC processada ainda',
         },
         {
@@ -102,7 +95,6 @@ function montarEtapas(d: PainelDeOrdens): Etapa[] {
           titulo: 'Rejeitadas',
           descricao: 'Caiu no bloqueio de um dos dois filtros.',
           numero: d.rejeitadas,
-          previa: linhas(d.previa?.rejeitadas),
           previaVazia: 'nenhuma OC rejeitada',
         },
       ],
@@ -116,10 +108,4 @@ function montarEtapas(d: PainelDeOrdens): Etapa[] {
       selo: 'Em breve',
     },
   ]
-}
-
-/** O dia, curto — mesma regra de `Orcamentos.tsx`/`OcsInseridas.tsx`. */
-function emDia(s: string): string {
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
