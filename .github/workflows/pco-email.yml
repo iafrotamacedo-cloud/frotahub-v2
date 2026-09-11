@@ -18,9 +18,11 @@ name: PCO — enviar por e-mail
 #   `"enviado": false` e não toca no Brevo. Este workflow não precisa (e não
 #   deve) decidir isso de novo.
 on:
-  # 20h em Fortaleza (UTC−3) = 23h UTC — pedido do dono, 11/09/2026.
-  schedule:
-    - cron: "0 23 * * *"
+  # Cron desligado a pedido do dono (11/09/2026, à noite) — envio passa a
+  # ser só pelo botão manual na tela do PCO. Reativar: descomentar o
+  # `schedule` abaixo (20h em Fortaleza/UTC−3 = 23h UTC).
+  # schedule:
+  #   - cron: "0 23 * * *"
   workflow_dispatch: {}
 
 # Duas rodadas ao mesmo tempo (o cron batendo em cima de um clique manual,
