@@ -44,11 +44,16 @@ export interface ItemMenu {
    * O código no catálogo de permissões. Item com `rotina` só aparece para quem
    * a alcança — o menu se ajusta ao login (P-17).
    *
+   * Uma LISTA é "qualquer uma delas alcança" — caso de Notas Fiscais
+   * (12/09/2026): o almoxarife só tem `COMPRAS_NF_RECEBER`, o escritório só
+   * `COMPRAS_NF_ENTREGAR`, e o item precisa aparecer para os dois, sem dar a
+   * nenhum a rotina do outro.
+   *
    * `soBuilder` continua existindo para o que NÃO passa pela matriz: mexer em
    * login é exclusividade do dono, e isso não é uma linha de permissão que
    * alguém possa marcar por engano.
    */
-  rotina?: string
+  rotina?: string | string[]
   tela?: Tela
   sub?: ItemMenu[]
 }
@@ -61,7 +66,7 @@ export type Icone =
 export type Tela =
   | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
-  | 'pco-destinatarios'
+  | 'pco-destinatarios' | 'nf'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -358,7 +363,10 @@ export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = [
       if (item.soBuilder && !ehBuilder) continue
       // O builder passa sempre, aconteça o que acontecer com a matriz — é a
       // garantia de que uma configuração errada não tranca o dono para fora.
-      if (item.rotina && !ehBuilder && !alcanca.has(item.rotina)) continue
+      if (item.rotina && !ehBuilder) {
+        const rotinasDoItem = Array.isArray(item.rotina) ? item.rotina : [item.rotina]
+        if (!rotinasDoItem.some(r => alcanca.has(r))) continue
+      }
       if (item.sub) {
         const sub = filtrar(item.sub)
         if (sub.length === 0) continue

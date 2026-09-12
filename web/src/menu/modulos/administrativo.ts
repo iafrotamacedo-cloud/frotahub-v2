@@ -81,7 +81,12 @@ export const administrativoMenu: ItemMenu = {
       t: 'Notas fiscais',
       rota: 'notas-fiscais',
       icone: 'lista',
-      desc: 'O ciclo da nota, da entrada ao pagamento',
+      desc: 'O recebimento da nota, da obra ao envio ao cliente',
+      tela: 'nf',
+      // Sem `rotina` única: almoxarife (COMPRAS_NF_RECEBER) e escritório
+      // (COMPRAS_NF_ENTREGAR) são pessoas diferentes, cada uma só com a sua —
+      // o item precisa aparecer para os dois, ver o comentário em `arvore.ts`.
+      rotina: ['COMPRAS_NF_RECEBER', 'COMPRAS_NF_ENTREGAR', 'COMPRAS_NF_CONFIGURAR_ACESSO'],
     },
   ],
 }

@@ -44,6 +44,17 @@ const (
 	RotinaPCOEnviar        = "COMPRAS_PCO_ENVIAR"
 )
 
+// As três rotinas de Notas Fiscais (migração 064, 12/09/2026) — SEPARADAS
+// pelo mesmo motivo do PCO: receber a nota (almoxarife, na obra) e confirmar
+// entrega/envio (escritório) são responsabilidades diferentes, e conceder
+// acesso por obra é coisa de nível superior — ver o cabeçalho de
+// `notas_fiscais.go` e `acessos_obra.go`.
+const (
+	RotinaNFReceber          = "COMPRAS_NF_RECEBER"
+	RotinaNFEntregar         = "COMPRAS_NF_ENTREGAR"
+	RotinaNFConfigurarAcesso = "COMPRAS_NF_CONFIGURAR_ACESSO"
+)
+
 // TamanhoMaximo de um arquivo de OC aceito na inserção. Mesmo teto de
 // Orçamentos: PDF de OC digital não passa de poucos MB.
 const TamanhoMaximo = 25 << 20
@@ -101,6 +112,24 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/compras/pco/destinatarios", m.criarDestinatario)
 	mux.HandleFunc("PATCH /administrativo/compras/pco/destinatarios/{id}", m.alterarDestinatario)
 	mux.HandleFunc("GET /administrativo/compras/pco/destinatarios/{id}/historico", m.historicoDestinatario)
+	// Notas Fiscais — Bloco A (12/09/2026) — ver o cabeçalho de `notas_fiscais.go`.
+	mux.HandleFunc("GET /administrativo/nf/painel", m.painelDeNF)
+	mux.HandleFunc("GET /administrativo/nf/aguardando", m.ordensAguardandoNF)
+	mux.HandleFunc("GET /administrativo/nf/ordens/{id}", m.notasDaOrdem)
+	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/receber", m.receberNF)
+	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
+	mux.HandleFunc("GET /administrativo/nf/entregues", m.listarNFEntregues)
+	mux.HandleFunc("GET /administrativo/nf/enviadas", m.listarNFEnviadas)
+	mux.HandleFunc("POST /administrativo/nf/{id}/entregar", m.entregarNF)
+	mux.HandleFunc("POST /administrativo/nf/{id}/enviar-cliente", m.enviarNFAoCliente)
+	mux.HandleFunc("POST /administrativo/nf/{id}/cancelar", m.cancelarNF)
+	mux.HandleFunc("GET /administrativo/nf/{id}/arquivo", m.arquivoDaNF)
+	// A configuração de acesso por obra (12/09/2026) — ver o cabeçalho de `acessos_obra.go`.
+	mux.HandleFunc("GET /administrativo/nf/obras", m.listarObrasNF)
+	mux.HandleFunc("GET /administrativo/nf/perfis", m.listarPerfisNF)
+	mux.HandleFunc("GET /administrativo/nf/acessos", m.listarAcessosNF)
+	mux.HandleFunc("POST /administrativo/nf/acessos", m.concederAcessoNF)
+	mux.HandleFunc("DELETE /administrativo/nf/acessos/{id}", m.revogarAcessoNF)
 }
 
 // ---------------------------------------------------------------------------

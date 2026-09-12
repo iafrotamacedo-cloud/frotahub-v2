@@ -224,6 +224,79 @@ export interface DocumentoOC {
   itens: ItemDocumentoOC[]
 }
 
+// ---------------------------------------------------------------------------
+// Notas Fiscais — Bloco A (12/09/2026, ver o cabeçalho de `notas_fiscais.go`)
+// ---------------------------------------------------------------------------
+
+/** O que `GET /administrativo/nf/painel` devolve — alimenta os quatro
+ *  cartões do hub de Notas Fiscais. */
+export interface PainelDeNF {
+  aguardando: number
+  recebidas: number
+  entregues: number
+  enviadas: number
+}
+
+/** Uma linha de `GET /administrativo/nf/aguardando` — uma OC enviada ao
+ *  cliente que ainda não tem nota fiscal suficiente para cobrir o total
+ *  (recebimento parcial permitido, ver `nf_progresso_ordens`). */
+export interface OrdemAguardandoNF {
+  ordem_compra_id: string
+  numero: string | null
+  obra_centro_custo: string | null
+  fornecedor_id: string | null
+  fornecedor_nome?: string | null
+  total: number
+  recebido: number
+  restante: number
+}
+
+export type StatusNF = 'recebida' | 'entregue_escritorio' | 'enviada_cliente'
+
+/** Uma nota fiscal — tanto na lista de uma OC (`GET /nf/ordens/{id}`) quanto
+ *  nas listas de etapa (`/nf/recebidas`, `/nf/entregues`, `/nf/enviadas`). */
+export interface NotaFiscal {
+  id: string
+  numero: string
+  valor: number
+  status: StatusNF
+  cancelada: boolean
+  motivo_cancelamento: string | null
+  recebida_em: string
+  entregue_escritorio_em: string | null
+  enviada_cliente_em: string | null
+  /** Só nas listas de etapa — a lista de uma OC já sabe de quem é. */
+  ordem_compra_id?: string
+  ordem_numero?: string | null
+  obra_centro_custo?: string | null
+}
+
+/** Uma obra conhecida (`centros_custo`, migração 062) — o catálogo que
+ *  alimenta a concessão de acesso por obra. */
+export interface ObraNF {
+  id: string
+  obra_centro_custo: string
+  comprador_nome: string | null
+}
+
+/** Um perfil ativo do cliente, para escolher quem ganha acesso a uma obra. */
+export interface PerfilParaAcessoNF {
+  id: string
+  nome: string
+  usuario: string
+  categorias: { nome: string } | null
+}
+
+/** Um vínculo perfil↔obra já concedido (`centro_custo_acessos`). */
+export interface AcessoObraNF {
+  id: string
+  perfil_id: string
+  centro_custo_id: string
+  criado_em: string
+  perfis: { nome: string } | null
+  centros_custo: { obra_centro_custo: string } | null
+}
+
 export interface EstadoDocumentoOC {
   documento: DocumentoOC
   status: string

@@ -36,6 +36,7 @@ import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
 import { Pco } from './telas/administrativo/Pco'
 import { DestinatariosPCO } from './telas/administrativo/DestinatariosPCO'
+import { NotasFiscais } from './telas/administrativo/NotasFiscais'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Hub as ServicosHub } from './telas/servicos/Hub'
 import { Funcionarios } from './telas/funcionarios/Funcionarios'
@@ -464,6 +465,12 @@ function Casca() {
             />
           ) : atual?.tela === 'pco-destinatarios' ? (
             <DestinatariosPCO />
+          ) : atual?.tela === 'nf' ? (
+            <NotasFiscais
+              onde={extra[0]}
+              perfil={perfil}
+              abrir={onde => navegar(caminho, [onde])}
+            />
           ) : atual?.tela === 'consolidacao' ? (
             <Consolidacao />
           ) : atual?.tela === 'servicos-hub' ? (
