@@ -7,6 +7,8 @@
 //	lado deixa o registro de lá errado pra sempre. A correção virou: a
 //	pessoa acerta a OC no Obra Prima, baixa o PDF novo, e SUBSTITUI aqui —
 //	a OC velha é apagada de vez, a nova entra do zero na fila de leitura.
+//	O PDF escolhido precisa ser da MESMA OC (mesmo número) — conferido na
+//	hora, antes de trocar qualquer coisa (12/09/2026).
 //
 //	Separado disso, mas na mesma frente: um botão de EXCLUIR de verdade,
 //	disponível em qualquer fila antes do e-mail de PCO sair. Os dois casos
@@ -26,6 +28,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -91,7 +94,7 @@ func (m *Modulo) substituirOrdem(w http.ResponseWriter, r *http.Request) {
 	}
 	ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+id+
 		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
-		"&select=id,status,erro_leitura,arquivo_sha256&limit=1")
+		"&select=id,status,erro_leitura,arquivo_sha256,numero&limit=1")
 	if err != nil {
 		m.erro(w, "não achei esta ordem de compra", err)
 		return
@@ -140,6 +143,26 @@ func (m *Modulo) substituirOrdem(w http.ResponseWriter, r *http.Request) {
 	if shaNovo == shaAntigo {
 		web.Falhar(w, http.StatusBadRequest,
 			"Este é o mesmo arquivo de antes — escolha o PDF já corrigido no Obra Prima.")
+		return
+	}
+
+	// TEM QUE SER A MESMA OC, NUNCA OUTRA (pedido do dono, 12/09/2026)
+	//
+	//	Substituir corrige o faturamento — não troca a OC por outra. Lê só o
+	//	número do PDF escolhido (a mesma leitura de sempre, `Ler()`; não é
+	//	nenhum atalho novo) e compara com o número que já está gravado. Se
+	//	não bater, a pessoa escolheu o PDF errado — e nada é trocado.
+	numeroAntigo := strCampo(ordem["numero"])
+	novaLeitura, lerErr := Ler(r.Context(), conteudo)
+	if lerErr != nil {
+		web.Falhar(w, http.StatusBadRequest,
+			"Não consegui ler o número da OC neste PDF: "+lerErr.Error())
+		return
+	}
+	if numeroAntigo != "" && novaLeitura.Numero != numeroAntigo {
+		web.Falhar(w, http.StatusBadRequest, fmt.Sprintf(
+			"O arquivo escolhido é da OC %s, mas esta aqui é a OC %s — escolha o PDF certo, corrigido no Obra Prima.",
+			novaLeitura.Numero, numeroAntigo))
 		return
 	}
 
