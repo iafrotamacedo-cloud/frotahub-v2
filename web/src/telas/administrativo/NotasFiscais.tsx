@@ -14,12 +14,11 @@
 //	— a OC nunca larga a nota de vista, e a nota nunca esquece de qual OC
 //	veio.
 //
-// UM QUINTO BOTÃO, SÓ PARA QUEM CONFIGURA ACESSO
+// "ACESSOS POR OBRA" NÃO MORA AQUI
 //
-//	"Acessos por obra" não é uma etapa do kanban — é a tela de quem concede
-//	(CEO, ou o builder). Fica fora do painel de cartões, do mesmo jeito que
-//	"Destinatários" fica fora do painel de PCO — mesma ideia de duas
-//	responsabilidades diferentes, dois lugares diferentes.
+//	Mesmo lugar de "PCO — Destinatários": Configurações › [item próprio],
+//	não um botão dentro do painel — são as duas telas de quem CONFIGURA o
+//	módulo, e não de quem TRABALHA nele todo dia (ver `arvore.ts`).
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
@@ -27,8 +26,7 @@ import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import { AguardandoNF } from './AguardandoNF'
 import { ListaDeNF } from './ListaDeNF'
-import { AcessosObraNF } from './AcessosObraNF'
-import { RotinaNFReceber, RotinaNFEntregar, RotinaNFConfigurarAcesso, temRotina } from './rotinasNF'
+import { RotinaNFReceber, RotinaNFEntregar, temRotina } from './rotinasNF'
 import type { PainelDeNF } from './tipos'
 
 interface Props {
@@ -56,27 +54,19 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
   if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" />
   if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" />
   if (onde === 'enviadas') return <ListaDeNF vista="enviadas" titulo="Enviadas ao cliente" />
-  if (onde === 'acessos') return <AcessosObraNF />
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
 
-  const podeConfigurar = temRotina(perfil, RotinaNFConfigurarAcesso)
-
   return (
-    <>
-      {podeConfigurar && (
-        <header className="hero hero-linha">
-          <div />
-          <button type="button" className="bt bt-neutro" onClick={() => abrir('acessos')}>
-            Acessos por obra
-          </button>
-        </header>
-      )}
-      <div className="orc-painel orc-painel--estreito orc-painel--4">
-        <Painel etapas={montarEtapas(dados, perfil)} aoEscolher={abrir} />
-      </div>
-    </>
+    // SEM O SUFIXO "--N": aquele teto (`escuro.css`) foi desenhado para o
+    // hover-expandir de "OCs Inseridas" em Compras — reserva espaço para um
+    // quarto slot que só existe ali. Nenhum cartão daqui tem `filhos`, e a
+    // quantidade varia com a rotina de quem está logado (1, 3 ou 4) — o
+    // teto fixo deixaria um vão à direita sem sentido nenhum.
+    <div className="orc-painel orc-painel--estreito">
+      <Painel etapas={montarEtapas(dados, perfil)} aoEscolher={abrir} />
+    </div>
   )
 }
 

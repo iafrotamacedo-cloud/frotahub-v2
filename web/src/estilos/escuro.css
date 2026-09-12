@@ -137,12 +137,6 @@
   transition: flex-grow var(--transicao), max-width var(--transicao), border-color var(--transicao),
               box-shadow var(--transicao), transform var(--transicao);
 }
-/* Notas Fiscais: até 4 cartões, nenhum com filhos (sem hover-expandir) — só
-   o teto, para não esticar demais numa tela larga. */
-.orc-painel--estreito.orc-painel--4 .pn-col {
-  flex: 1 1 0;
-  max-width: calc((100% - 42px) * 3 / 16);
-}
 .orc-painel--estreito.orc-painel--2 .pn-col.aberta {
   flex-grow: 1.8;
   max-width: calc((100% - 14px) / 2);

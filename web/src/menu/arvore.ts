@@ -66,7 +66,7 @@ export type Icone =
 export type Tela =
   | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
-  | 'pco-destinatarios' | 'nf'
+  | 'pco-destinatarios' | 'nf' | 'nf-acessos'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -342,6 +342,17 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         desc: 'Quem recebe o e-mail do pacote de PCO',
         tela: 'pco-destinatarios',
         rotina: 'COMPRAS_PCO_DESTINATARIOS',
+      },
+      {
+        // Mesmo desenho de "PCO — Destinatários" logo acima: rotina própria
+        // (12/09/2026, migração 064), não `soBuilder` — quem concede acesso
+        // por obra normalmente é o CEO, não precisa ser o builder.
+        t: 'Notas Fiscais — Acessos por obra',
+        rota: 'nf-acessos',
+        icone: 'cadeado',
+        desc: 'Quem pode receber nota fiscal de qual obra',
+        tela: 'nf-acessos',
+        rotina: 'COMPRAS_NF_CONFIGURAR_ACESSO',
       },
     ],
   },
