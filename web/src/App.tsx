@@ -449,21 +449,18 @@ function Casca() {
             //	Ninguém chega aqui pelo menu — é só o jeito de `Compras.tsx`
             //	abrir a lista de Processadas/Rejeitadas por baixo do card "OCs
             //	Inseridas" (ver o comentário lá em cima, no ramo `compras`).
-            //	Por isso "voltar" não pode só limpar o sub-endereço (`extra`)
-            //	como `Orcamentos`/`Pco` fazem: isso deixaria a pessoa na tela
-            //	AVULSA de "OCs Inseridas" (com a lista de nomes, o desenho
-            //	antigo que o dono trocou pelo card em 10/09/2026) — tem que
-            //	tirar este item do caminho e voltar para "Compras".
+            //	As listas não têm mais botão de "voltar" próprio (11/09/2026 —
+            //	a seta escura do cabeçalho já cobre isso, o branco era
+            //	redundante), então `OcsInseridas`/`Pco` não precisam mais do
+            //	prop nenhum para isso.
             <OcsInseridas
               onde={extra[0]}
               abrir={onde => navegar(caminho, [onde])}
-              voltar={() => navegar(caminho.slice(0, -1))}
             />
           ) : atual?.tela === 'pco' ? (
             <Pco
               onde={extra[0]}
               abrir={onde => navegar(caminho, [onde])}
-              voltar={() => navegar(caminho)}
             />
           ) : atual?.tela === 'pco-destinatarios' ? (
             <DestinatariosPCO />

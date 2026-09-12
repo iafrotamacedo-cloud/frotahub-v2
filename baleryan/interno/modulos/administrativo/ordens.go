@@ -53,7 +53,7 @@ func (m *Modulo) listarOrdens(w http.ResponseWriter, r *http.Request) {
 	}
 	var linhas []map[string]any
 	caminho := filtroDasOrdens(p.ClienteID, r.URL.Query().Get("vista")) +
-		"&select=id,nome_arquivo,status,erro_leitura,numero,obra_centro_custo,comprador_nome,fornecedor_id,total,criado_em" +
+		"&select=id,nome_arquivo,status,erro_leitura,numero,obra_centro_custo,comprador_nome,comprador_cnpj,fornecedor_id,total,criado_em" +
 		"&limit=" + fmt.Sprint(TetoDaLista)
 	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
 		m.erro(w, "não consegui listar as ordens de compra", err)

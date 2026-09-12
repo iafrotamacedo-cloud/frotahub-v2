@@ -12,10 +12,19 @@ export interface OrdemDeCompra {
   numero: string | null
   obra_centro_custo: string | null
   comprador_nome: string | null
+  comprador_cnpj: string | null
   /** Presente quando a leitura já achou um fornecedor com nome e CNPJ. */
   fornecedor_id: string | null
   total: number | null
   criado_em: string
+}
+
+/** O erro de faturamento não se corrige editando — a OC precisa ser
+ *  substituída por um PDF novo, corrigido no Obra Prima (ver o cabeçalho de
+ *  `TabelaDeOrdens.tsx`). */
+export function precisaSubstituir(erroLeitura: string | null): boolean {
+  const m = (erroLeitura ?? '').toLowerCase()
+  return m.includes('faturamento') || m.includes('03720882')
 }
 
 /** A vista da fila — mesmo desenho de três vistas de Orçamentos. As duas de
@@ -100,6 +109,13 @@ export interface ResultadoDaInsercao {
   ja_existia_como?: string
 }
 
+/** XX.XXX.XXX/YYYY-ZZ — mesma máscara que o motor usa no e-mail do PCO. */
+export function formatarCNPJ(digitos: string | null | undefined): string {
+  const d = (digitos ?? '').replace(/\D/g, '')
+  if (d.length !== 14) return digitos ?? ''
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
+}
+
 export function emReais(v: number | null | undefined): string {
   if (v === null || v === undefined) return '–'
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -132,31 +148,10 @@ function simplificarMotivoRejeicao(s: string): string {
   if (lower.includes('faturamento') && (lower.includes('não começa') || lower.includes('frota macedo'))) {
     return 'CNPJ de faturamento errado'
   }
+  if (lower.includes('endereço de cobrança')) {
+    return 'Endereço de cobrança errado'
+  }
   return s.replace(/\bfalhou\b/gi, '').replace(/\s+/g, ' ').trim()
-}
-
-export interface ObraCentroSugerida {
-  obra_centro_custo: string
-  comprador_cnpj?: string | null
-  comprador_nome?: string | null
-}
-
-export interface EstadoReparoOC {
-  precisa_fornecedor: boolean
-  precisa_faturamento: boolean
-  motivos: string[]
-  fornecedor_cnpj?: string | null
-  obra_centro_custo?: string | null
-  comprador_cnpj?: string | null
-  comprador_nome?: string | null
-}
-
-export interface ResultadoReparoOC {
-  status: 'lido' | 'falhou'
-  motivo?: string
-  motivos: string[]
-  precisa_fornecedor: boolean
-  precisa_faturamento: boolean
 }
 
 export interface ItemDocumentoOC {
@@ -212,7 +207,10 @@ export interface EstadoDocumentoOC {
   pco_enviado: boolean
   motivos: string[]
   precisa_fornecedor: boolean
+  /** Faturamento não se edita mais aqui — só sinaliza pra tela nem abrir o
+   *  reparo híbrido (a lista já desvia para "Ver + Substituir"). */
   precisa_faturamento: boolean
+  precisa_endereco: boolean
   motivo?: string
   /** Só na prévia (`POST .../documento?antever=1`). */
   pdf_base64?: string

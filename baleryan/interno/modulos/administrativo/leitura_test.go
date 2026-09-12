@@ -245,3 +245,78 @@ func TestCompradorCNPJParaBanco(t *testing.T) {
 		t.Errorf("CNPJ fora da raiz deve ser nil (CHECK do banco), veio %v", got)
 	}
 }
+
+// ENDEREÇO DE COBRANÇA — TERCEIRO FILTRO (11/09/2026)
+//
+//	Casos tirados de OCs reais bloqueadas que o dono mandou analisar:
+//	019337 tem "Rua Adelaide Paulino, 100" na entrega e "Adelaide Paulino,
+//	100" (sem "Rua") na cobrança — mesmo endereço, escrito diferente, não
+//	pode bloquear; 019472 tem cobrança apontando pro endereço da própria
+//	Frota Macedo, que não bate com nada — isso bloqueia.
+func TestEnderecosBatem_TolerantesAAbreviacaoDeLogradouro(t *testing.T) {
+	casos := []struct {
+		nome string
+		a, b string
+		quer bool
+	}{
+		{
+			"mesmo endereço, um com Rua e outro sem (019337)",
+			"Rua Adelaide Paulino, 100 - Paupina, Fortaleza, CE - 60873-830",
+			"Adelaide Paulino, 100 - Paupina, Fortaleza, CE - 60873-830",
+			true,
+		},
+		{
+			"mesmo endereço, maiúscula/acento diferentes",
+			"ROD. CE 040 KM - 20, S/N, VILLAS JARDIM - JACUNDÁ, Aquiraz, CE - 61700-000",
+			"rod ce 040 km 20 s n villas jardim jacunda aquiraz ce 61700 000",
+			true,
+		},
+		{
+			"endereços de fato diferentes (019472 — cobrança = endereço da própria Frota Macedo)",
+			"Engenheiro Heitor de Oliveira Albuquerque, 295 - Cidade dos Funcionários, Fortaleza, CE - 60822-605",
+			"Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000",
+			false,
+		},
+		{"vazio nunca bate com vazio", "", "", false},
+		{"vazio nunca bate com preenchido", "", "Rua Tal, 1", false},
+	}
+	for _, c := range casos {
+		if got := enderecosBatem(c.a, c.b); got != c.quer {
+			t.Errorf("%s: enderecosBatem = %v, esperava %v", c.nome, got, c.quer)
+		}
+	}
+}
+
+func TestMotivosDeRejeicao_EnderecoDeCobrancaErrado(t *testing.T) {
+	base := Extraida{
+		FornecedorNome: "Fornecedor Ok", FornecedorCNPJ: "12345678000199",
+		CompradorCNPJ: "03720882001804",
+	}
+
+	semProblema := base
+	semProblema.EnderecoEntrega = "Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000"
+	semProblema.EnderecoCobranca = "AV LITORANEA 2010 CARARU EUSEBIO CE 61760 000"
+	if motivos := semProblema.MotivosDeRejeicao(); len(motivos) != 0 {
+		t.Errorf("cobrança batendo com a entrega não deveria bloquear, motivos: %v", motivos)
+	}
+
+	viaFaturamento := base
+	viaFaturamento.FaturamentoEndereco = "Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000"
+	viaFaturamento.EnderecoEntrega = "um endereço bem diferente, sem nada a ver"
+	viaFaturamento.EnderecoCobranca = "Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000"
+	if motivos := viaFaturamento.MotivosDeRejeicao(); len(motivos) != 0 {
+		t.Errorf("cobrança batendo com o faturamento não deveria bloquear, motivos: %v", motivos)
+	}
+
+	errado := base
+	errado.EnderecoEntrega = "Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000"
+	errado.FaturamentoEndereco = "Av. Litorânea, 2010 - Cararu, Eusébio, CE - 61760-000"
+	errado.EnderecoCobranca = "Engenheiro Heitor de Oliveira Albuquerque, 295 - Cidade dos Funcionários, Fortaleza, CE - 60822-605"
+	motivos := errado.MotivosDeRejeicao()
+	if len(motivos) != 1 {
+		t.Fatalf("esperava 1 motivo (endereço), vieram %d: %v", len(motivos), motivos)
+	}
+	if !strings.Contains(motivos[0], "endereço de cobrança") {
+		t.Errorf("motivo não fala de endereço de cobrança: %q", motivos[0])
+	}
+}

@@ -80,11 +80,11 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	// A leitura da OC (Passo 2, 10/09/2026) — ver o cabeçalho de `ler.go`.
 	mux.HandleFunc("GET /administrativo/compras/ordens/porler", m.ordensPorLer)
 	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/ler", m.lerOrdem)
-	mux.HandleFunc("GET /administrativo/compras/obras-centro", m.buscarObrasCentro)
-	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/reparo", m.estadoReparo)
-	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/reparo", m.aplicarReparo)
 	mux.HandleFunc("GET /administrativo/compras/ordens/{id}/documento", m.verDocumento)
 	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/documento", m.salvarDocumento)
+	// Excluir e substituir (11/09/2026) — ver o cabeçalho de `substituicao.go`.
+	mux.HandleFunc("DELETE /administrativo/compras/ordens/{id}", m.excluirOrdem)
+	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/substituir", m.substituirOrdem)
 	// O hub de PCO (10/09/2026) — ver o cabeçalho de `painelDoPCO` em ordens.go.
 	mux.HandleFunc("GET /administrativo/compras/pco/painel", m.painelDoPCO)
 	// O envio por e-mail (11/09/2026) — ver o cabeçalho de `pco_enviar.go`.

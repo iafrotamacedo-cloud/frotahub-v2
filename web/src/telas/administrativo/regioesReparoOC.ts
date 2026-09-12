@@ -48,27 +48,25 @@ y += OC_FAIXA_H + 5.6 + OC_LINHA + OC_LINHA + 2.2 + 19.4
 //	PyMuPDF e buscando o texto de verdade: "DADOS DO FATURAMENTO" está em
 //	y≈260,45, não y≈273,1 (11/09/2026).
 y += OC_FAIXA_H + 5.9 + OC_LINHA + 31.9
-// FATURAMENTO
-const TOPO_FATURAMENTO = y
+// FATURAMENTO — só soma altura pro que vem depois; a partir de 11/09/2026
+// faturamento errado não se edita mais aqui (vira substituição de arquivo,
+// ver `substituicao.go` no motor), então a região não é exportada.
 y += OC_FAIXA_H + 7.6 + OC_LINHA // nome
-const TOPO_FAT_CNPJ = y
 y += OC_LINHA + 25.5 // I.E. + espaço
 // FORNECEDOR
-const TOPO_FORNECEDOR = y
 y += OC_FAIXA_H + 4.6 + OC_LINHA // nome
 const TOPO_FORN_CNPJ = y
 y += OC_LINHA * 3 + 32.0 // tel, vend, e-mail + espaço → faixa obra
 // OBRA
 const TOPO_OBRA = y
-
-/** Bloco inteiro DADOS DO FATURAMENTO (faixa + nome + CNPJ + I.E.). */
-export const REGIAO_FATURAMENTO: RetanguloOC = retangulo(TOPO_FATURAMENTO, TOPO_FORNECEDOR - TOPO_FATURAMENTO)
+// ENDEREÇO DE COBRANÇA — o rótulo "ENDEREÇO COBRANÇA:"/"Endereço:" fica logo
+// depois da faixa da obra; a altura cobre o rótulo + até duas linhas de
+// endereço quebrado (a maioria não quebra mais que isso).
+const TOPO_ENDERECO_COBRANCA = TOPO_OBRA + OC_FAIXA_H + 2.1
 
 /** Linha do CNPJ do fornecedor (valor à esq. da coluna Endereço). */
 export const REGIAO_FORNECEDOR: RetanguloOC = retangulo(TOPO_FORN_CNPJ - 1, OC_LINHA + 2, 85, 355)
 
-/** Faixa OBRA/CENTRO DE CUSTO + valor. */
-export const REGIAO_OBRA: RetanguloOC = retangulo(TOPO_OBRA, OC_FAIXA_H + 1, OC_X0, 470)
-
-/** Só a linha do CNPJ de faturamento (refino visual opcional). */
-export const REGIAO_FAT_CNPJ: RetanguloOC = retangulo(TOPO_FAT_CNPJ - 1, OC_LINHA + 2, 85, 355)
+/** Rótulo + valor de ENDEREÇO COBRANÇA — metade direita da página, abaixo da
+ *  faixa OBRA/CENTRO DE CUSTO. */
+export const REGIAO_ENDERECO_COBRANCA: RetanguloOC = retangulo(TOPO_ENDERECO_COBRANCA, OC_LINHA * 3 + 10, 297, OC_X1)

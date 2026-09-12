@@ -27,10 +27,9 @@ interface Props {
   /** A sub-tela aberta, vinda do endereço. Vazio = o painel. */
   onde?: string
   abrir: (onde: string) => void
-  voltar: () => void
 }
 
-export function OcsInseridas({ onde, abrir, voltar }: Props) {
+export function OcsInseridas({ onde, abrir }: Props) {
   const [dados, setDados] = useState<PainelDeOrdens | null>(null)
   const [erro, setErro] = useState('')
 
@@ -46,10 +45,10 @@ export function OcsInseridas({ onde, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   if (onde === 'processadas') {
-    return <ListaDeOrdens vista="processadas" titulo="Processadas" vazia="Nenhuma OC processada ainda." voltar={voltar} />
+    return <ListaDeOrdens vista="processadas" titulo="Processadas" vazia="Nenhuma OC processada ainda." />
   }
   if (onde === 'rejeitadas') {
-    return <ListaDeOrdens vista="rejeitadas" titulo="Rejeitadas" vazia="Nenhuma OC rejeitada." voltar={voltar} />
+    return <ListaDeOrdens vista="rejeitadas" titulo="Rejeitadas" vazia="Nenhuma OC rejeitada." />
   }
 
   if (erro) return <p className="erro">{erro}</p>

@@ -185,7 +185,7 @@ func interpretarData(s string) string {
 
 func respostaDocumento(e Extraida, status string, pcoEnviado bool) map[string]any {
 	motivos := e.MotivosDeRejeicao()
-	forn, fat := errosDaRejeicao(strings.Join(motivos, "; "))
+	forn, fat, end := errosDaRejeicao(strings.Join(motivos, "; "))
 	return map[string]any{
 		"documento":           extraidaParaJSON(e),
 		"status":              status,
@@ -193,6 +193,7 @@ func respostaDocumento(e Extraida, status string, pcoEnviado bool) map[string]an
 		"motivos":             linhasMotivo(strings.Join(motivos, "; ")),
 		"precisa_fornecedor":  forn,
 		"precisa_faturamento": fat,
+		"precisa_endereco":    end,
 	}
 }
 

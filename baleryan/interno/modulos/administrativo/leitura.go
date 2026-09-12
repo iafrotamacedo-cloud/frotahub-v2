@@ -119,7 +119,7 @@ type Extraida struct {
 	EnderecoCobranca    string
 }
 
-// MotivosDeRejeicao aplica os dois filtros do pedido do dono. Lista vazia
+// MotivosDeRejeicao aplica os três filtros do pedido do dono. Lista vazia
 // quer dizer "passa" — nunca `nil` com significado escondido, sempre a lista
 // mesma, para a tela mostrar exatamente o que faltou.
 func (e Extraida) MotivosDeRejeicao() []string {
@@ -136,7 +136,93 @@ func (e Extraida) MotivosDeRejeicao() []string {
 				e.CompradorCNPJ, CNPJRaizPermitida))
 		}
 	}
+	// ENDEREÇO DE COBRANÇA — TERCEIRO FILTRO (11/09/2026)
+	//
+	//	O pedido do dono: o centro de custo (e o endereço de entrega que vem
+	//	dele) SEMPRE está certo — o Obra Prima só deixa o encarregado escolher
+	//	o próprio centro de custo, não dá pra errar isso. O endereço de
+	//	cobrança, por outro lado, é um campo solto que o comprador pode
+	//	apontar pra qualquer lugar — inclusive, por engano, para o endereço da
+	//	própria Frota Macedo (achado numa OC real, 019472). A regra não exige
+	//	que cobrança bata com um dos dois candidatos específicos: OU o
+	//	endereço da obra OU o do bloco de faturamento — qualquer um dos dois
+	//	já prova que o valor não foi digitado de qualquer jeito.
+	//
+	//	A comparação é tolerante (ver `enderecosBatem`) porque o mesmo
+	//	endereço aparece formatado de dois jeitos diferentes no PDF — "Rua
+	//	Adelaide Paulino, 100" de um lado e "Adelaide Paulino, 100" do outro —
+	//	e isso não é erro nenhum, é só como o Obra Prima imprime.
+	if strings.TrimSpace(e.EnderecoCobranca) != "" &&
+		!enderecosBatem(e.EnderecoCobranca, e.EnderecoEntrega) &&
+		!enderecosBatem(e.EnderecoCobranca, e.FaturamentoEndereco) {
+		motivos = append(motivos,
+			"o endereço de cobrança não bate nem com o da obra, nem com o do faturamento")
+	}
 	return motivos
+}
+
+// enderecosBatem compara dois endereços de forma tolerante — maiúscula,
+// acento e abreviação de tipo de logradouro (Rua/Av./Rod.) não contam como
+// diferença. Endereço vazio nunca "bate" com nada (evita falso positivo
+// quando um dos dois lados não foi lido).
+func enderecosBatem(a, b string) bool {
+	na, nb := normalizarEndereco(a), normalizarEndereco(b)
+	return na != "" && na == nb
+}
+
+// palavrasDeLogradouroIgnoradas são os prefixos de tipo de logradouro que o
+// Obra Prima ora escreve, ora omite, no mesmo endereço.
+var palavrasDeLogradouroIgnoradas = map[string]bool{
+	"rua": true, "r": true,
+	"av": true, "avenida": true,
+	"rod": true, "rodovia": true,
+	"al": true, "alameda": true,
+	"trav": true, "travessa": true,
+	"pca": true, "praca": true,
+}
+
+func normalizarEndereco(s string) string {
+	s = semAcentoAdm(strings.ToLower(s))
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune(' ')
+		}
+	}
+	campos := strings.Fields(b.String())
+	saida := make([]string, 0, len(campos))
+	for _, c := range campos {
+		if palavrasDeLogradouroIgnoradas[c] {
+			continue
+		}
+		saida = append(saida, c)
+	}
+	return strings.Join(saida, " ")
+}
+
+// semAcentoAdm derruba os acentos para a comparação — mesma ideia de
+// `leitor.semAcento`, copiada aqui (não importada) porque é deste módulo,
+// não daquele pacote (CORE-16).
+func semAcentoAdm(s string) string {
+	trocas := map[rune]rune{
+		'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a', 'ä': 'a',
+		'é': 'e', 'ê': 'e', 'è': 'e', 'ë': 'e',
+		'í': 'i', 'î': 'i', 'ì': 'i', 'ï': 'i',
+		'ó': 'o', 'ô': 'o', 'õ': 'o', 'ò': 'o', 'ö': 'o',
+		'ú': 'u', 'û': 'u', 'ù': 'u', 'ü': 'u',
+		'ç': 'c', 'ñ': 'n',
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if t, tem := trocas[r]; tem {
+			b.WriteRune(t)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // Ler roda o `pdftotext -layout` sobre os bytes do PDF e extrai a OC. Função

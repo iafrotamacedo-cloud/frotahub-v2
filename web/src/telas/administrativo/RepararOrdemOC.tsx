@@ -1,10 +1,17 @@
-// rev 1 — reparo híbrido: PDF na tela, caixas nos campos bloqueados, pop-up ao lado
+// rev 2 — reparo híbrido: PDF na tela, caixas nos campos bloqueados, pop-up ao lado
+//
+// FATURAMENTO NÃO ABRE MAIS AQUI (11/09/2026)
+//   Quem lista as OCs (`TabelaDeOrdens.tsx`) já desvia uma OC com faturamento
+//   errado para "Ver + Substituir" antes de chegar nesta tela — substituir o
+//   arquivo é a correção de verdade (o CNPJ pertence ao Obra Prima). Esta
+//   tela só trata o que ainda faz sentido corrigir aqui dentro: fornecedor
+//   (CNPJ digitado) e endereço de cobrança (escolha entre obra/faturamento).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { PainelReparoOC, type ValoresReparoPainel } from './PainelReparoOC'
-import { REGIAO_FATURAMENTO, REGIAO_FORNECEDOR, REGIAO_OBRA, pixelsDoRetangulo, type RetanguloOC } from './regioesReparoOC'
+import { REGIAO_ENDERECO_COBRANCA, REGIAO_FORNECEDOR, pixelsDoRetangulo, type RetanguloOC } from './regioesReparoOC'
 import type { DocumentoOC, EstadoDocumentoOC } from './tipos'
 
 interface Props {
@@ -25,13 +32,13 @@ export function RepararOrdemOC({
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [documento, setDocumento] = useState<DocumentoOC | null>(null)
-  const [validacao, setValidacao] = useState<Pick<EstadoDocumentoOC, 'precisa_fornecedor' | 'precisa_faturamento' | 'motivos' | 'status'> | null>(null)
-  const [camposIniciais, setCamposIniciais] = useState<{ fornecedor: boolean; faturamento: boolean } | null>(null)
+  const [validacao, setValidacao] = useState<Pick<EstadoDocumentoOC, 'precisa_fornecedor' | 'precisa_faturamento' | 'precisa_endereco' | 'motivos' | 'status'> | null>(null)
+  const [camposIniciais, setCamposIniciais] = useState<{ fornecedor: boolean; endereco: boolean } | null>(null)
   const [pdfUrl, setPdfUrl] = useState(enderecoInicial)
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null)
   const [pdfChave, setPdfChave] = useState(0)
   const urlLocalRef = useRef<string | null>(null)
-  const [popup, setPopup] = useState<{ campo: 'fornecedor' | 'faturamento'; ancora: { x: number; y: number } } | null>(null)
+  const [popup, setPopup] = useState<{ campo: 'fornecedor' | 'endereco'; ancora: { x: number; y: number } } | null>(null)
   const [anteverendo, setAnteverendo] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
@@ -55,10 +62,11 @@ export function RepararOrdemOC({
         setValidacao({
           precisa_fornecedor: r.precisa_fornecedor,
           precisa_faturamento: r.precisa_faturamento,
+          precisa_endereco: r.precisa_endereco,
           motivos: r.motivos,
           status: r.status,
         })
-        setCamposIniciais({ fornecedor: r.precisa_fornecedor, faturamento: r.precisa_faturamento })
+        setCamposIniciais({ fornecedor: r.precisa_fornecedor, endereco: r.precisa_endereco })
 
         // A PRÉVIA ABRE JÁ NO NOSSO LAYOUT, NUNCA NO PDF ORIGINAL
         //
@@ -106,6 +114,7 @@ export function RepararOrdemOC({
       setValidacao({
         precisa_fornecedor: r.precisa_fornecedor,
         precisa_faturamento: r.precisa_faturamento,
+        precisa_endereco: r.precisa_endereco,
         motivos: r.motivos,
         status: r.status,
       })
@@ -118,21 +127,19 @@ export function RepararOrdemOC({
     }
   }
 
-  function mesclarReparo(doc: DocumentoOC, campo: 'fornecedor' | 'faturamento', v: ValoresReparoPainel): DocumentoOC {
+  function mesclarReparo(doc: DocumentoOC, campo: 'fornecedor' | 'endereco', v: ValoresReparoPainel): DocumentoOC {
     const d = { ...doc }
     if (campo === 'fornecedor' && v.fornecedor_cnpj !== undefined) {
       d.fornecedor_cnpj = v.fornecedor_cnpj.replace(/\D/g, '').slice(0, 14)
       if (!d.fornecedor_nome.trim()) d.fornecedor_nome = 'Fornecedor CNPJ ' + d.fornecedor_cnpj
     }
-    if (campo === 'faturamento') {
-      if (v.obra_centro_custo) d.obra_centro_custo = v.obra_centro_custo.trim()
-      if (v.comprador_cnpj) d.comprador_cnpj = v.comprador_cnpj.replace(/\D/g, '').slice(0, 14)
-      if (v.comprador_nome) d.comprador_nome = v.comprador_nome.trim()
+    if (campo === 'endereco' && v.endereco_cobranca !== undefined) {
+      d.endereco_cobranca = v.endereco_cobranca
     }
     return fecharConta(d)
   }
 
-  function abrirPopup(campo: 'fornecedor' | 'faturamento', el: HTMLElement) {
+  function abrirPopup(campo: 'fornecedor' | 'endereco', el: HTMLElement) {
     const r = el.getBoundingClientRect()
     setPopup({ campo, ancora: { x: r.right + 10, y: r.top } })
   }
@@ -174,7 +181,7 @@ export function RepararOrdemOC({
     )
   }
 
-  const pronto = !validacao.precisa_fornecedor && !validacao.precisa_faturamento
+  const pronto = !validacao.precisa_fornecedor && !validacao.precisa_faturamento && !validacao.precisa_endereco
   const barraAlta = (validacao.motivos.length || motivos.length) > 1
   const motivosBarra = validacao.motivos.length > 0 ? validacao.motivos : motivos
 
@@ -201,29 +208,17 @@ export function RepararOrdemOC({
         </button>
       ) : null}
 
-      {camposIniciais.faturamento ? (
-        <>
-          <button
-            type="button"
-            className={'adm-campo-bloqueio' + (validacao.precisa_faturamento ? ' erro' : ' ok')}
-            style={estiloDaCaixa(REGIAO_FATURAMENTO, escala)}
-            disabled={anteverendo}
-            onClick={e => abrirPopup('faturamento', e.currentTarget)}
-            title={validacao.precisa_faturamento ? 'Clique para corrigir o faturamento' : 'Clique para ajustar o faturamento'}
-          >
-            <span className="adm-campo-bloqueio-link">editar</span>
-          </button>
-          <button
-            type="button"
-            className={'adm-campo-bloqueio' + (validacao.precisa_faturamento ? ' erro' : ' ok')}
-            style={estiloDaCaixa(REGIAO_OBRA, escala)}
-            disabled={anteverendo}
-            onClick={e => abrirPopup('faturamento', e.currentTarget)}
-            title={validacao.precisa_faturamento ? 'Clique para corrigir obra / centro de custo' : 'Clique para ajustar a obra'}
-          >
-            <span className="adm-campo-bloqueio-link">editar</span>
-          </button>
-        </>
+      {camposIniciais.endereco ? (
+        <button
+          type="button"
+          className={'adm-campo-bloqueio' + (validacao.precisa_endereco ? ' erro' : ' ok')}
+          style={estiloDaCaixa(REGIAO_ENDERECO_COBRANCA, escala)}
+          disabled={anteverendo}
+          onClick={e => abrirPopup('endereco', e.currentTarget)}
+          title={validacao.precisa_endereco ? 'Clique para escolher o endereço de cobrança certo' : 'Clique para ajustar o endereço de cobrança'}
+        >
+          <span className="adm-campo-bloqueio-link">editar</span>
+        </button>
       ) : null}
     </div>
   )

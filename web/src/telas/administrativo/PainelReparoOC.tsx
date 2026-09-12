@@ -1,17 +1,24 @@
-// rev 1 — pop-up ancorado ao campo bloqueado na folha (reparo híbrido)
+// rev 2 — pop-up ancorado ao campo bloqueado na folha (reparo híbrido)
+//
+// FATURAMENTO SAIU DAQUI EM 11/09/2026
+//
+//	Corrigir o CNPJ/nome de faturamento só no nosso lado deixava o registro
+//	do Obra Prima errado para sempre — a correção virou substituir o arquivo
+//	inteiro (ver o cabeçalho de `TabelaDeOrdens.tsx`), não editar um campo
+//	aqui. Sobrou fornecedor (CNPJ, digitado) e endereço de cobrança (escolha
+//	entre os dois candidatos que o próprio PDF já traz — nunca texto livre,
+//	porque qualquer um dos dois já resolve o bloqueio).
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { motor } from '../../motor/cliente'
-import type { DocumentoOC, ObraCentroSugerida } from './tipos'
+import type { DocumentoOC } from './tipos'
 
 export interface ValoresReparoPainel {
   fornecedor_cnpj?: string
-  obra_centro_custo?: string
-  comprador_cnpj?: string
-  comprador_nome?: string
+  /** Só para `campo === 'endereco'`: o valor escolhido (obra ou faturamento). */
+  endereco_cobranca?: string
 }
 
 interface Props {
-  campo: 'fornecedor' | 'faturamento'
+  campo: 'fornecedor' | 'endereco'
   documento: DocumentoOC
   ancora: { x: number; y: number }
   fechar: () => void
@@ -23,23 +30,11 @@ export function PainelReparoOC({ campo, documento, ancora, fechar, aoConfirmar, 
   const caixaRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState(ancora)
   const [fornecedorCNPJ, setFornecedorCNPJ] = useState('')
-  const [obraBusca, setObraBusca] = useState('')
-  const [obraEscolhida, setObraEscolhida] = useState<ObraCentroSugerida | null>(null)
-  const [sugestoes, setSugestoes] = useState<ObraCentroSugerida[]>([])
-  const [buscandoObra, setBuscandoObra] = useState(false)
+  const [escolha, setEscolha] = useState<'obra' | 'faturamento' | null>(null)
 
   useEffect(() => {
     setFornecedorCNPJ(String(documento.fornecedor_cnpj ?? '').replace(/\D/g, ''))
-    setObraBusca(documento.obra_centro_custo ?? '')
-    if (documento.obra_centro_custo) {
-      setObraEscolhida({
-        obra_centro_custo: documento.obra_centro_custo,
-        comprador_cnpj: documento.comprador_cnpj,
-        comprador_nome: documento.comprador_nome,
-      })
-    } else {
-      setObraEscolhida(null)
-    }
+    setEscolha(null)
   }, [documento, campo])
 
   useEffect(() => {
@@ -58,29 +53,6 @@ export function PainelReparoOC({ campo, documento, ancora, fechar, aoConfirmar, 
     setPos({ x, y })
   }, [ancora])
 
-  const buscarObras = useCallback(async (q: string) => {
-    if (q.trim().length < 2) {
-      setSugestoes([])
-      return
-    }
-    setBuscandoObra(true)
-    try {
-      const r = await motor<{ obras: ObraCentroSugerida[] }>(
-        '/administrativo/compras/obras-centro?q=' + encodeURIComponent(q.trim()))
-      setSugestoes(r.obras)
-    } catch {
-      setSugestoes([])
-    } finally {
-      setBuscandoObra(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (campo !== 'faturamento') return
-    const t = window.setTimeout(() => { void buscarObras(obraBusca) }, 220)
-    return () => window.clearTimeout(t)
-  }, [obraBusca, buscarObras, campo])
-
   useEffect(() => {
     function fora(e: MouseEvent) {
       if (caixaRef.current && !caixaRef.current.contains(e.target as Node)) fechar()
@@ -96,19 +68,19 @@ export function PainelReparoOC({ campo, documento, ancora, fechar, aoConfirmar, 
     }
   }, [fechar])
 
-  function confirmar(e?: FormEvent) {
+  const enderecoObra = documento.endereco_entrega?.trim() || '(a obra não tem endereço de entrega lido)'
+  const enderecoFaturamento = documento.faturamento_endereco?.trim() || '(o faturamento não tem endereço lido)'
+
+  const confirmar = useCallback((e?: FormEvent) => {
     e?.preventDefault()
     if (processando) return
     if (campo === 'fornecedor') {
       aoConfirmar({ fornecedor_cnpj: fornecedorCNPJ })
       return
     }
-    aoConfirmar({
-      obra_centro_custo: obraEscolhida?.obra_centro_custo ?? obraBusca.trim(),
-      comprador_cnpj: obraEscolhida?.comprador_cnpj ? String(obraEscolhida.comprador_cnpj) : undefined,
-      comprador_nome: obraEscolhida?.comprador_nome ? String(obraEscolhida.comprador_nome) : undefined,
-    })
-  }
+    if (!escolha) return
+    aoConfirmar({ endereco_cobranca: escolha === 'obra' ? documento.endereco_entrega : documento.faturamento_endereco })
+  }, [processando, campo, fornecedorCNPJ, escolha, documento, aoConfirmar])
 
   return (
     <div
@@ -121,7 +93,7 @@ export function PainelReparoOC({ campo, documento, ancora, fechar, aoConfirmar, 
     >
       <form onSubmit={confirmar}>
         <h3 id="adm-reparo-painel-titulo">
-          {campo === 'fornecedor' ? 'CNPJ do fornecedor' : 'Obra / faturamento'}
+          {campo === 'fornecedor' ? 'CNPJ do fornecedor' : 'Endereço de cobrança'}
         </h3>
 
         {campo === 'fornecedor' && (
@@ -138,54 +110,38 @@ export function PainelReparoOC({ campo, documento, ancora, fechar, aoConfirmar, 
           </label>
         )}
 
-        {campo === 'faturamento' && (
-          <>
-            <label className="adm-reparo-campo">
-              <span>Obra / centro de custo</span>
+        {campo === 'endereco' && (
+          <div className="adm-reparo-opcoes-endereco">
+            <label className="adm-reparo-opcao-radio">
               <input
-                type="text"
-                autoFocus
-                value={obraBusca}
-                onChange={ev => {
-                  setObraBusca(ev.target.value)
-                  setObraEscolhida(null)
-                }}
-                placeholder="Digite ao menos 2 letras para buscar"
-                autoComplete="off"
+                type="radio"
+                name="endereco-cobranca"
+                checked={escolha === 'obra'}
+                onChange={() => setEscolha('obra')}
               />
-              {buscandoObra && <em className="adm-reparo-busca">buscando…</em>}
-              {sugestoes.length > 0 && (
-                <ul className="adm-reparo-lista">
-                  {sugestoes.map(o => (
-                    <li key={o.obra_centro_custo}>
-                      <button
-                        type="button"
-                        className={'adm-reparo-opcao' + (obraEscolhida?.obra_centro_custo === o.obra_centro_custo ? ' escolhida' : '')}
-                        onClick={() => {
-                          setObraEscolhida(o)
-                          setObraBusca(o.obra_centro_custo)
-                          setSugestoes([])
-                        }}
-                      >
-                        {o.obra_centro_custo}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <span>
+                <b>Usar endereço da obra</b>
+                <em>{enderecoObra}</em>
+              </span>
             </label>
-            {(documento.comprador_cnpj || documento.comprador_nome) && (
-              <p className="adm-reparo-dica">
-                Faturamento: {documento.comprador_nome || '—'}
-                {documento.comprador_cnpj ? ` · CNPJ ${documento.comprador_cnpj}` : ''}
-              </p>
-            )}
-          </>
+            <label className="adm-reparo-opcao-radio">
+              <input
+                type="radio"
+                name="endereco-cobranca"
+                checked={escolha === 'faturamento'}
+                onChange={() => setEscolha('faturamento')}
+              />
+              <span>
+                <b>Usar endereço do faturamento</b>
+                <em>{enderecoFaturamento}</em>
+              </span>
+            </label>
+          </div>
         )}
 
         <div className="adm-reparo-botoes">
           <button type="button" className="bt bt-neutro" onClick={fechar} disabled={processando}>cancelar</button>
-          <button type="submit" className="bt bt-forte" disabled={processando}>
+          <button type="submit" className="bt bt-forte" disabled={processando || (campo === 'endereco' && !escolha)}>
             {processando ? 'aplicando…' : 'OK'}
           </button>
         </div>

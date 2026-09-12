@@ -1,4 +1,4 @@
-// rev 2 — a tabela de Ordens de Compra, compartilhada
+// rev 3 — a tabela de Ordens de Compra, compartilhada
 //
 // EXTRAÍDA DE `InserirOC.tsx` (rev 2) QUANDO "OCs Inseridas" GANHOU TELA
 // PRÓPRIA
@@ -8,13 +8,29 @@
 //   de `servicos.css` / DadosTrilogo — não filename + dica numa célula só.
 //
 // REJEITADAS (11/09/2026)
-//   Seis colunas fixas: O.C., obra/centro (sem cidade), valor, inserida em,
-//   motivo simplificado em vermelho, e reparar (PDF em tela inteira).
+//   Seis colunas fixas: O.C., obra/centro, faturamento, valor, inserida em,
+//   motivo simplificado em vermelho, e a ação (reparar OU ver+substituir).
+//
+// FATURAMENTO GANHA COLUNA PRÓPRIA (11/09/2026, mais tarde)
+//   O CNPJ de faturamento sozinho parou de identificar "de qual obra é essa
+//   OC" — passou a existir o caso de uma obra nova faturar temporariamente
+//   pelo CNPJ da matriz, então duas obras diferentes podem aparecer com o
+//   MESMO CNPJ. Centro de custo continua sendo a coluna que diferencia; esta
+//   é só para conferir o CNPJ sem abrir a OC.
+//
+// VER + SUBSTITUIR, NÃO REPARAR (11/09/2026)
+//   Faturamento errado deixou de ser corrigível por dentro do sistema — o
+//   CNPJ pertence ao Obra Prima, e um remendo só do nosso lado deixa o
+//   registro de lá errado pra sempre. Uma OC rejeitada por faturamento (
+//   mesmo que também tenha outro motivo junto) mostra "ver" + "substituir"
+//   em vez de "REPARAR": a pessoa corrige no Obra Prima, baixa o PDF novo e
+//   substitui — a OC velha some, a nova entra do zero na fila de leitura.
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { ajustarCelulas } from '../trilogo/encolher'
 import { quando } from '../trilogo/tipos'
 import {
-  emReais, motivoRejeicaoSimplificado, type OrdemDeCompra, type VistaDasOrdens,
+  emReais, formatarCNPJ, motivoRejeicaoSimplificado, precisaSubstituir,
+  type OrdemDeCompra, type VistaDasOrdens,
 } from './tipos'
 
 const NOME_STATUS: Record<OrdemDeCompra['status'], string> = {
@@ -31,12 +47,18 @@ const CLASSE_STATUS: Record<OrdemDeCompra['status'], string> = {
   falhou: 'pino-err',
 }
 
-export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId, loteRodando, onEnviar, enviandoId }: {
+export function TabelaDeOrdens({
+  ordens, vista, onVer, onReparar, onSubstituir, onExcluir, onLer, lendoId, loteRodando, onEnviar, enviandoId,
+}: {
   ordens: OrdemDeCompra[]
   vista?: VistaDasOrdens
   onVer: (o: OrdemDeCompra) => void
   /** Só na vista rejeitadas — abre a OC em tela inteira para correção. */
   onReparar?: (o: OrdemDeCompra) => void
+  /** Só na vista rejeitadas, só quando o motivo é de faturamento. */
+  onSubstituir?: (o: OrdemDeCompra) => void
+  /** Ausente = sem botão de excluir (Enviados não tem — já foi pro cliente). */
+  onExcluir?: (o: OrdemDeCompra) => void
   /** Ausente = tabela só de consulta, sem botão de ler. */
   onLer?: (id: string) => void
   lendoId?: string | null
@@ -69,6 +91,7 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
             <tr>
               <th className="c-oc">O.C.</th>
               <th className="c-obra">Obra/centro</th>
+              <th className="c-fat">Faturamento</th>
               <th className="c-valor">Valor</th>
               <th className="c-data">Inserida em</th>
               <th className="c-motivo">Motivo da rejeição</th>
@@ -78,6 +101,7 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
             <tr>
               <th className="c-oc">OC</th>
               <th className="c-obra">Obra / centro</th>
+              <th className="c-fat">Faturamento</th>
               <th className="c-valor">Valor (R$)</th>
               <th className="c-data">Inserida em</th>
               <th className="c-leitura">Leitura</th>
@@ -94,6 +118,9 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
               <td className="c-obra">
                 <span title={tituloObra(o)}>{nomeObraSemCidade(o)}</span>
               </td>
+              <td className="c-fat">
+                <span title={faturamentoDaLinha(o)}>{faturamentoDaLinha(o)}</span>
+              </td>
               <td className="c-valor">{o.total != null ? emReais(o.total) : '—'}</td>
               <td className="c-data tri-fraco">{quando(o.criado_em)}</td>
               <td className="c-motivo">
@@ -102,15 +129,32 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
                 </span>
               </td>
               <td className="c-reparar">
-                <button
-                  type="button"
-                  className="bt bt-mini adm-reparar"
-                  title="Reparar"
-                  aria-label="Reparar"
-                  onClick={() => (onReparar ?? onVer)(o)}
-                >
-                  REPARAR
-                </button>
+                {precisaSubstituir(o.erro_leitura) ? (
+                  <>
+                    <button type="button" className="bt bt-mini" onClick={() => onVer(o)}>ver</button>
+                    <button
+                      type="button"
+                      className="bt bt-mini"
+                      title="Substituir pelo PDF corrigido no Obra Prima"
+                      onClick={() => onSubstituir?.(o)}
+                    >
+                      substituir
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="bt bt-mini adm-reparar"
+                    title="Reparar"
+                    aria-label="Reparar"
+                    onClick={() => (onReparar ?? onVer)(o)}
+                  >
+                    REPARAR
+                  </button>
+                )}
+                {onExcluir && (
+                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => onExcluir(o)}>excluir</button>
+                )}
               </td>
             </tr>
           ) : (
@@ -120,6 +164,9 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
               </td>
               <td className="c-obra" data-encolhe="obra" data-base="13" data-peso="400">
                 <span title={tituloObra(o)}>{obraDaLinha(o)}</span>
+              </td>
+              <td className="c-fat">
+                <span title={faturamentoDaLinha(o)}>{faturamentoDaLinha(o)}</span>
               </td>
               <td className="c-valor">{o.total != null ? emReais(o.total) : '—'}</td>
               <td className="c-data tri-fraco">{quando(o.criado_em)}</td>
@@ -159,6 +206,9 @@ export function TabelaDeOrdens({ ordens, vista, onVer, onReparar, onLer, lendoId
                   </button>
                 )}
                 <button type="button" className="bt bt-mini" onClick={() => onVer(o)}>ver</button>
+                {onExcluir && (
+                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => onExcluir(o)}>excluir</button>
+                )}
               </td>
             </tr>
           ))}
@@ -184,6 +234,13 @@ function nomeObraSemCidade(o: OrdemDeCompra): string {
   if (t === '—') return t
   const corte = t.lastIndexOf(' - ')
   return corte > 0 ? t.slice(0, corte).trim() : t
+}
+
+function faturamentoDaLinha(o: OrdemDeCompra): string {
+  const nome = (o.comprador_nome || '').trim()
+  const cnpj = o.comprador_cnpj ? formatarCNPJ(o.comprador_cnpj) : ''
+  if (!nome && !cnpj) return '—'
+  return [nome, cnpj].filter(Boolean).join(' · ')
 }
 
 function tituloObra(o: OrdemDeCompra): string | undefined {

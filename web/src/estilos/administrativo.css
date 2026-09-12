@@ -30,7 +30,7 @@
 }
 
 /* ---------- tabela no visual do Trílogo (como sv-tabela em servicos.css) ---------- */
-.adm-tabela{font-size:13px;min-width:920px;table-layout:fixed}
+.adm-tabela{font-size:13px;min-width:1070px;table-layout:fixed}
 .adm-tabela th{padding:8px 9px;font-size:9.5px}
 .adm-tabela td{padding:0 9px;height:38px;white-space:nowrap;overflow:hidden;vertical-align:middle}
 .adm-tabela td[data-encolhe]>span{
@@ -38,18 +38,22 @@
 }
 .adm-tabela .c-oc{width:72px}
 .adm-tabela .c-obra{min-width:140px}
+.adm-tabela .c-fat{min-width:150px}
+.adm-tabela .c-fat>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-tabela .c-valor{width:96px;text-align:right;font-variant-numeric:tabular-nums}
 .adm-tabela .c-data{width:118px}
 .adm-tabela .c-leitura{width:112px;overflow:visible;white-space:normal}
-.adm-tabela .acoes-col,.adm-tabela td.acoes{width:220px;overflow:visible}
+.adm-tabela .acoes-col,.adm-tabela td.acoes{width:260px;overflow:visible}
 .adm-tabela td.acoes{text-align:right;display:flex;gap:6px;justify-content:flex-end;align-items:center}
 
-/* ---------- rejeitadas: seis colunas, obra auto-ajusta pelo maior nome ---------- */
-.adm-tabela--rejeitadas{table-layout:auto;min-width:760px}
+/* ---------- rejeitadas: sete colunas, obra auto-ajusta pelo maior nome ---------- */
+.adm-tabela--rejeitadas{table-layout:auto;min-width:860px}
 .adm-tabela--rejeitadas .c-obra{
   width:auto;max-width:none;min-width:0;white-space:nowrap;
 }
 .adm-tabela--rejeitadas .c-obra>span{display:inline}
+.adm-tabela--rejeitadas .c-fat{min-width:150px;max-width:240px;overflow:hidden}
+.adm-tabela--rejeitadas .c-fat>span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-tabela--rejeitadas .c-motivo{
   min-width:160px;max-width:360px;overflow:hidden;
 }
@@ -57,7 +61,10 @@
   display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .adm-motivo-rejeicao{color:var(--err);font-size:12.5px;font-weight:500}
-.adm-tabela--rejeitadas .c-reparar{width:auto;min-width:96px;text-align:center;padding:0 8px}
+.adm-tabela--rejeitadas .c-reparar{
+  width:auto;min-width:96px;text-align:center;padding:0 8px;
+  display:flex;gap:6px;justify-content:center;align-items:center;
+}
 .adm-reparar{
   display:inline-flex;align-items:center;justify-content:center;
   min-width:88px;height:32px;padding:0 12px;
@@ -90,26 +97,28 @@
 .adm-editar{font-weight:700;letter-spacing:.04em;padding:0 12px;height:28px;font-size:11px}
 .adm-salvar-voltar{font-size:12px;padding:0 14px;height:34px}
 
-/* pop-up EDITAR */
-.adm-reparo-janela{max-width:440px;width:min(440px,92vw)}
+/* pop-up EDITAR (fornecedor) e o de escolha de endereço de cobrança */
 .adm-reparo-campo{display:flex;flex-direction:column;gap:6px;margin:14px 0 0}
 .adm-reparo-campo>span{font-size:12.5px;font-weight:600;color:var(--ink)}
 .adm-reparo-campo input{
   font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);
   border-radius:var(--r-s);background:var(--card);
 }
-.adm-reparo-busca{font-style:normal;font-size:11.5px;color:var(--mut)}
-.adm-reparo-lista{
-  list-style:none;margin:0;padding:0;max-height:180px;overflow:auto;
-  border:1px solid var(--line);border-radius:var(--r-s);background:var(--card);
-}
-.adm-reparo-opcao{
-  display:block;width:100%;text-align:left;padding:8px 10px;border:0;border-bottom:1px solid var(--line-2);
-  background:none;font:inherit;font-size:12.8px;cursor:pointer;color:var(--ink);
-}
-.adm-reparo-opcao:last-child{border-bottom:0}
-.adm-reparo-opcao:hover,.adm-reparo-opcao.escolhida{background:var(--red-050);color:var(--red)}
 .adm-reparo-botoes{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+
+/* as duas opções do popup "Endereço de cobrança" — mesmo círculo de seleção
+   do resto do sistema, com o endereço candidato como legenda por baixo. */
+.adm-reparo-opcoes-endereco{display:flex;flex-direction:column;gap:10px;margin:14px 0 0}
+.adm-reparo-opcao-radio{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+  border:1px solid var(--line);border-radius:var(--r-s);cursor:pointer;
+  transition:border-color .15s,background .15s;
+}
+.adm-reparo-opcao-radio:has(input:checked){border-color:var(--red);background:var(--red-050)}
+.adm-reparo-opcao-radio input{margin-top:3px}
+.adm-reparo-opcao-radio span{display:flex;flex-direction:column;gap:2px}
+.adm-reparo-opcao-radio b{font-size:12.8px;color:var(--ink)}
+.adm-reparo-opcao-radio em{font-style:normal;font-size:11.5px;color:var(--mut)}
 
 /* reparo híbrido — caixas sobre o PDF e pop-up ancorado
    A camada de caixas é filha de .adm-pdf-folha (FolhaPdfZoom.tsx), que tem
@@ -150,13 +159,24 @@
   box-shadow:0 16px 40px rgba(0,0,0,.28);
 }
 .adm-reparo-painel h3{margin:0 0 6px;font-size:15px;color:var(--ink)}
-.adm-reparo-dica{margin:8px 0 0;font-size:11.5px;color:var(--mut)}
 .adm-salvar-reparo{font-size:12px;padding:0 16px;height:34px}
 .adm-erro-flutuante{
   position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
   z-index:1100;margin:0;padding:10px 16px;border-radius:var(--r-s);
   background:var(--err);color:#fff;font-size:13px;max-width:min(520px,92vw);
 }
+
+/* o aviso de "excluí, desfazer?" — pé da tela, centralizado (pedido do dono) */
+.adm-aviso-desfazer{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  z-index:1150;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px 16px;border-radius:var(--r-s);
+  background:var(--ink);color:#fff;font-size:13px;max-width:min(560px,92vw);
+  box-shadow:0 12px 32px rgba(0,0,0,.28);
+}
+.adm-aviso-desfazer-botoes{display:flex;align-items:center;gap:8px}
+.adm-aviso-desfazer-botoes .bt{height:28px;padding:0 12px;font-size:12px}
+.adm-aviso-desfazer-contagem{font-variant-numeric:tabular-nums;color:var(--d-mut,#b8b0b1);font-size:12px}
 
 /* O PDF desenhado por nós (FolhaPdfCanvas.tsx, canvas + pdf.js) — MESMA
    MOLDURA DO VISOR PADRÃO (.orc-visor-doc).

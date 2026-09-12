@@ -1,230 +1,31 @@
-// rev 1 — correção manual de OCs rejeitadas (Reparar › EDITAR)
+// rev 2 — o que sobrou do reparo manual, depois da substituição por arquivo
 //
-// A leitura automática grava o que o PDF trouxe e aplica os dois filtros.
-// Aqui a pessoa corrige o que faltou ou veio errado — CNPJ do fornecedor,
-// obra/centro e CNPJ de faturamento — sem depender de reler o PDF do zero.
-// Quando passa nos filtros, a OC vira `lido` e entra em Processadas + PCO
-// pendentes (mesma linha, `pco_enviado_em` continua nulo).
+// ATÉ 11/09/2026, ESTE ARQUIVO TINHA AS ROTAS DE /reparo E /obras-centro
+//
+//	Existia uma tela própria (JanelaReparoOC) para digitar CNPJ do fornecedor
+//	e escolher obra/faturamento por busca. O reparo híbrido (RepararOrdemOC +
+//	documento.go) tomou o lugar dela em cima do MESMO editor de documento que
+//	já existia — e ninguém mais chamava `POST/GET .../reparo` nem
+//	`GET .../obras-centro`. Removidas (CORE-16): duas rotas fazendo a mesma
+//	coisa por dois caminhos é o tipo de coisa que diverge sem ninguém notar.
+//
+//	Pedido do dono no mesmo dia: faturamento errado deixa de ser corrigível
+//	por aqui — o CNPJ de faturamento pertence ao Obra Prima, e remendar só o
+//	nosso lado deixa o registro de lá errado para sempre. A correção virou
+//	SUBSTITUIR o arquivo (ver `substituicao.go`), não editar um campo.
+//	`errosDaRejeicao` continua existindo porque `documento.go` ainda usa para
+//	decidir que caixas mostrar no reparo híbrido (fornecedor, endereço).
 package administrativo
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"unicode"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/regras"
-	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
-
-// ---------------------------------------------------------------------------
-// GET /administrativo/compras/obras-centro?q=
-// ---------------------------------------------------------------------------
-
-func (m *Modulo) buscarObrasCentro(w http.ResponseWriter, r *http.Request) {
-	p := m.quem(w, r)
-	if p == nil {
-		return
-	}
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len([]rune(q)) < 2 {
-		web.Responder(w, http.StatusOK, map[string]any{"obras": []any{}})
-		return
-	}
-	padrao := "*" + banco.Escapar(q) + "*"
-	var linhas []map[string]any
-	caminho := "ordens_compra?cliente_id=eq." + banco.Escapar(p.ClienteID) +
-		"&status=eq.lido&obra_centro_custo=not.is.null" +
-		"&obra_centro_custo=ilike." + padrao +
-		"&select=obra_centro_custo,comprador_cnpj,comprador_nome&order=obra_centro_custo&limit=40"
-	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
-		m.erro(w, "não consegui buscar obras/centro de custo", err)
-		return
-	}
-	vistas := map[string]bool{}
-	saida := make([]map[string]any, 0, 12)
-	for _, lin := range linhas {
-		obra, _ := lin["obra_centro_custo"].(string)
-		obra = strings.TrimSpace(obra)
-		if obra == "" || vistas[obra] {
-			continue
-		}
-		vistas[obra] = true
-		saida = append(saida, map[string]any{
-			"obra_centro_custo": obra,
-			"comprador_cnpj":    lin["comprador_cnpj"],
-			"comprador_nome":    lin["comprador_nome"],
-		})
-		if len(saida) >= 12 {
-			break
-		}
-	}
-	web.Responder(w, http.StatusOK, map[string]any{"obras": ouVazio(saida)})
-}
-
-// ---------------------------------------------------------------------------
-// GET /administrativo/compras/ordens/{id}/reparo
-// ---------------------------------------------------------------------------
-
-func (m *Modulo) estadoReparo(w http.ResponseWriter, r *http.Request) {
-	p := m.quem(w, r)
-	if p == nil {
-		return
-	}
-	id, ok := umUUID(r.PathValue("id"))
-	if !ok {
-		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
-		return
-	}
-	ordem, err := m.ordemParaReparo(r.Context(), p.ClienteID, id)
-	if err != nil {
-		m.erro(w, "não achei esta ordem de compra", err)
-		return
-	}
-	if fmtStatus(ordem["status"]) != "falhou" {
-		web.Falhar(w, http.StatusConflict, "Só dá para editar uma OC rejeitada.")
-		return
-	}
-	motivo, _ := ordem["erro_leitura"].(string)
-	forn, fat := errosDaRejeicao(motivo)
-	web.Responder(w, http.StatusOK, map[string]any{
-		"precisa_fornecedor":  forn,
-		"precisa_faturamento": fat,
-		"motivos":             linhasMotivo(motivo),
-		"fornecedor_cnpj":     ordem["fornecedor_cnpj_sugerido"],
-		"obra_centro_custo":   ordem["obra_centro_custo"],
-		"comprador_cnpj":      ordem["comprador_cnpj"],
-		"comprador_nome":      ordem["comprador_nome"],
-	})
-}
-
-// ---------------------------------------------------------------------------
-// POST /administrativo/compras/ordens/{id}/reparo
-// ---------------------------------------------------------------------------
-
-type corpoReparo struct {
-	FornecedorCNPJ  string `json:"fornecedor_cnpj"`
-	ObraCentroCusto string `json:"obra_centro_custo"`
-	CompradorCNPJ   string `json:"comprador_cnpj"`
-	CompradorNome   string `json:"comprador_nome"`
-}
-
-func (m *Modulo) aplicarReparo(w http.ResponseWriter, r *http.Request) {
-	p := m.quem(w, r)
-	if p == nil {
-		return
-	}
-	id, ok := umUUID(r.PathValue("id"))
-	if !ok {
-		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
-		return
-	}
-	var corpo corpoReparo
-	if err := json.NewDecoder(r.Body).Decode(&corpo); err != nil {
-		web.Falhar(w, http.StatusBadRequest, "Não entendi o que veio no corpo.")
-		return
-	}
-
-	ordem, err := m.ordemParaReparo(r.Context(), p.ClienteID, id)
-	if err != nil {
-		m.erro(w, "não achei esta ordem de compra", err)
-		return
-	}
-	if fmtStatus(ordem["status"]) != "falhou" {
-		web.Falhar(w, http.StatusConflict, "Esta ordem de compra não está rejeitada.")
-		return
-	}
-
-	ex, err := m.extraidaAtual(r.Context(), ordem)
-	if err != nil {
-		m.erro(w, "não consegui montar os dados desta ordem de compra", err)
-		return
-	}
-
-	motivoAntigo, _ := ordem["erro_leitura"].(string)
-	precisaForn, precisaFat := errosDaRejeicao(motivoAntigo)
-
-	if precisaForn {
-		cnpj := soDigitos(strings.TrimSpace(corpo.FornecedorCNPJ))
-		if len(cnpj) != 14 {
-			web.Falhar(w, http.StatusBadRequest, "Informe o CNPJ do fornecedor com 14 dígitos.")
-			return
-		}
-		ex.FornecedorCNPJ = cnpj
-		if strings.TrimSpace(ex.FornecedorNome) == "" {
-			ex.FornecedorNome = "Fornecedor CNPJ " + cnpj
-		}
-	}
-	if precisaFat {
-		obra := strings.TrimSpace(corpo.ObraCentroCusto)
-		if obra == "" {
-			web.Falhar(w, http.StatusBadRequest, "Informe a obra/centro de custo.")
-			return
-		}
-		ex.ObraCentroCusto = obra
-		cnpjFat := soDigitos(strings.TrimSpace(corpo.CompradorCNPJ))
-		if cnpjFat != "" {
-			ex.CompradorCNPJ = cnpjFat
-		}
-		if n := strings.TrimSpace(corpo.CompradorNome); n != "" {
-			ex.CompradorNome = n
-		}
-	}
-
-	fornecedorID, ferr := m.resolverFornecedor(r.Context(), p.ClienteID, ex)
-	if ferr != nil {
-		m.erro(w, "não consegui gravar o fornecedor", ferr)
-		return
-	}
-
-	status, motivo := "lido", ""
-	if motivos := ex.MotivosDeRejeicao(); len(motivos) > 0 {
-		status, motivo = "falhou", strings.Join(motivos, "; ")
-	}
-
-	if err := m.terminarLeitura(r.Context(), p, id, status, motivo, camposLidos(ex, fornecedorID), &ex); err != nil {
-		m.erro(w, "não consegui gravar a correção", err)
-		return
-	}
-
-	acao := "corrigir_ordem_compra"
-	if status == "lido" {
-		acao = "reparar_ordem_compra"
-	}
-	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, acao, map[string]historico.Mudanca{
-		"status": {De: "falhou", Para: status},
-	})
-
-	pf, pft := errosDaRejeicao(motivo)
-	web.Responder(w, http.StatusOK, map[string]any{
-		"status":              status,
-		"motivo":              motivo,
-		"motivos":             linhasMotivo(motivo),
-		"precisa_fornecedor":  pf,
-		"precisa_faturamento": pft,
-	})
-}
-
-func (m *Modulo) ordemParaReparo(ctx context.Context, clienteID, id string) (map[string]any, error) {
-	ordem, err := m.contarUm(ctx, "ordens_compra?id=eq."+id+
-		"&cliente_id=eq."+banco.Escapar(clienteID)+
-		"&select=id,status,erro_leitura,numero,obra_centro_custo,comprador_nome,comprador_cnpj,"+
-		"fornecedor_id,arquivo_sha256,comprador_interno,cond_pgto,forma_pgto,previsao_entrega,data,"+
-		"subtotal,desconto,frete,total&limit=1")
-	if err != nil {
-		return nil, err
-	}
-	if fid := fmt.Sprint(ordem["fornecedor_id"]); fid != "" && fid != "<nil>" {
-		if f, err := m.contarUm(ctx, "fornecedores?id=eq."+banco.Escapar(fid)+"&select=cnpj&limit=1"); err == nil {
-			ordem["fornecedor_cnpj_sugerido"] = f["cnpj"]
-		}
-	}
-	return ordem, nil
-}
 
 // extraidaAtual monta o que temos hoje: o PDF relido + o que já está no banco.
 func (m *Modulo) extraidaAtual(ctx context.Context, ordem map[string]any) (Extraida, error) {
@@ -299,14 +100,22 @@ func fmtStatus(v any) string {
 	return strings.TrimSpace(fmt.Sprint(v))
 }
 
-// errosDaRejeicao lê o texto gravado em `erro_leitura` e diz o que falta corrigir.
-func errosDaRejeicao(motivo string) (fornecedor, faturamento bool) {
+// errosDaRejeicao lê o texto gravado em `erro_leitura` e diz o que falta
+// corrigir. `faturamento` não é mais editável no reparo híbrido (vira
+// substituição de arquivo, ver `substituicao.go`) — o booleano continua
+// existindo porque `documento.go` usa para decidir se mostra a caixa de
+// fornecedor/endereço, ou se a OC nem chega a abrir o reparo (a lista já
+// desvia para "Ver + Substituir" antes disso).
+func errosDaRejeicao(motivo string) (fornecedor, faturamento, endereco bool) {
 	m := strings.ToLower(motivo)
 	if strings.Contains(m, "fornecedor") {
 		fornecedor = true
 	}
 	if strings.Contains(m, "faturamento") || strings.Contains(m, "03720882") {
 		faturamento = true
+	}
+	if strings.Contains(m, "endereço de cobrança") || strings.Contains(m, "endereco de cobranca") {
+		endereco = true
 	}
 	return
 }
@@ -336,6 +145,8 @@ func simplificarMotivoAPI(s string) string {
 		return "Faturamento sem CNPJ"
 	case strings.Contains(lower, "faturamento"):
 		return "CNPJ de faturamento errado"
+	case strings.Contains(lower, "endereço de cobrança"):
+		return "Endereço de cobrança errado"
 	default:
 		return strings.TrimSpace(strings.Map(func(r rune) rune {
 			if unicode.IsSpace(r) {

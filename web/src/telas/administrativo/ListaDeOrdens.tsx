@@ -15,23 +15,31 @@
 // REPARO HÍBRIDO (11/09/2026)
 //   Rejeitadas › REPARAR: PDF na tela, caixas nos campos bloqueados, pop-up
 //   ao lado. OK antevê o PDF; Salvar grava BD, R2 e filas.
+//
+// VER + SUBSTITUIR, EXCLUIR (11/09/2026, mais tarde)
+//   Faturamento errado não abre mais o reparo híbrido — vira "ver" (leitura)
+//   + "substituir" (troca o arquivo pelo corrigido no Obra Prima). Excluir
+//   aparece em qualquer vista antes de "Enviados" (`useAcoesDaOrdem.ts`,
+//   compartilhado com `InserirOC.tsx`).
 import { useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { AvisoDesfazer } from './AvisoDesfazer'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
 import { RepararOrdemOC } from './RepararOrdemOC'
+import { useAcoesDaOrdem } from './useAcoesDaOrdem'
 import {
   type OrdemDeCompra, type EstadoDocumentoOC, type VistaDasOrdens,
   motivoRejeicaoSimplificado,
 } from './tipos'
 
-export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
+export function ListaDeOrdens({ vista, titulo, vazia }: {
   vista: VistaDasOrdens
   titulo: string
   /** A frase de "nada aqui" — cada vista tem a sua. */
   vazia: string
-  voltar: () => void
 }) {
   const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
   const [erro, setErro] = useState('')
@@ -44,6 +52,8 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     motivoCompleto?: string | null
     reparar: boolean
   } | null>(null)
+
+  const acoes = useAcoesDaOrdem(setOrdens, setErro)
 
   useEffect(() => {
     void (async () => {
@@ -69,13 +79,7 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     try {
       const r = await motor<{ url: string }>(`/administrativo/compras/ordens/${o.id}/arquivo`)
       const rotulo = o.numero || o.nome_arquivo.replace(/\.pdf$/i, '') || o.nome_arquivo
-      let motivos = motivosDaOrdem(o)
-      if (reparar) {
-        try {
-          const est = await motor<{ motivos: string[] }>(`/administrativo/compras/ordens/${o.id}/reparo`)
-          if (est.motivos?.length) motivos = est.motivos
-        } catch { /* usa o simplificado local */ }
-      }
+      const motivos = motivosDaOrdem(o)
       setVendo({
         ordemId: o.id,
         endereco: r.url,
@@ -135,7 +139,6 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
     <>
       <header className="hero hero-linha">
         <div>
-          <button type="button" className="bt bt-neutro" onClick={voltar}>← voltar</button>
           <h1>{titulo}</h1>
         </div>
       </header>
@@ -152,6 +155,33 @@ export function ListaDeOrdens({ vista, titulo, vazia, voltar }: {
           vista={vista}
           onVer={o => void abrirArquivo(o)}
           onReparar={vista === 'rejeitadas' ? o => void abrirArquivo(o, true) : undefined}
+          onSubstituir={vista === 'rejeitadas' ? acoes.pedirSubstituicao : undefined}
+          onExcluir={vista !== 'pco-enviados' ? acoes.pedirExclusao : undefined}
+        />
+      )}
+
+      <input
+        ref={acoes.inputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={acoes.arquivoSelecionado}
+      />
+      {acoes.substituindo && acoes.arquivoEscolhido && (
+        <Confirmar
+          titulo="Substituir ordem de compra"
+          mensagem={`Substituir "${acoes.substituindo.nome_arquivo}" pelo arquivo "${acoes.arquivoEscolhido.name}"?\nA OC antiga é apagada de vez, e a nova entra do zero na fila de leitura.`}
+          perigo
+          rotuloConfirmar="Substituir"
+          aoConfirmar={() => void acoes.confirmarSubstituicao()}
+          aoFechar={acoes.cancelarSubstituicao}
+        />
+      )}
+      {acoes.exclusao && (
+        <AvisoDesfazer
+          mensagem={`Você excluiu a OC ${acoes.exclusao.numero || acoes.exclusao.nome_arquivo}.`}
+          aoDesfazer={acoes.desfazerExclusao}
+          aoConfirmar={() => void acoes.confirmarExclusao()}
         />
       )}
     </>

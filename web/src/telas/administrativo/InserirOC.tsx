@@ -16,8 +16,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, enviarArquivos, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { AvisoDesfazer } from './AvisoDesfazer'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
+import { useAcoesDaOrdem } from './useAcoesDaOrdem'
 import {
   type OrdemDeCompra, type ResultadoDaInsercao,
   type VistaDasOrdens, type OrdensPorLer, type LoteDeLeitura,
@@ -54,6 +57,8 @@ export function InserirOC() {
   const [lote, setLote] = useState<LoteDeLeitura | null>(null)
   const pararLeitura = useRef(false)
   const [lendoUma, setLendoUma] = useState<string | null>(null)
+
+  const acoes = useAcoesDaOrdem(setOrdens, setErro)
 
   const carregar = useCallback(async () => {
     try {
@@ -213,6 +218,32 @@ export function InserirOC() {
           onLer={id => void lerUma(id)}
           lendoId={lendoUma}
           loteRodando={lote?.rodando}
+          onExcluir={acoes.pedirExclusao}
+        />
+      )}
+
+      <input
+        ref={acoes.inputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={acoes.arquivoSelecionado}
+      />
+      {acoes.substituindo && acoes.arquivoEscolhido && (
+        <Confirmar
+          titulo="Substituir ordem de compra"
+          mensagem={`Substituir "${acoes.substituindo.nome_arquivo}" pelo arquivo "${acoes.arquivoEscolhido.name}"?\nA OC antiga é apagada de vez, e a nova entra do zero na fila de leitura.`}
+          perigo
+          rotuloConfirmar="Substituir"
+          aoConfirmar={() => void acoes.confirmarSubstituicao()}
+          aoFechar={acoes.cancelarSubstituicao}
+        />
+      )}
+      {acoes.exclusao && (
+        <AvisoDesfazer
+          mensagem={`Você excluiu a OC ${acoes.exclusao.numero || acoes.exclusao.nome_arquivo}.`}
+          aoDesfazer={acoes.desfazerExclusao}
+          aoConfirmar={() => void acoes.confirmarExclusao()}
         />
       )}
     </>

@@ -25,8 +25,10 @@ import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { AvisoDesfazer } from './AvisoDesfazer'
 import { ListaDeOrdens } from './ListaDeOrdens'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
+import { useAcoesDaOrdem } from './useAcoesDaOrdem'
 import {
   emReais,
   type PainelDoPCO, type OrdemDeCompra, type ResultadoDoEnvio,
@@ -36,10 +38,9 @@ interface Props {
   /** A sub-tela aberta, vinda do endereço. Vazio = o painel. */
   onde?: string
   abrir: (onde: string) => void
-  voltar: () => void
 }
 
-export function Pco({ onde, abrir, voltar }: Props) {
+export function Pco({ onde, abrir }: Props) {
   const [dados, setDados] = useState<PainelDoPCO | null>(null)
   const [erro, setErro] = useState('')
 
@@ -55,13 +56,10 @@ export function Pco({ onde, abrir, voltar }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   if (onde === 'pendentes') {
-    return <PendentesDeEnvio voltar={voltar} />
+    return <PendentesDeEnvio />
   }
   if (onde === 'enviados') {
-    return (
-      <ListaDeOrdens vista="pco-enviados" titulo="Enviados"
-        vazia="Nenhuma OC enviada ainda." voltar={voltar} />
-    )
+    return <ListaDeOrdens vista="pco-enviados" titulo="Enviados" vazia="Nenhuma OC enviada ainda." />
   }
 
   if (erro) return <p className="erro">{erro}</p>
@@ -107,7 +105,7 @@ function montarEtapas(d: PainelDoPCO): Etapa[] {
 // cabeçalho de `pco_enviar.go`.
 // ---------------------------------------------------------------------------
 
-function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
+function PendentesDeEnvio() {
   const [ordens, setOrdens] = useState<OrdemDeCompra[] | null>(null)
   const [erro, setErro] = useState('')
   const [recado, setRecado] = useState('')
@@ -115,6 +113,7 @@ function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
   // também, para não brigar pela mesma OC no meio do lote).
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
+  const acoes = useAcoesDaOrdem(setOrdens, setErro)
 
   const carregar = useCallback(async () => {
     try {
@@ -189,7 +188,6 @@ function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
     <>
       <header className="hero hero-linha">
         <div>
-          <button type="button" className="bt bt-neutro" onClick={voltar}>← voltar</button>
           <h1>Pendentes de envio</h1>
         </div>
         {ordens && ordens.length > 0 && (
@@ -223,6 +221,15 @@ function PendentesDeEnvio({ voltar }: { voltar: () => void }) {
           onVer={o => void abrirArquivo(o)}
           onEnviar={id => void enviarUma(id)}
           enviandoId={enviandoId}
+          onExcluir={acoes.pedirExclusao}
+        />
+      )}
+
+      {acoes.exclusao && (
+        <AvisoDesfazer
+          mensagem={`Você excluiu a OC ${acoes.exclusao.numero || acoes.exclusao.nome_arquivo}.`}
+          aoDesfazer={acoes.desfazerExclusao}
+          aoConfirmar={() => void acoes.confirmarExclusao()}
         />
       )}
     </>
