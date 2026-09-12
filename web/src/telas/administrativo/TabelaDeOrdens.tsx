@@ -206,6 +206,16 @@ export function TabelaDeOrdens({
                   </button>
                 )}
                 <button type="button" className="bt bt-mini" onClick={() => onVer(o)}>ver</button>
+                {onSubstituir && (
+                  <button
+                    type="button"
+                    className="bt bt-mini"
+                    title="Substituir por outra OC (número pode ser diferente)"
+                    onClick={() => onSubstituir(o)}
+                  >
+                    substituir
+                  </button>
+                )}
                 {onExcluir && (
                   <button type="button" className="bt bt-mini bt-perigo" onClick={() => onExcluir(o)}>excluir</button>
                 )}

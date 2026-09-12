@@ -13,7 +13,24 @@ import type { OrdemDeCompra } from './tipos'
 
 type AtualizarOrdens = (fn: (atual: OrdemDeCompra[] | null) => OrdemDeCompra[] | null) => void
 
-export function useAcoesDaOrdem(setOrdens: AtualizarOrdens, setErro: (s: string) => void) {
+/** Duas rotas diferentes de "substituir" no motor: a de faturamento errado
+ *  (exige o mesmo número) e a geral do PCO (aceita qualquer OC — ver o
+ *  cabeçalho de `cancelamento.go`). Default = a de faturamento, porque é
+ *  onde "substituir" nasceu. */
+function caminhoSubstituirPadrao(id: string): string {
+  return `/administrativo/compras/ordens/${id}/substituir`
+}
+
+/** A rota geral do PCO — Pendentes de envio e Enviados usam esta. */
+export function caminhoSubstituirPCO(id: string): string {
+  return `/administrativo/compras/pco/ordens/${id}/substituir`
+}
+
+export function useAcoesDaOrdem(
+  setOrdens: AtualizarOrdens,
+  setErro: (s: string) => void,
+  caminhoSubstituir: (id: string) => string = caminhoSubstituirPadrao,
+) {
   const [exclusao, setExclusao] = useState<OrdemDeCompra | null>(null)
   const [substituindo, setSubstituindo] = useState<OrdemDeCompra | null>(null)
   const [arquivoEscolhido, setArquivoEscolhido] = useState<File | null>(null)
@@ -73,7 +90,7 @@ export function useAcoesDaOrdem(setOrdens: AtualizarOrdens, setErro: (s: string)
     try {
       const forma = new FormData()
       forma.append('arquivo', arquivo, arquivo.name)
-      await enviarFormulario(`/administrativo/compras/ordens/${o.id}/substituir`, forma)
+      await enviarFormulario(caminhoSubstituir(o.id), forma)
       setOrdens(atual => (atual ? atual.filter(x => x.id !== o.id) : atual))
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui substituir esta ordem de compra.')

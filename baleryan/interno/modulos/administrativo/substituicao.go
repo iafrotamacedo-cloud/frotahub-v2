@@ -11,17 +11,26 @@
 //	hora, antes de trocar qualquer coisa (12/09/2026).
 //
 //	Separado disso, mas na mesma frente: um botão de EXCLUIR de verdade,
-//	disponível em qualquer fila antes do e-mail de PCO sair. Os dois casos
-//	apagam a mesma coisa (linha, itens, arquivo no R2, registro de dedup em
-//	`arquivos`) — por isso dividem `apagarOrdemDeVez`.
+//	disponível em qualquer fila — inclusive depois do e-mail de PCO já ter
+//	saído (12/09/2026: desistência de compra pode acontecer a qualquer
+//	momento, e o PCO não faz fechamento financeiro — "pode sobrar, não pode
+//	faltar", explicado pelo dono). Os dois casos apagam a mesma coisa
+//	(linha, itens, arquivo no R2, registro de dedup em `arquivos`) — por
+//	isso dividem `apagarOrdemDeVez`.
+//
+// DEPOIS DO ENVIO, FICA UM RETRATO (12/09/2026)
+//
+//	Excluir ou substituir uma OC que já tinha sido enviada grava um retrato
+//	em `ordens_compra_canceladas` ANTES de apagar — ver `cancelamento.go`.
+//	Antes do envio continua sem rastro nenhum (o ID morre ali).
 //
 // POR QUE APAGAR DE VERDADE, E NÃO SÓ MARCAR INATIVA (FURO NO CORE-05)
 //
 //	Exceção deliberada, pedida pelo dono: manter o PDF errado no R2 pra
 //	sempre só encheria o armazém sem necessidade nenhuma — nada consulta uma
-//	OC substituída ou excluída depois do fato. O histórico (`historico`)
-//	continua imutável — a linha em si some, o rastro de que ela existiu e
-//	foi apagada não.
+//	OC substituída ou excluída antes de ter sido enviada. O histórico
+//	(`historico`) continua imutável — a linha em si some, o rastro de que
+//	ela existiu e foi apagada não.
 package administrativo
 
 import (
@@ -51,16 +60,22 @@ func (m *Modulo) excluirOrdem(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
 		return
 	}
-	ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+id+
-		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
-		"&select=id,nome_arquivo,arquivo_sha256,pco_enviado_em&limit=1")
+	ordem, err := m.ordemParaCancelamento(r.Context(), p.ClienteID, id)
 	if err != nil {
 		m.erro(w, "não achei esta ordem de compra", err)
 		return
 	}
+
+	// JÁ FOI ENVIADA? FICA UM RETRATO ANTES DE APAGAR
+	//
+	//	Se não conseguir gravar o retrato, a exclusão não acontece — melhor a
+	//	pessoa tentar de novo do que perder o rastro de uma OC que o cliente
+	//	já recebeu o pedido de PCO.
 	if temPCOEnviado(ordem["pco_enviado_em"]) {
-		web.Falhar(w, http.StatusConflict, "Esta ordem de compra já foi enviada por e-mail e não pode mais ser excluída.")
-		return
+		if err := m.registrarCancelamento(r.Context(), p, ordem, tipoExcluida, "", ""); err != nil {
+			m.erro(w, "não consegui registrar a exclusão desta ordem de compra já enviada", err)
+			return
+		}
 	}
 
 	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, "excluir_ordem_compra", map[string]historico.Mudanca{
@@ -177,6 +192,102 @@ func (m *Modulo) substituirOrdem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, "substituir_ordem_compra", map[string]historico.Mudanca{
+		"arquivo_sha256": {De: shaAntigo, Para: shaNovo},
+	})
+	if err := m.apagarOrdemDeVez(r.Context(), p.ClienteID, id, shaAntigo); err != nil {
+		m.erro(w, "guardei o arquivo novo, mas não consegui remover a ordem de compra antiga", err)
+		return
+	}
+	web.Responder(w, http.StatusOK, map[string]any{"nova_ordem_id": novoID})
+}
+
+// ---------------------------------------------------------------------------
+// POST /administrativo/compras/pco/ordens/{id}/substituir
+// ---------------------------------------------------------------------------
+
+// substituirOrdemPCO é o "substituir" geral do PCO — aceita qualquer PDF,
+// mesmo de outra OC (número diferente), ao contrário de `substituirOrdem`
+// (aquele é só para o furo específico de faturamento errado, e por isso
+// exige o mesmo número). Cobre o caso descrito pelo dono: a nota chegou com
+// valor diferente, o fornecedor faturou com outro CNPJ, o Obra Prima pediu
+// reaprovação — nesses casos a OC certa É outra, não uma correção da mesma.
+func (m *Modulo) substituirOrdemPCO(w http.ResponseWriter, r *http.Request) {
+	p := m.quem(w, r)
+	if p == nil {
+		return
+	}
+	id, ok := umUUID(r.PathValue("id"))
+	if !ok {
+		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
+		return
+	}
+	if !m.arm.Ligado() {
+		web.Falhar(w, http.StatusServiceUnavailable,
+			"O armazenamento de arquivos não está configurado. Sem ele, substituir perderia o arquivo.")
+		return
+	}
+	ordem, err := m.ordemParaCancelamento(r.Context(), p.ClienteID, id)
+	if err != nil {
+		m.erro(w, "não achei esta ordem de compra", err)
+		return
+	}
+	if fmtStatus(ordem["status"]) != "lido" {
+		web.Falhar(w, http.StatusConflict, "Só dá para substituir uma ordem de compra processada.")
+		return
+	}
+
+	if err := r.ParseMultipartForm(TamanhoMaximo); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui ler o arquivo enviado.")
+		return
+	}
+	cabecalhos := r.MultipartForm.File["arquivo"]
+	if len(cabecalhos) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Escolha o PDF da OC que vai entrar no lugar.")
+		return
+	}
+	cabecalho := cabecalhos[0]
+
+	f, ferr := cabecalho.Open()
+	if ferr != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui abrir o arquivo enviado.")
+		return
+	}
+	conteudo, rerr := io.ReadAll(io.LimitReader(f, TamanhoMaximo+1))
+	f.Close()
+	if rerr != nil || len(conteudo) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui ler o arquivo enviado.")
+		return
+	}
+	soma := sha256.Sum256(conteudo)
+	shaNovo := hex.EncodeToString(soma[:])
+	shaAntigo := strCampo(ordem["arquivo_sha256"])
+	if shaNovo == shaAntigo {
+		web.Falhar(w, http.StatusBadRequest, "Este é o mesmo arquivo de antes — escolha o PDF da OC que vai substituir.")
+		return
+	}
+
+	// AQUI NÃO EXIGE O MESMO NÚMERO — só confere que É uma OC de verdade,
+	// pra não entrar lixo na fila de leitura.
+	novaLeitura, lerErr := Ler(r.Context(), conteudo)
+	if lerErr != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui ler este PDF como uma Ordem de Compra: "+lerErr.Error())
+		return
+	}
+
+	novoID, _, err := m.guardarUma(r.Context(), p, cabecalho)
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if temPCOEnviado(ordem["pco_enviado_em"]) {
+		if err := m.registrarCancelamento(r.Context(), p, ordem, tipoSubstituida, novoID, novaLeitura.Numero); err != nil {
+			m.erro(w, "guardei o arquivo novo, mas não consegui registrar a substituição", err)
+			return
+		}
+	}
+
+	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, "substituir_ordem_compra_pco", map[string]historico.Mudanca{
 		"arquivo_sha256": {De: shaAntigo, Para: shaNovo},
 	})
 	if err := m.apagarOrdemDeVez(r.Context(), p.ClienteID, id, shaAntigo); err != nil {

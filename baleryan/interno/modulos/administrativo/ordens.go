@@ -110,8 +110,9 @@ func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
 // GET /administrativo/compras/pco/painel — o hub de PCO
 // ---------------------------------------------------------------------------
 
-// painelDoPCO alimenta os dois cartões de PCO: "Pendentes de envio" e
-// "Enviados" — a mesma ideia de `painelDeOrdens`, uma pergunta por contador.
+// painelDoPCO alimenta os três cartões de PCO: "Pendentes de envio",
+// "Enviados" e "Excluídas/Substituídas" — a mesma ideia de `painelDeOrdens`,
+// uma pergunta por contador.
 func (m *Modulo) painelDoPCO(w http.ResponseWriter, r *http.Request) {
 	p := m.quem(w, r)
 	if p == nil {
@@ -129,9 +130,16 @@ func (m *Modulo) painelDoPCO(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não consegui contar as OCs enviadas", err)
 		return
 	}
+	canceladas, err := m.bd.BuscarContando(r.Context(),
+		"ordens_compra_canceladas?cliente_id=eq."+banco.Escapar(p.ClienteID)+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as OCs excluídas/substituídas", err)
+		return
+	}
 	web.Responder(w, http.StatusOK, map[string]any{
-		"pendentes": pendentes,
-		"enviados":  enviados,
+		"pendentes":  pendentes,
+		"enviados":   enviados,
+		"canceladas": canceladas,
 		"previa": map[string]any{
 			"pendentes": m.previaDasOrdens(r.Context(), p.ClienteID, "pco-pendentes"),
 			"enviados":  m.previaDasOrdens(r.Context(), p.ClienteID, "pco-enviados"),

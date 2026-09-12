@@ -444,6 +444,17 @@ func apagarArquivoSeOrfao(ctx context.Context, bd *banco.Cliente, arm *armazem.C
 	if len(refs) > 0 {
 		return nil
 	}
+	// O RETRATO DE UMA OC CANCELADA DEPOIS DO ENVIO TAMBÉM CONTA
+	//
+	//	`ordens_compra_canceladas` (migração 063) guarda o PDF acessível de
+	//	propósito — diferente da substituição por faturamento errado, que
+	//	apaga sem dó. Se essa tabela ainda referencia o sha, o arquivo fica.
+	if err := bd.Buscar(ctx, "ordens_compra_canceladas?arquivo_sha256=eq."+esc+"&select=id&limit=1", &refs); err != nil {
+		return err
+	}
+	if len(refs) > 0 {
+		return nil
+	}
 	var arqs []map[string]any
 	if err := bd.Buscar(ctx, "arquivos?sha256=eq."+esc+"&select=chave_r2&limit=1", &arqs); err != nil {
 		return err

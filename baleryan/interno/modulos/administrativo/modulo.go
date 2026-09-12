@@ -90,6 +90,12 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	// O envio por e-mail (11/09/2026) — ver o cabeçalho de `pco_enviar.go`.
 	mux.HandleFunc("POST /administrativo/compras/pco/enviar", m.enviarPCO)
 	mux.HandleFunc("POST /administrativo/compras/pco/ordens/{id}/enviar", m.enviarUmaPCO)
+	// Substituir (qualquer OC, sem exigir o mesmo número) e o registro de
+	// excluídas/substituídas depois do envio (12/09/2026) — ver o
+	// cabeçalho de `cancelamento.go`.
+	mux.HandleFunc("POST /administrativo/compras/pco/ordens/{id}/substituir", m.substituirOrdemPCO)
+	mux.HandleFunc("GET /administrativo/compras/pco/canceladas", m.listarCanceladas)
+	mux.HandleFunc("GET /administrativo/compras/pco/canceladas/{id}/arquivo", m.arquivoDaCancelada)
 	// Os destinatários — ver o cabeçalho de `destinatarios.go`.
 	mux.HandleFunc("GET /administrativo/compras/pco/destinatarios", m.listarDestinatarios)
 	mux.HandleFunc("POST /administrativo/compras/pco/destinatarios", m.criarDestinatario)

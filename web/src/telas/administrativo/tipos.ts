@@ -65,11 +65,13 @@ export interface PainelDeOrdens {
   }
 }
 
-/** O que `GET /administrativo/compras/pco/painel` devolve — alimenta os dois
- *  cartões do hub de PCO: Pendentes de envio e Enviados. */
+/** O que `GET /administrativo/compras/pco/painel` devolve — alimenta os três
+ *  cartões do hub de PCO: Pendentes de envio, Enviados e
+ *  Excluídas/Substituídas. */
 export interface PainelDoPCO {
   pendentes: number
   enviados: number
+  canceladas: number
   previa?: {
     pendentes?: LinhaDaPreviaDeOrdem[]
     enviados?: LinhaDaPreviaDeOrdem[]
@@ -81,6 +83,27 @@ export interface LinhaDaPreviaDeOrdem {
   numero: string | null
   erro_leitura: string | null
   criado_em: string
+}
+
+/** Uma linha de `GET /administrativo/compras/pco/canceladas` — o retrato de
+ *  uma OC excluída ou substituída depois de já ter sido enviada (migração
+ *  063). Só leitura: não tem `status` nem campos de ação, porque não é fila
+ *  de trabalho. */
+export interface OrdemCancelada {
+  id: string
+  tipo: 'excluida' | 'substituida'
+  numero: string | null
+  obra_centro_custo: string | null
+  comprador_nome: string | null
+  comprador_cnpj: string | null
+  fornecedor_nome: string | null
+  fornecedor_cnpj: string | null
+  valor: number | null
+  nome_arquivo: string | null
+  enviado_em: string | null
+  removida_em: string
+  substituta_numero: string | null
+  substituta_id: string | null
 }
 
 /** Um destinatário do e-mail de PCO (migração 061). */

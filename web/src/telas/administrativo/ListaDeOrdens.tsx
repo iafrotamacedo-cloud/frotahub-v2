@@ -18,9 +18,12 @@
 //
 // VER + SUBSTITUIR, EXCLUIR (11/09/2026, mais tarde)
 //   Faturamento errado não abre mais o reparo híbrido — vira "ver" (leitura)
-//   + "substituir" (troca o arquivo pelo corrigido no Obra Prima). Excluir
-//   aparece em qualquer vista antes de "Enviados" (`useAcoesDaOrdem.ts`,
-//   compartilhado com `InserirOC.tsx`).
+//   + "substituir" (troca o arquivo pelo corrigido no Obra Prima, mesmo
+//   número). Excluir aparece em qualquer vista, inclusive Enviados
+//   (12/09/2026 — desistência de compra pode acontecer depois do envio; ver
+//   `cancelamento.go`). Enviados também ganha o "substituir" geral do PCO
+//   (`caminhoSubstituirPCO` — aceita qualquer OC, não exige o mesmo número)
+//   — `useAcoesDaOrdem.ts`, compartilhado com `InserirOC.tsx`/`Pco.tsx`.
 import { useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
@@ -29,7 +32,7 @@ import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { AvisoDesfazer } from './AvisoDesfazer'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
 import { RepararOrdemOC } from './RepararOrdemOC'
-import { useAcoesDaOrdem } from './useAcoesDaOrdem'
+import { caminhoSubstituirPCO, useAcoesDaOrdem } from './useAcoesDaOrdem'
 import {
   type OrdemDeCompra, type EstadoDocumentoOC, type VistaDasOrdens,
   motivoRejeicaoSimplificado,
@@ -53,7 +56,7 @@ export function ListaDeOrdens({ vista, titulo, vazia }: {
     reparar: boolean
   } | null>(null)
 
-  const acoes = useAcoesDaOrdem(setOrdens, setErro)
+  const acoes = useAcoesDaOrdem(setOrdens, setErro, vista === 'pco-enviados' ? caminhoSubstituirPCO : undefined)
 
   useEffect(() => {
     void (async () => {
@@ -155,8 +158,8 @@ export function ListaDeOrdens({ vista, titulo, vazia }: {
           vista={vista}
           onVer={o => void abrirArquivo(o)}
           onReparar={vista === 'rejeitadas' ? o => void abrirArquivo(o, true) : undefined}
-          onSubstituir={vista === 'rejeitadas' ? acoes.pedirSubstituicao : undefined}
-          onExcluir={vista !== 'pco-enviados' ? acoes.pedirExclusao : undefined}
+          onSubstituir={vista === 'rejeitadas' || vista === 'pco-enviados' ? acoes.pedirSubstituicao : undefined}
+          onExcluir={acoes.pedirExclusao}
         />
       )}
 

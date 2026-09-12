@@ -24,11 +24,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
 import { Carregando } from '../../componentes/Carregando'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { AvisoDesfazer } from './AvisoDesfazer'
+import { CanceladasPCO } from './CanceladasPCO'
 import { ListaDeOrdens } from './ListaDeOrdens'
 import { TabelaDeOrdens } from './TabelaDeOrdens'
-import { useAcoesDaOrdem } from './useAcoesDaOrdem'
+import { caminhoSubstituirPCO, useAcoesDaOrdem } from './useAcoesDaOrdem'
 import {
   emReais,
   type PainelDoPCO, type OrdemDeCompra, type ResultadoDoEnvio,
@@ -61,12 +63,15 @@ export function Pco({ onde, abrir }: Props) {
   if (onde === 'enviados') {
     return <ListaDeOrdens vista="pco-enviados" titulo="Enviados" vazia="Nenhuma OC enviada ainda." />
   }
+  if (onde === 'canceladas') {
+    return <CanceladasPCO />
+  }
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
 
   return (
-    <div className="orc-painel orc-painel--estreito orc-painel--2">
+    <div className="orc-painel orc-painel--estreito orc-painel--3">
       <Painel etapas={montarEtapas(dados)} aoEscolher={abrir} />
     </div>
   )
@@ -93,6 +98,15 @@ function montarEtapas(d: PainelDoPCO): Etapa[] {
       numero: d.enviados,
       rotulo: 'ordens',
     },
+    {
+      chave: 'canceladas',
+      titulo: 'Excluídas/Substituídas',
+      descricao: 'OCs excluídas ou substituídas depois de já terem sido enviadas — só consulta, sem opção de desfazer.',
+      icone: <IconeArquivo />,
+      numero: d.canceladas,
+      rotulo: 'ordens',
+      faixa: '#8a8a8a',
+    },
   ]
 }
 
@@ -113,7 +127,7 @@ function PendentesDeEnvio() {
   // também, para não brigar pela mesma OC no meio do lote).
   const [enviandoId, setEnviandoId] = useState<string | null>(null)
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
-  const acoes = useAcoesDaOrdem(setOrdens, setErro)
+  const acoes = useAcoesDaOrdem(setOrdens, setErro, caminhoSubstituirPCO)
 
   const carregar = useCallback(async () => {
     try {
@@ -221,10 +235,28 @@ function PendentesDeEnvio() {
           onVer={o => void abrirArquivo(o)}
           onEnviar={id => void enviarUma(id)}
           enviandoId={enviandoId}
+          onSubstituir={acoes.pedirSubstituicao}
           onExcluir={acoes.pedirExclusao}
         />
       )}
 
+      <input
+        ref={acoes.inputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={acoes.arquivoSelecionado}
+      />
+      {acoes.substituindo && acoes.arquivoEscolhido && (
+        <Confirmar
+          titulo="Substituir ordem de compra"
+          mensagem={`Substituir "${acoes.substituindo.nome_arquivo}" pelo arquivo "${acoes.arquivoEscolhido.name}"?\nA OC antiga sai desta fila, e a nova entra do zero em Inserir OC.`}
+          perigo
+          rotuloConfirmar="Substituir"
+          aoConfirmar={() => void acoes.confirmarSubstituicao()}
+          aoFechar={acoes.cancelarSubstituicao}
+        />
+      )}
       {acoes.exclusao && (
         <AvisoDesfazer
           mensagem={`Você excluiu a OC ${acoes.exclusao.numero || acoes.exclusao.nome_arquivo}.`}
@@ -252,6 +284,16 @@ function IconeOk() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
+function IconeArquivo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h10l6 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+      <path d="M14 4v6h6" />
+      <path d="M8 14h8M8 17.5h5" />
     </svg>
   )
 }
