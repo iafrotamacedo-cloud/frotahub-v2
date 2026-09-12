@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -291,6 +292,9 @@ func (m *Modulo) salvarDocumento(w http.ResponseWriter, r *http.Request) {
 	if ferr != nil {
 		m.erro(w, "não consegui gravar o fornecedor", ferr)
 		return
+	}
+	if cerr := m.resolverCentroCusto(r.Context(), p.ClienteID, ex); cerr != nil {
+		log.Printf("administrativo: gravando centro de custo da OC %s: %v", id, cerr)
 	}
 
 	campos := camposLidos(ex, fornecedorID)

@@ -164,6 +164,9 @@ func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
 	if ferr != nil {
 		log.Printf("administrativo: gravando fornecedor da OC %s: %v", id, ferr)
 	}
+	if cerr := m.resolverCentroCusto(r.Context(), p.ClienteID, ex); cerr != nil {
+		log.Printf("administrativo: gravando centro de custo da OC %s: %v", id, cerr)
+	}
 
 	status, motivo := "lido", ""
 	if motivos := ex.MotivosDeRejeicao(); len(motivos) > 0 {
@@ -229,6 +232,26 @@ func (m *Modulo) resolverFornecedor(ctx context.Context, clienteID string, ex Ex
 		return "", fmt.Errorf("upsert do fornecedor não devolveu id")
 	}
 	return fmt.Sprint(gravados[0]["id"]), nil
+}
+
+// resolverCentroCusto alimenta `centros_custo` sozinho — mesma receita de
+// `resolverFornecedor`, migração 062. Só registra quando o CNPJ de
+// faturamento já passou no filtro de raiz (`compradorCNPJParaBanco`
+// devolvendo não-nil): um centro de custo com CNPJ errado não é "aprendido"
+// como se fosse bom. Pedido do dono: só guardar, sem validar nada com isso —
+// por isso o erro aqui nunca impede a leitura, só vira log (mesmo trato de
+// `resolverFornecedor` acima).
+func (m *Modulo) resolverCentroCusto(ctx context.Context, clienteID string, ex Extraida) error {
+	obra := strings.TrimSpace(ex.ObraCentroCusto)
+	if obra == "" || compradorCNPJParaBanco(ex.CompradorCNPJ) == nil {
+		return nil
+	}
+	return m.bd.Upsert(ctx, "centros_custo?on_conflict=cliente_id,obra_centro_custo", []map[string]any{{
+		"cliente_id":        clienteID,
+		"obra_centro_custo": obra,
+		"comprador_nome":    textoOuNil(ex.CompradorNome),
+		"comprador_cnpj":    ex.CompradorCNPJ,
+	}}, nil)
 }
 
 // camposLidos é o que a leitura tirou do PDF, no formato da coluna do banco.
