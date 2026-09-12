@@ -120,10 +120,13 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
 	mux.HandleFunc("GET /administrativo/nf/entregues", m.listarNFEntregues)
 	mux.HandleFunc("GET /administrativo/nf/enviadas", m.listarNFEnviadas)
-	mux.HandleFunc("POST /administrativo/nf/{id}/entregar", m.entregarNF)
-	mux.HandleFunc("POST /administrativo/nf/{id}/enviar-cliente", m.enviarNFAoCliente)
-	mux.HandleFunc("POST /administrativo/nf/{id}/cancelar", m.cancelarNF)
-	mux.HandleFunc("GET /administrativo/nf/{id}/arquivo", m.arquivoDaNF)
+	// "notas/{id}/..." e não "{id}/...": `{id}/arquivo` colidiria com
+	// `ordens/{id}` de cima (nenhum dos dois é mais específico que o outro,
+	// e o ServeMux do Go 1.22+ recusa registrar isso — pane em runtime).
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/entregar", m.entregarNF)
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/enviar-cliente", m.enviarNFAoCliente)
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/cancelar", m.cancelarNF)
+	mux.HandleFunc("GET /administrativo/nf/notas/{id}/arquivo", m.arquivoDaNF)
 	// A configuração de acesso por obra (12/09/2026) — ver o cabeçalho de `acessos_obra.go`.
 	mux.HandleFunc("GET /administrativo/nf/obras", m.listarObrasNF)
 	mux.HandleFunc("GET /administrativo/nf/perfis", m.listarPerfisNF)

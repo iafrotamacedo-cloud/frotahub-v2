@@ -27,7 +27,7 @@ export function CancelarNF({ notaID, aoFechar, aoSalvar }: Props) {
     setErro('')
     setEnviando(true)
     try {
-      await motor(`/administrativo/nf/${notaID}/cancelar`, { metodo: 'POST', corpo: { motivo: motivo.trim() } })
+      await motor(`/administrativo/nf/notas/${notaID}/cancelar`, { metodo: 'POST', corpo: { motivo: motivo.trim() } })
       aoSalvar()
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui cancelar esta nota fiscal.')

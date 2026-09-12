@@ -22,8 +22,8 @@ const ROTA_DA_VISTA: Record<VistaDeNF, string> = {
 }
 
 const AVANCO_DA_VISTA: Record<VistaDeNF, { rota: (id: string) => string; rotulo: string } | null> = {
-  recebidas: { rota: id => `/administrativo/nf/${id}/entregar`, rotulo: 'confirmar entrega no escritório' },
-  entregues: { rota: id => `/administrativo/nf/${id}/enviar-cliente`, rotulo: 'marcar enviada (malote)' },
+  recebidas: { rota: id => `/administrativo/nf/notas/${id}/entregar`, rotulo: 'confirmar entrega no escritório' },
+  entregues: { rota: id => `/administrativo/nf/notas/${id}/enviar-cliente`, rotulo: 'marcar enviada (malote)' },
   enviadas: null,
 }
 
@@ -69,7 +69,7 @@ export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string 
 
   async function abrirArquivo(nf: NotaFiscal) {
     try {
-      const r = await motor<{ url: string; nome: string }>(`/administrativo/nf/${nf.id}/arquivo`)
+      const r = await motor<{ url: string; nome: string }>(`/administrativo/nf/notas/${nf.id}/arquivo`)
       setVendo({ endereco: r.url, nome: r.nome || nf.numero })
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
