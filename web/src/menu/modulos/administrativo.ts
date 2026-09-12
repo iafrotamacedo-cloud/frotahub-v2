@@ -1,10 +1,12 @@
-// rev 7 — o bloco de menu do Administrativo
+// rev 8 — o bloco de menu do Administrativo
 //
 // Fica no seu próprio arquivo, e não dentro de `arvore.ts`, porque este módulo
 // cresce sem pedir edição da árvore além do import. Quem ainda não tem tela
-// (Notas fiscais e Equalizar Propostas) cai no `<EmBreve>` do `App.tsx`. Sem
-// `breve`, o desenho é o mesmo da tela inicial — ícone da marca, seta, barra
-// cheia — em vez da versão apagada.
+// nem `breve: true` (hoje só "Equalizar Propostas") cai no `<EmBreve>` do
+// `App.tsx`, com o desenho normal (ícone da marca, seta, barra cheia). Quem
+// tem `breve: true` (hoje só "Protocolos") aparece já marcado como "Em breve"
+// — apagado, sem clique — porque o card existe de propósito, para mostrar o
+// próximo passo, mesmo sem tela ainda.
 //
 // "PCO" GANHOU TELA (10/09/2026) — SEGUNDA DIMENSÃO DE STATUS DA MESMA OC
 //
@@ -87,6 +89,20 @@ export const administrativoMenu: ItemMenu = {
       // (COMPRAS_NF_ENTREGAR) são pessoas diferentes, cada uma só com a sua —
       // o item precisa aparecer para os dois, ver o comentário em `arvore.ts`.
       rotina: ['COMPRAS_NF_RECEBER', 'COMPRAS_NF_ENTREGAR', 'COMPRAS_NF_CONFIGURAR_ACESSO'],
+    },
+    {
+      // O "Bloco B" (12/09/2026, pedido do dono): o documento de Protocolo —
+      // agrupa as notas fiscais entregues por dia e por centro de custo, com
+      // numeração sequencial por obra, e o extrato geral do mês. Fica como
+      // "Em breve" — `breve: true` — até esse bloco ser construído; o card
+      // existe desde já para o dono ver o próximo passo do ciclo OC → NF →
+      // Protocolo, do mesmo jeito que "Equalizar Propostas" já marca o que
+      // falta em Compras.
+      t: 'Protocolos',
+      rota: 'protocolos',
+      icone: 'lista',
+      desc: 'O documento de entrega — notas agrupadas por dia, por obra e por mês',
+      breve: true,
     },
   ],
 }
