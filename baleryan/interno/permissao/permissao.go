@@ -21,8 +21,9 @@ import (
 )
 
 var (
-	ErrNegado    = errors.New("você não tem acesso a esta rotina")
-	ErrSoBuilder = errors.New("apenas o builder pode fazer isto")
+	ErrNegado         = errors.New("você não tem acesso a esta rotina")
+	ErrSoBuilder      = errors.New("apenas o builder pode fazer isto")
+	ErrSoBuilderOuCEO = errors.New("apenas o builder ou o CEO podem fazer isto")
 )
 
 type Servico struct{ bd *banco.Cliente }
@@ -30,7 +31,7 @@ type Servico struct{ bd *banco.Cliente }
 func Novo(bd *banco.Cliente) *Servico { return &Servico{bd: bd} }
 
 type linhaPermissao struct {
-	Pode bool `json:"pode"`
+	Rotina string `json:"rotina"`
 }
 
 // Pode responde se este principal alcança a rotina.
@@ -59,8 +60,11 @@ func (s *Servico) Pode(ctx context.Context, p *seguranca.Principal, rotina strin
 		return false, nil
 	}
 
-	caminho := "categoria_permissoes?categoria_id=eq." + banco.Escapar(p.CategoriaID) +
-		"&rotina=eq." + banco.Escapar(rotina) + "&pode=is.true&select=pode&limit=1"
+	// categoria_rotinas_efetivas é a UNIÃO da matriz de sempre com o bypass de
+	// módulo do CEO (ver 067_categoria_modulos_e_bypass.sql) — nunca mais
+	// consultar categoria_permissoes direto, ou o bypass fica invisível aqui.
+	caminho := "categoria_rotinas_efetivas?categoria_id=eq." + banco.Escapar(p.CategoriaID) +
+		"&rotina=eq." + banco.Escapar(rotina) + "&select=rotina&limit=1"
 
 	var linhas []linhaPermissao
 	if err := s.bd.Buscar(ctx, caminho, &linhas); err != nil {
@@ -86,6 +90,18 @@ func (s *Servico) Exige(ctx context.Context, p *seguranca.Principal, rotina stri
 func ExigeBuilder(p *seguranca.Principal) error {
 	if !p.Builder() {
 		return ErrSoBuilder
+	}
+	return nil
+}
+
+// ExigeBuilderOuCEO é a mesma trava anti-circular de ExigeBuilder, alargada
+// um degrau: mexer nas categorias abaixo do CEO (e no vínculo hierárquico) é
+// dele também, não só do builder — mas continua sendo trava de NÍVEL, não de
+// rotina. Uma rotina que controlasse quem edita a matriz seria circular:
+// quem tivesse essa rotina poderia se dar qualquer outra.
+func ExigeBuilderOuCEO(p *seguranca.Principal) error {
+	if !p.Builder() && p.Nivel != "ceo" {
+		return ErrSoBuilderOuCEO
 	}
 	return nil
 }
@@ -119,8 +135,8 @@ func (s *Servico) Rotinas(ctx context.Context, p *seguranca.Principal) ([]string
 	var linhas []struct {
 		Rotina string `json:"rotina"`
 	}
-	caminho := "categoria_permissoes?categoria_id=eq." + banco.Escapar(p.CategoriaID) +
-		"&pode=is.true&select=rotina&order=rotina"
+	caminho := "categoria_rotinas_efetivas?categoria_id=eq." + banco.Escapar(p.CategoriaID) +
+		"&select=rotina&order=rotina"
 	if err := s.bd.Buscar(ctx, caminho, &linhas); err != nil {
 		return nil, err
 	}
@@ -134,7 +150,7 @@ func (s *Servico) Rotinas(ctx context.Context, p *seguranca.Principal) ([]string
 // StatusDoErro traduz os erros deste pacote em código HTTP.
 func StatusDoErro(err error) int {
 	switch {
-	case errors.Is(err, ErrNegado), errors.Is(err, ErrSoBuilder):
+	case errors.Is(err, ErrNegado), errors.Is(err, ErrSoBuilder), errors.Is(err, ErrSoBuilderOuCEO):
 		return http.StatusForbidden
 	default:
 		return http.StatusInternalServerError

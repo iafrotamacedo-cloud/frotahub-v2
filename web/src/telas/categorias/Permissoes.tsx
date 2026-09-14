@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Janela } from '../../componentes/Janela'
 import { Carregando } from '../../componentes/Carregando'
 import { motor, ErroMotor, avisoDe } from '../../motor/cliente'
-import type { Categoria, Matriz, Rotina } from './tipos'
+import { MODULOS, type Categoria, type Matriz, type Rotina } from './tipos'
 
 interface Props {
   categoria: Categoria
@@ -29,6 +29,17 @@ export function Permissoes({ categoria, aoFechar, aoSalvar }: Props) {
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
 
+  // O PAINEL DE MÓDULOS SÓ EXISTE NUMA CATEGORIA CEO
+  //
+  //	E só quem chega aqui olhando uma categoria CEO é o builder — o próprio
+  //	CEO nunca abre a permissão de outro CEO (o backend recusa antes,
+  //	foraDoAlcanceDoCEO em acesso.go). Por isso não precisa de uma segunda
+  //	checagem "sou builder" aqui: o nível da categoria já basta.
+  const ehCeo = categoria.nivel === 'ceo'
+  const [modulos, setModulos] = useState<Set<string>>(new Set())
+  const [modulosOriginal, setModulosOriginal] = useState<Set<string>>(new Set())
+  const [salvandoModulos, setSalvandoModulos] = useState(false)
+
   useEffect(() => {
     let vivo = true
     motor<Matriz>(`/categorias/${categoria.id}/permissoes`)
@@ -37,6 +48,8 @@ export function Permissoes({ categoria, aoFechar, aoSalvar }: Props) {
         setDados(r)
         setMarcadas(new Set(r.permitidas))
         setOriginal(new Set(r.permitidas))
+        setModulos(new Set(r.modulos_liberados ?? []))
+        setModulosOriginal(new Set(r.modulos_liberados ?? []))
       })
       .catch(e => { if (vivo) setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar a matriz.') })
     return () => { vivo = false }
@@ -67,6 +80,62 @@ export function Permissoes({ categoria, aoFechar, aoSalvar }: Props) {
       else nova.add(codigo)
       return nova
     })
+  }
+
+  const mudouModulos = useMemo(() => {
+    if (modulos.size !== modulosOriginal.size) return true
+    for (const m of modulos) if (!modulosOriginal.has(m)) return true
+    return false
+  }, [modulos, modulosOriginal])
+
+  function alternarModulo(valor: string) {
+    setModulos(atual => {
+      const nova = new Set(atual)
+      if (nova.has(valor)) nova.delete(valor)
+      else nova.add(valor)
+      return nova
+    })
+  }
+
+  async function salvarModulos() {
+    setErro(null)
+    setSalvandoModulos(true)
+    try {
+      const r = await motor<{ liberados?: number; revogados?: number }>(
+        `/categorias/${categoria.id}/modulos-liberados`,
+        { metodo: 'PUT', corpo: { modulos: [...modulos] } },
+      )
+      setModulosOriginal(new Set(modulos))
+      const partes: string[] = []
+      if (r.liberados) partes.push(`${r.liberados} liberado(s)`)
+      if (r.revogados) partes.push(`${r.revogados} revogado(s)`)
+      aoSalvar(avisoDe(r), partes.length ? `Módulos: ${partes.join(' e ')}.` : 'Nada mudou.')
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui salvar os módulos liberados.')
+    } finally {
+      setSalvandoModulos(false)
+    }
+  }
+
+  // Ao contrário da matriz e dos módulos — que só valem depois de um clique
+  // em "salvar" — esta troca vale na hora: é um catálogo global (a mesma
+  // rotina, pra toda categoria), não um estado desta janela em particular.
+  async function alternarBypass(codigo: string, novoValor: boolean) {
+    setErro(null)
+    setDados(atual => atual && {
+      ...atual,
+      rotinas: atual.rotinas.map(r => r.codigo === codigo ? { ...r, liberada_para_bypass: novoValor } : r),
+    })
+    try {
+      await motor(`/rotinas/${codigo}`, { metodo: 'PATCH', corpo: { liberada_para_bypass: novoValor } })
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui salvar esta rotina.')
+      // Desfaz na tela — a chamada falhou, o banco não mudou.
+      setDados(atual => atual && {
+        ...atual,
+        rotinas: atual.rotinas.map(r => r.codigo === codigo ? { ...r, liberada_para_bypass: !novoValor } : r),
+      })
+    }
   }
 
   async function salvar() {
@@ -114,19 +183,61 @@ export function Permissoes({ categoria, aoFechar, aoSalvar }: Props) {
           </div>
         )}
 
+        {dados && ehCeo && (
+          <fieldset className="matriz">
+            <legend>Módulos liberados (acesso total do builder)</legend>
+            <p className="dica">
+              Marcar um módulo dá a este CEO TODA rotina dele que já estiver liberada pro
+              bypass (coluna "bypass" abaixo) — sem precisar marcar rotina por rotina. O que
+              for novo continua oculto até você liberar a rotina em si, mesmo com o módulo já
+              marcado aqui.
+            </p>
+            {MODULOS.map(m => (
+              <label className="mx-linha" key={m.valor}>
+                <input type="checkbox" checked={modulos.has(m.valor)} onChange={() => alternarModulo(m.valor)} />
+                <span className="mx-nome">{m.rotulo}</span>
+              </label>
+            ))}
+            <div className="jn-pe" style={{ padding: 0, marginTop: 10 }}>
+              <button
+                type="button" className="bt bt-forte" onClick={() => void salvarModulos()}
+                disabled={salvandoModulos || !mudouModulos}
+              >
+                {salvandoModulos ? 'Salvando...' : 'Salvar módulos'}
+              </button>
+            </div>
+          </fieldset>
+        )}
+
         {dados && !dados.ignora_matriz && porModulo.map(([modulo, rotinas]) => (
           <fieldset className="matriz" key={modulo}>
             <legend>{modulo}</legend>
             {rotinas.map(r => (
-              <label className="mx-linha" key={r.codigo}>
-                <input
-                  type="checkbox"
-                  checked={marcadas.has(r.codigo)}
-                  onChange={() => alternar(r.codigo)}
-                />
-                <span className="mx-nome">{r.nome}</span>
-                <code>{r.codigo}</code>
-              </label>
+              // Dois <label> irmãos, nunca um dentro do outro — aninhado, o
+              // clique no checkbox de bypass também dispara o da esquerda
+              // (o navegador ativa o PRIMEIRO input de um <label> ao clicar
+              // em qualquer parte dele).
+              <div className="mx-linha-grupo" key={r.codigo}>
+                <label className="mx-linha">
+                  <input
+                    type="checkbox"
+                    checked={marcadas.has(r.codigo)}
+                    onChange={() => alternar(r.codigo)}
+                  />
+                  <span className="mx-nome">{r.nome}</span>
+                  <code>{r.codigo}</code>
+                </label>
+                {ehCeo && (
+                  <label className="mx-bypass" title="Liberada pro bypass de módulo do CEO — vale pra toda categoria, não só esta.">
+                    <input
+                      type="checkbox"
+                      checked={!!r.liberada_para_bypass}
+                      onChange={() => void alternarBypass(r.codigo, !r.liberada_para_bypass)}
+                    />
+                    bypass
+                  </label>
+                )}
+              </div>
             ))}
           </fieldset>
         ))}

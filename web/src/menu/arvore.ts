@@ -2,8 +2,17 @@
 //
 // Um item com `breve: true` aparece desabilitado, para dar a medida do que falta.
 // Um item com `oculto: true` some de vez — o código da tela continua no lugar.
-// Um item com `tela` abre uma rotina construída. Um item com `soBuilder` só existe
-// para o dono do sistema — o menu se ajusta ao login (P-17).
+// Um item com `tela` abre uma rotina construída. Um item com `niveis` só existe
+// pra quem está NAQUELE nível — o menu se ajusta ao login (P-17).
+//
+// `niveis` SUBSTITUIU `soBuilder` (14/09/2026)
+//
+//	Com o CEO ganhando telas próprias (Permissões — Gerencial), um booleano
+//	"só builder" não bastava mais — ia nascer um segundo booleano "só ceo", e
+//	depois um terceiro "builder ou ceo". Uma lista cobre os três casos com um
+//	campo só. O builder passa por cima de `niveis` sempre, do mesmo jeito que
+//	já passava por cima de `rotina` — ele nunca fica de fora por causa de
+//	configuração de menu.
 //
 // SOBRE O CAMPO `rota`
 //   É o pedaço que aparece no endereço do navegador. Ele é escrito à mão, e não
@@ -26,6 +35,7 @@ import { sesmtDpMenu } from './modulos/sesmt-dp'
 import { servicosMenu } from './modulos/servicos'
 import { engenhariaMenu } from './modulos/engenharia'
 import { administrativoMenu } from './modulos/administrativo'
+import type { Nivel } from '../sessao/tipos'
 
 export interface ItemMenu {
   t: string
@@ -39,7 +49,12 @@ export interface ItemMenu {
    * nada. É o "por enquanto": a tela continua no código, um flag a tira da vista.
    */
   oculto?: boolean
-  soBuilder?: boolean
+  /**
+   * Trava de NÍVEL — pra mexer em login, em categoria, ou em qualquer coisa
+   * que não passa (e não deveria passar) pela matriz de rotina. O builder
+   * sempre está implícito na lista, mesmo sem aparecer nela.
+   */
+  niveis?: Nivel[]
   /**
    * O código no catálogo de permissões. Item com `rotina` só aparece para quem
    * a alcança — o menu se ajusta ao login (P-17).
@@ -48,10 +63,6 @@ export interface ItemMenu {
    * (12/09/2026): o almoxarife só tem `COMPRAS_NF_RECEBER`, o escritório só
    * `COMPRAS_NF_ENTREGAR`, e o item precisa aparecer para os dois, sem dar a
    * nenhum a rotina do outro.
-   *
-   * `soBuilder` continua existindo para o que NÃO passa pela matriz: mexer em
-   * login é exclusividade do dono, e isso não é uma linha de permissão que
-   * alguém possa marcar por engano.
    */
   rotina?: string | string[]
   tela?: Tela
@@ -64,7 +75,7 @@ export type Icone =
 
 /** As rotinas já construídas. Cada nova entra aqui e ganha o seu arquivo em telas/. */
 export type Tela =
-  | 'usuarios' | 'categorias' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
+  | 'usuarios' | 'categorias' | 'categorias-ceo' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
   | 'pco-destinatarios' | 'nf' | 'nf-acessos'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
@@ -311,7 +322,7 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         icone: 'pessoas',
         desc: 'Quem entra no sistema e em que categoria',
         tela: 'usuarios',
-        soBuilder: true,
+        niveis: ['builder'],
       },
       {
         t: 'Categorias',
@@ -319,10 +330,23 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         icone: 'cadeado',
         desc: 'Os grupos de acesso e o que cada um alcança',
         tela: 'categorias',
-        soBuilder: true,
+        niveis: ['builder'],
       },
       {
-        // Sem `soBuilder`: é a porta de todo mundo. E é ela que faz Configurações
+        // A versão do CEO da tela acima — mesmo componente
+        // (`<Categorias escopo="gerencial" />`), só que o backend já filtra
+        // categoria ceo/builder pra fora (067_categoria_modulos_e_bypass.sql,
+        // §2 de acesso.go). Não aparece pro builder: a tela de cima já cobre
+        // tudo que essa cobre, e mais.
+        t: 'Permissões — Gerencial',
+        rota: 'permissoes-gerencial',
+        icone: 'cadeado',
+        desc: 'Categorias de nível gerencial, supervisório e operacional',
+        tela: 'categorias-ceo',
+        niveis: ['ceo'],
+      },
+      {
+        // Sem `niveis`: é a porta de todo mundo. E é ela que faz Configurações
         // existir para quem não é builder — antes, tudo ali dentro era do dono do
         // sistema, então o bloco inteiro sumia, e quem quisesse trocar a própria
         // senha não tinha para onde ir.
@@ -364,16 +388,17 @@ const ARVORE_COMPLETA: ItemMenu[] = [
  * Um bloco cujos filhos todos sumiram some junto: menu com pasta vazia é pior que
  * menu sem a pasta — parece defeito.
  */
-export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = []): ItemMenu[] {
+export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = [], nivel?: Nivel): ItemMenu[] {
   const alcanca = new Set(rotinas)
 
   function filtrar(itens: ItemMenu[]): ItemMenu[] {
     const fora: ItemMenu[] = []
     for (const item of itens) {
       if (item.oculto) continue
-      if (item.soBuilder && !ehBuilder) continue
-      // O builder passa sempre, aconteça o que acontecer com a matriz — é a
-      // garantia de que uma configuração errada não tranca o dono para fora.
+      // O builder passa sempre, aconteça o que acontecer com `niveis` ou com a
+      // matriz — é a garantia de que uma configuração errada nunca tranca o
+      // dono para fora.
+      if (item.niveis && !ehBuilder && !(nivel && item.niveis.includes(nivel))) continue
       if (item.rotina && !ehBuilder) {
         const rotinasDoItem = Array.isArray(item.rotina) ? item.rotina : [item.rotina]
         if (!rotinasDoItem.some(r => alcanca.has(r))) continue

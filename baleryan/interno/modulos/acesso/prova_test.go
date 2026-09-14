@@ -19,6 +19,7 @@ const (
 	idCliente  = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 	idComum    = "dddddddd-dddd-dddd-dddd-dddddddddddd"
 	idProt     = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+	idCeoCat   = "99999999-1111-1111-1111-111111111111"
 )
 
 type falso struct {
@@ -69,15 +70,19 @@ func novoFalso() *falso {
 			"nivel": "builder", "protegida": true, "ativo": true, "criado_em": "2026-08-23"}
 		comum := map[string]any{"id": idComum, "codigo": "administrativo", "nome": "Administrativo",
 			"nivel": "operacional", "protegida": false, "ativo": true, "criado_em": "2026-08-23"}
+		ceoCat := map[string]any{"id": idCeoCat, "codigo": "ceo", "nome": "CEO",
+			"nivel": "ceo", "protegida": false, "ativo": true, "criado_em": "2026-08-23"}
 		switch {
 		case strings.Contains(q, "id=eq."+idProt):
 			json.NewEncoder(w).Encode([]map[string]any{prot})
 		case strings.Contains(q, "id=eq."+idComum):
 			json.NewEncoder(w).Encode([]map[string]any{comum})
+		case strings.Contains(q, "id=eq."+idCeoCat):
+			json.NewEncoder(w).Encode([]map[string]any{ceoCat})
 		case strings.Contains(q, "id=eq."):
 			json.NewEncoder(w).Encode([]map[string]any{})
 		default:
-			json.NewEncoder(w).Encode([]map[string]any{prot, comum})
+			json.NewEncoder(w).Encode([]map[string]any{prot, comum, ceoCat})
 		}
 	})
 	mux.HandleFunc("POST /rest/v1/categorias", func(w http.ResponseWriter, r *http.Request) {
@@ -335,6 +340,46 @@ func TestSoBuilderMexeEmAcesso(t *testing.T) {
 		cod, _ := f.chamar(t, caso.metodo, caso.caminho, caso.corpo, "bom")
 		if cod != 403 {
 			t.Fatalf("%s %s com gerencial devia dar 403, deu %d", caso.metodo, caso.caminho, cod)
+		}
+	}
+}
+
+func TestCEOGerenciaCategoriaAbaixoDele(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+
+	for _, caso := range []struct{ metodo, caminho, corpo string }{
+		{"GET", "/categorias", ""},
+		{"POST", "/categorias", `{"codigo":"yyy","nome":"Y","nivel":"gerencial"}`},
+		{"PATCH", "/categorias/" + idComum, `{"nome":"Novo nome"}`},
+		{"GET", "/categorias/" + idComum + "/permissoes", ""},
+		{"PUT", "/categorias/" + idComum + "/permissoes", `{"rotinas":[]}`},
+	} {
+		cod, resp := f.chamar(t, caso.metodo, caso.caminho, caso.corpo, "bom")
+		if cod < 200 || cod >= 300 {
+			t.Fatalf("%s %s com ceo numa categoria abaixo dele devia passar, deu %d: %v", caso.metodo, caso.caminho, cod, resp)
+		}
+	}
+}
+
+func TestCEONaoMexeEmCategoriaCeoOuBuilder(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+
+	for _, caso := range []struct{ metodo, caminho, corpo string }{
+		{"PATCH", "/categorias/" + idProt, `{"nome":"X"}`},
+		{"GET", "/categorias/" + idProt + "/permissoes", ""},
+		{"PUT", "/categorias/" + idProt + "/permissoes", `{"rotinas":[]}`},
+		{"PATCH", "/categorias/" + idCeoCat, `{"nome":"X"}`},
+		{"GET", "/categorias/" + idCeoCat + "/permissoes", ""},
+		{"PUT", "/categorias/" + idCeoCat + "/permissoes", `{"rotinas":[]}`},
+		{"POST", "/categorias", `{"codigo":"zzz","nome":"Z","nivel":"ceo"}`},
+	} {
+		cod, _ := f.chamar(t, caso.metodo, caso.caminho, caso.corpo, "bom")
+		if cod != 403 {
+			t.Fatalf("%s %s com ceo fora do próprio alcance devia dar 403, deu %d", caso.metodo, caso.caminho, cod)
 		}
 	}
 }

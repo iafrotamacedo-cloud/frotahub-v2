@@ -195,6 +195,19 @@
   border-radius:5px;padding:1px 6px;
 }
 
+/* ---------- bypass de módulo do CEO (só builder vê) ----------
+   Dois <label> irmãos por linha, não um dentro do outro — ver o comentário
+   em Permissoes.tsx sobre por que aninhar quebra o clique. */
+.mx-linha-grupo{display:flex;align-items:center;gap:4px}
+.mx-linha-grupo .mx-linha{flex:1;min-width:0}
+.mx-bypass{
+  display:flex;align-items:center;gap:4px;flex:0 0 auto;
+  font-size:10.5px;color:var(--mut);white-space:nowrap;
+  padding:6px 8px;border-radius:6px;cursor:pointer;font-weight:400;
+}
+.mx-bypass:hover{background:var(--red-050);color:var(--ink)}
+.mx-bypass input{width:auto;margin:0;accent-color:var(--red)}
+
 /* ---------- ficha (pares rótulo/valor) ---------- */
 .ficha{margin:0 0 18px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s)}
 .ficha div{display:flex;gap:10px;padding:2px 0}

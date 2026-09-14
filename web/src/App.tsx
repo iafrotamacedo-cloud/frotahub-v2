@@ -69,7 +69,7 @@ function Casca() {
   // Fica memorizado porque a navegação depende dele: uma árvore nova a cada
   // desenho faria o caminho ser recalculado sem necessidade.
   const arvore = useMemo(
-    () => arvoreVisivel(ehBuilder(perfil), perfil?.rotinas ?? []),
+    () => arvoreVisivel(ehBuilder(perfil), perfil?.rotinas ?? [], perfil?.nivel),
     [perfil],
   )
 
@@ -468,6 +468,8 @@ function Casca() {
             <Usuarios perfil={perfil} />
           ) : atual?.tela === 'categorias' ? (
             <Categorias />
+          ) : atual?.tela === 'categorias-ceo' ? (
+            <Categorias escopo="gerencial" />
           ) : atual?.tela === 'minha-conta' ? (
             <MinhaConta perfil={perfil} />
           ) : atual?.tela === 'a-pagar' ? (

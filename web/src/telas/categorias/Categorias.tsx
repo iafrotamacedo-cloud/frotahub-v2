@@ -12,7 +12,7 @@ import { Carregando } from '../../componentes/Carregando'
 import { Historico } from '../../componentes/Historico'
 import { FormCategoria } from './FormCategoria'
 import { Permissoes } from './Permissoes'
-import type { Categoria } from './tipos'
+import { NIVEIS_CEO, type Categoria } from './tipos'
 
 type Janelinha =
   | { tipo: 'nenhuma' }
@@ -21,7 +21,18 @@ type Janelinha =
   | { tipo: 'permissoes'; alvo: Categoria }
   | { tipo: 'historico'; alvo: Categoria }
 
-export function Categorias() {
+interface Props {
+  /**
+   * `'gerencial'` é a tela do CEO — mesmo componente, mesma tabela, só que o
+   * backend já filtra categoria ceo/builder pra fora (§2 de
+   * 067_categoria_modulos_e_bypass.sql) e o formulário oferece um nível a
+   * menos. Histórico continua exclusividade do builder (`verHistorico` não
+   * ganhou a exceção de nível), por isso some daqui.
+   */
+  escopo?: 'todas' | 'gerencial'
+}
+
+export function Categorias({ escopo = 'todas' }: Props) {
   const [linhas, setLinhas] = useState<Categoria[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -74,8 +85,12 @@ export function Categorias() {
     <>
       <header className="hero hero-linha">
         <div>
-          <h1>Categorias</h1>
-          <p>Os grupos de acesso. O nível é da categoria, nunca da pessoa.</p>
+          <h1>{escopo === 'gerencial' ? 'Permissões — Gerencial' : 'Categorias'}</h1>
+          <p>
+            {escopo === 'gerencial'
+              ? 'Categorias de nível gerencial, supervisório e operacional — as de CEO e Builder não aparecem aqui.'
+              : 'Os grupos de acesso. O nível é da categoria, nunca da pessoa.'}
+          </p>
         </div>
         <button className="bt bt-forte" type="button" onClick={() => setJanela({ tipo: 'nova' })}>
           Nova categoria
@@ -133,9 +148,11 @@ export function Categorias() {
                     <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'permissoes', alvo: c })}>
                       Permissões
                     </button>
-                    <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: c })}>
-                      Histórico
-                    </button>
+                    {escopo !== 'gerencial' && (
+                      <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: c })}>
+                        Histórico
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={'bt bt-mini' + (c.ativo ? ' bt-perigo' : '')}
@@ -156,6 +173,7 @@ export function Categorias() {
       {janela.tipo === 'nova' && (
         <FormCategoria
           categoria={null}
+          niveis={escopo === 'gerencial' ? NIVEIS_CEO : undefined}
           aoFechar={() => setJanela({ tipo: 'nenhuma' })}
           aoSalvar={aviso => fechar(aviso, 'Categoria criada.')}
         />
@@ -163,6 +181,7 @@ export function Categorias() {
       {janela.tipo === 'editar' && (
         <FormCategoria
           categoria={janela.alvo}
+          niveis={escopo === 'gerencial' ? NIVEIS_CEO : undefined}
           aoFechar={() => setJanela({ tipo: 'nenhuma' })}
           aoSalvar={aviso => fechar(aviso, 'Alteração salva.')}
         />

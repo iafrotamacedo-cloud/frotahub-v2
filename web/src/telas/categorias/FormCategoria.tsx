@@ -14,9 +14,12 @@ interface Props {
   categoria: Categoria | null // null = criar
   aoFechar: () => void
   aoSalvar: (aviso: string | null) => void
+  /** Quais níveis o formulário oferece — a tela do CEO manda uma lista
+   *  menor (sem `ceo`, ver `NIVEIS_CEO`). Sem a prop, oferece todos. */
+  niveis?: { valor: Nivel; rotulo: string }[]
 }
 
-export function FormCategoria({ categoria, aoFechar, aoSalvar }: Props) {
+export function FormCategoria({ categoria, aoFechar, aoSalvar, niveis = NIVEIS }: Props) {
   const editando = categoria !== null
 
   const [codigo, setCodigo] = useState(categoria?.codigo ?? '')
@@ -75,7 +78,7 @@ export function FormCategoria({ categoria, aoFechar, aoSalvar }: Props) {
 
         <label htmlFor="c-nivel">Nível</label>
         <select id="c-nivel" value={nivel} onChange={e => setNivel(e.target.value as Nivel)}>
-          {NIVEIS.map(n => <option key={n.valor} value={n.valor}>{n.rotulo}</option>)}
+          {niveis.map(n => <option key={n.valor} value={n.valor}>{n.rotulo}</option>)}
         </select>
         <p className="dica">
           Quem entra nesta categoria herda o nível. Ele não decide acesso sozinho —

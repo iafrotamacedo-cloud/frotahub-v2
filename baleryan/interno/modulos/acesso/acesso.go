@@ -66,6 +66,8 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /categorias/{id}/permissoes", m.lerPermissoes)
 	mux.HandleFunc("PUT /categorias/{id}/permissoes", m.gravarPermissoes)
 	mux.HandleFunc("GET /categorias/{id}/historico", m.verHistorico)
+	mux.HandleFunc("PATCH /rotinas/{codigo}", m.marcarRotinaParaBypass)
+	mux.HandleFunc("PUT /categorias/{id}/modulos-liberados", m.gravarModulosLiberados)
 }
 
 func (m *Modulo) quemEBuilder(w http.ResponseWriter, r *http.Request) *seguranca.Principal {
@@ -79,6 +81,31 @@ func (m *Modulo) quemEBuilder(w http.ResponseWriter, r *http.Request) *seguranca
 		return nil
 	}
 	return p
+}
+
+// quemPodeGerenciarAcesso é quemEBuilder alargado: o CEO também mexe em
+// categoria, mas só nas de nível abaixo dele — cada rota que usa isto
+// precisa, em seguida, filtrar ou recusar categoria ceo/builder na mão
+// (ver foraDoAlcanceDoCEO). listar/criar/editar/lerPermissoes/
+// gravarPermissoes usam esta; verHistorico continua só-builder.
+func (m *Modulo) quemPodeGerenciarAcesso(w http.ResponseWriter, r *http.Request) *seguranca.Principal {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return nil
+	}
+	if err := permissao.ExigeBuilderOuCEO(p); err != nil {
+		web.Falhar(w, permissao.StatusDoErro(err), err.Error())
+		return nil
+	}
+	return p
+}
+
+// foraDoAlcanceDoCEO é a defesa em profundidade: mesmo que o CEO adivinhe o
+// id de uma categoria ceo/builder, a rota recusa. O builder nunca cai aqui
+// — ele passa por tudo, sempre.
+func foraDoAlcanceDoCEO(p *seguranca.Principal, nivelCategoria string) bool {
+	return !p.Builder() && (nivelCategoria == "builder" || nivelCategoria == "ceo")
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +157,7 @@ func (m *Modulo) acharOuFalhar(w http.ResponseWriter, r *http.Request, p *segura
 
 // GET /categorias?incluir_inativas=1
 func (m *Modulo) listar(w http.ResponseWriter, r *http.Request) {
-	p := m.quemEBuilder(w, r)
+	p := m.quemPodeGerenciarAcesso(w, r)
 	if p == nil {
 		return
 	}
@@ -142,6 +169,11 @@ func (m *Modulo) listar(w http.ResponseWriter, r *http.Request) {
 	// Quem quiser ver as arquivadas pede de propósito.
 	if r.URL.Query().Get("incluir_inativas") == "" {
 		caminho += "&ativo=is.true"
+	}
+	// O CEO administra só quem está abaixo dele na hierarquia — categoria
+	// ceo ou builder nem aparece na lista pra ele.
+	if !p.Builder() {
+		caminho += "&nivel=not.in.(builder,ceo)"
 	}
 
 	linhas := []categoria{}
@@ -163,7 +195,7 @@ type pedidoCategoria struct {
 }
 
 func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
-	p := m.quemEBuilder(w, r)
+	p := m.quemPodeGerenciarAcesso(w, r)
 	if p == nil {
 		return
 	}
@@ -179,6 +211,12 @@ func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
 
 	if problema := validar(pedido); problema != "" {
 		web.Falhar(w, http.StatusBadRequest, problema)
+		return
+	}
+	// niveisPermitidos já barra "builder"; falta só barrar "ceo" pra quem não
+	// é o próprio builder — só ele promove alguém a CEO.
+	if !p.Builder() && pedido.Nivel == "ceo" {
+		web.Falhar(w, http.StatusForbidden, "Você só pode criar categorias de nível gerencial, supervisório ou operacional.")
 		return
 	}
 
@@ -247,12 +285,16 @@ type pedidoEditar struct {
 }
 
 func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
-	p := m.quemEBuilder(w, r)
+	p := m.quemPodeGerenciarAcesso(w, r)
 	if p == nil {
 		return
 	}
 	atual := m.acharOuFalhar(w, r, p)
 	if atual == nil {
+		return
+	}
+	if foraDoAlcanceDoCEO(p, atual.Nivel) {
+		web.Falhar(w, http.StatusForbidden, "Você só pode gerenciar categorias de nível gerencial, supervisório ou operacional.")
 		return
 	}
 
@@ -289,6 +331,10 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 		nivel := strings.ToLower(strings.TrimSpace(*pedido.Nivel))
 		if !niveisPermitidos[nivel] {
 			web.Falhar(w, http.StatusBadRequest, "Escolha um nível: operacional, supervisório, gerencial ou ceo.")
+			return
+		}
+		if !p.Builder() && nivel == "ceo" {
+			web.Falhar(w, http.StatusForbidden, "Você não pode promover uma categoria a CEO.")
 			return
 		}
 		if nivel != atual.Nivel {
@@ -371,10 +417,12 @@ func (m *Modulo) loginsAtivos(ctx context.Context, categoriaID, clienteID string
 // ---------------------------------------------------------------------------
 
 type rotina struct {
-	Codigo string `json:"codigo"`
-	Nome   string `json:"nome"`
-	Modulo string `json:"modulo"`
-	Ordem  int    `json:"ordem"`
+	Codigo             string `json:"codigo"`
+	Nome               string `json:"nome"`
+	Modulo             string `json:"modulo"`
+	Ordem              int    `json:"ordem"`
+	ModuloMenu         string `json:"modulo_menu,omitempty"`
+	LiberadaParaBypass bool   `json:"liberada_para_bypass,omitempty"`
 }
 
 type linhaMatriz struct {
@@ -387,7 +435,7 @@ type linhaMatriz struct {
 // Devolve o catálogo INTEIRO mais o que esta categoria alcança. A tela precisa
 // dos dois: as rotinas desmarcadas são metade da informação.
 func (m *Modulo) lerPermissoes(w http.ResponseWriter, r *http.Request) {
-	p := m.quemEBuilder(w, r)
+	p := m.quemPodeGerenciarAcesso(w, r)
 	if p == nil {
 		return
 	}
@@ -395,9 +443,15 @@ func (m *Modulo) lerPermissoes(w http.ResponseWriter, r *http.Request) {
 	if cat == nil {
 		return
 	}
+	if foraDoAlcanceDoCEO(p, cat.Nivel) {
+		web.Falhar(w, http.StatusForbidden, "Você só pode gerenciar categorias de nível gerencial, supervisório ou operacional.")
+		return
+	}
 
 	catalogo := []rotina{}
-	if err := m.bd.Buscar(r.Context(), "rotinas?select=codigo,nome,modulo,ordem&order=modulo.asc,ordem.asc,nome.asc", &catalogo); err != nil {
+	if err := m.bd.Buscar(r.Context(),
+		"rotinas?select=codigo,nome,modulo,ordem,modulo_menu,liberada_para_bypass&order=modulo.asc,ordem.asc,nome.asc",
+		&catalogo); err != nil {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar o catálogo de rotinas.")
 		return
 	}
@@ -412,14 +466,28 @@ func (m *Modulo) lerPermissoes(w http.ResponseWriter, r *http.Request) {
 		permitidas = append(permitidas, codigo)
 	}
 
-	web.Responder(w, http.StatusOK, map[string]any{
+	resposta := map[string]any{
 		"categoria":  cat,
 		"rotinas":    catalogo,
 		"permitidas": permitidas,
 		// O builder não passa pela matriz — a tela precisa saber disso para
 		// explicar por que o quadro está desabilitado em vez de parecer quebrado.
 		"ignora_matriz": cat.Protegida,
-	})
+	}
+
+	// O painel de módulos liberados só faz sentido numa categoria CEO — pra
+	// qualquer outro nível a tela nem desenha o painel, então nem manda a
+	// lista (fica implícita como vazia).
+	if cat.Nivel == "ceo" {
+		modulos, err := m.modulosLiberados(r.Context(), cat.ID)
+		if err != nil {
+			web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar os módulos liberados.")
+			return
+		}
+		resposta["modulos_liberados"] = modulos
+	}
+
+	web.Responder(w, http.StatusOK, resposta)
 }
 
 func (m *Modulo) marcadas(ctx context.Context, categoriaID string) (map[string]bool, error) {
@@ -444,12 +512,16 @@ func (m *Modulo) marcadas(ctx context.Context, categoriaID string) (map[string]b
 // aquilo": se dois builders salvarem quase junto, o último salva um estado
 // inteiro coerente, em vez de metade de dois estados.
 func (m *Modulo) gravarPermissoes(w http.ResponseWriter, r *http.Request) {
-	p := m.quemEBuilder(w, r)
+	p := m.quemPodeGerenciarAcesso(w, r)
 	if p == nil {
 		return
 	}
 	cat := m.acharOuFalhar(w, r, p)
 	if cat == nil {
+		return
+	}
+	if foraDoAlcanceDoCEO(p, cat.Nivel) {
+		web.Falhar(w, http.StatusForbidden, "Você só pode gerenciar categorias de nível gerencial, supervisório ou operacional.")
 		return
 	}
 
@@ -556,6 +628,163 @@ func listaPara(itens []string) string {
 		partes = append(partes, banco.Escapar("\""+i+"\""))
 	}
 	return strings.Join(partes, ",")
+}
+
+// ---------------------------------------------------------------------------
+// bypass de módulo do CEO — só o builder mexe aqui
+//
+// Duas peças, cada uma dona de uma decisão: QUAIS rotinas entram no bypass
+// quando o módulo delas estiver liberado (marcarRotinaParaBypass, uma vez
+// por rotina, catálogo inteiro — não é por cliente) e QUAL categoria recebe
+// qual módulo (gravarModulosLiberados, por categoria). Nenhuma das duas
+// mexe em categoria_permissoes — a view categoria_rotinas_efetivas
+// (067_categoria_modulos_e_bypass.sql) é quem junta as duas na hora de ler.
+// ---------------------------------------------------------------------------
+
+type pedidoRotinaBypass struct {
+	LiberadaParaBypass *bool `json:"liberada_para_bypass"`
+}
+
+// PATCH /rotinas/{codigo}  {"liberada_para_bypass": true}
+func (m *Modulo) marcarRotinaParaBypass(w http.ResponseWriter, r *http.Request) {
+	p := m.quemEBuilder(w, r)
+	if p == nil {
+		return
+	}
+	codigo := r.PathValue("codigo")
+
+	var pedido pedidoRotinaBypass
+	if err := json.NewDecoder(r.Body).Decode(&pedido); err != nil || pedido.LiberadaParaBypass == nil {
+		web.Falhar(w, http.StatusBadRequest, "Mande {\"liberada_para_bypass\": true/false}.")
+		return
+	}
+
+	filtro := "codigo=eq." + banco.Escapar(codigo)
+	if err := m.bd.Atualizar(r.Context(), "rotinas", filtro, map[string]any{
+		"liberada_para_bypass": *pedido.LiberadaParaBypass,
+	}); err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui salvar.")
+		return
+	}
+
+	_ = m.hist.Registrar(semCancelar(r), p, moduloHistorico, codigo, "alterou_bypass_rotina", map[string]historico.Mudanca{
+		"liberada_para_bypass": {De: !*pedido.LiberadaParaBypass, Para: *pedido.LiberadaParaBypass},
+	})
+	web.Responder(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (m *Modulo) modulosLiberados(ctx context.Context, categoriaID string) ([]string, error) {
+	var linhas []struct {
+		Modulo string `json:"modulo"`
+	}
+	caminho := "categoria_modulos_liberados?categoria_id=eq." + banco.Escapar(categoriaID) + "&select=modulo"
+	if err := m.bd.Buscar(ctx, caminho, &linhas); err != nil {
+		return nil, err
+	}
+	saida := make([]string, 0, len(linhas))
+	for _, l := range linhas {
+		saida = append(saida, l.Modulo)
+	}
+	return saida, nil
+}
+
+var modulosValidos = map[string]bool{
+	"administrativo": true, "manutencao": true, "engenharia": true,
+	"sesmt-dp": true, "configuracoes": true,
+}
+
+// PUT /categorias/{id}/modulos-liberados  {"modulos": ["administrativo", ...]}
+//
+// Mesmo idioma "manda o conjunto inteiro" de gravarPermissoes — o motor
+// calcula sozinho o que liberar e o que revogar.
+func (m *Modulo) gravarModulosLiberados(w http.ResponseWriter, r *http.Request) {
+	p := m.quemEBuilder(w, r)
+	if p == nil {
+		return
+	}
+	cat := m.acharOuFalhar(w, r, p)
+	if cat == nil {
+		return
+	}
+	if cat.Nivel != "ceo" {
+		web.Falhar(w, http.StatusBadRequest, "Só uma categoria de nível CEO recebe liberação de módulo.")
+		return
+	}
+
+	var pedido struct {
+		Modulos []string `json:"modulos"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&pedido); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não entendi os dados enviados.")
+		return
+	}
+
+	desejados := map[string]bool{}
+	for _, mo := range pedido.Modulos {
+		mo = strings.TrimSpace(mo)
+		if mo == "" {
+			continue
+		}
+		if !modulosValidos[mo] {
+			web.Falhar(w, http.StatusBadRequest, "Módulo desconhecido: "+mo)
+			return
+		}
+		desejados[mo] = true
+	}
+
+	atuaisLista, err := m.modulosLiberados(r.Context(), cat.ID)
+	if err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar os módulos atuais.")
+		return
+	}
+	atuais := map[string]bool{}
+	for _, mo := range atuaisLista {
+		atuais[mo] = true
+	}
+
+	mudancas := map[string]historico.Mudanca{}
+	aLiberar := []map[string]any{}
+	aRevogar := []string{}
+
+	for mo := range desejados {
+		if !atuais[mo] {
+			aLiberar = append(aLiberar, map[string]any{
+				"cliente_id": p.ClienteID, "categoria_id": cat.ID, "modulo": mo, "liberado_por": p.UserID,
+			})
+			mudancas[mo] = historico.Mudanca{De: false, Para: true}
+		}
+	}
+	for mo := range atuais {
+		if !desejados[mo] {
+			aRevogar = append(aRevogar, mo)
+			mudancas[mo] = historico.Mudanca{De: true, Para: false}
+		}
+	}
+
+	if len(mudancas) == 0 {
+		web.Responder(w, http.StatusOK, map[string]any{"ok": true, "sem_mudanca": true})
+		return
+	}
+
+	if len(aLiberar) > 0 {
+		if err := m.bd.Inserir(r.Context(), "categoria_modulos_liberados", aLiberar, nil); err != nil {
+			web.Falhar(w, http.StatusInternalServerError, "Não consegui liberar os módulos novos.")
+			return
+		}
+	}
+	if len(aRevogar) > 0 {
+		filtro := "categoria_id=eq." + banco.Escapar(cat.ID) + "&modulo=in.(" + listaPara(aRevogar) + ")"
+		if err := m.bd.Apagar(r.Context(), "categoria_modulos_liberados", filtro); err != nil {
+			web.Falhar(w, http.StatusInternalServerError, "Não consegui revogar os módulos.")
+			return
+		}
+	}
+
+	resposta := map[string]any{"ok": true, "liberados": len(aLiberar), "revogados": len(aRevogar)}
+	if err := m.hist.Registrar(semCancelar(r), p, moduloHistorico, cat.ID, "alterou_modulos_liberados", mudancas); err != nil {
+		resposta["aviso"] = historico.Aviso
+	}
+	web.Responder(w, http.StatusOK, resposta)
 }
 
 // ---------------------------------------------------------------------------
