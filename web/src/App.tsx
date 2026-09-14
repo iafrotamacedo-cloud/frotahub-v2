@@ -32,6 +32,8 @@ import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { Compras } from './telas/administrativo/Compras'
+import { AdmMobile } from './telas/administrativo/AdmMobile'
+import { useEhMobile } from './componentes/useEhMobile'
 import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
 import { Pco } from './telas/administrativo/Pco'
@@ -61,6 +63,7 @@ export default function App() {
 
 function Casca() {
   const { carregando, perfil, entrar, sair } = useSessao()
+  const ehMobile = useEhMobile()
 
   // O menu é montado a partir do que ESTE login alcança, não da árvore inteira.
   // Fica memorizado porque a navegação depende dele: uma árvore nova a cada
@@ -425,6 +428,26 @@ function Casca() {
                 if (filho) navegar([...caminho, filho])
               }}
             />
+          ) : ehMobile && atual?.rota === 'administrativo' && atual?.sub?.length ? (
+            // A CASCA MOBILE DO ADMINISTRATIVO (14/09/2026, pedido do dono)
+            //
+            //	Mesma árvore, mesma permissão — só o desenho da entrada muda,
+            //	de coluna com hover para lista com rolagem, pensada para o
+            //	encarregado e o almoxarife usarem com o celular em obra. Ver
+            //	o cabeçalho de `AdmMobile.tsx`.
+            <>
+              <header className="hero">
+                <h1>{atual.t}</h1>
+                <p>{atual.desc}</p>
+              </header>
+              <AdmMobile
+                itens={atual.sub}
+                aoEscolher={rota => {
+                  const filho = atual.sub!.find(f => f.rota === rota)
+                  if (filho) navegar([...caminho, filho])
+                }}
+              />
+            </>
           ) : atual?.sub?.length ? (
             // O MESMO desenho de barras da tela inicial e do painel de
             // Orçamentos. Um esquema de menu só para o programa inteiro.
