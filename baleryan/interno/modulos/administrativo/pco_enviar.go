@@ -388,7 +388,7 @@ func (m *Modulo) enviarPorEmail(ctx context.Context, p *seguranca.Principal, ord
 		return fmt.Errorf("não consegui montar o zip: %w", err)
 	}
 
-	html := montarHTMLDoEnvio(ordens, data, assinaturaDoEnvio(p))
+	html := montarHTMLDoEnvio(ordens, data, assinaturaDoEnvio(m.assinanteDoEnvio(ctx, p)))
 
 	return m.brevo.Enviar(ctx, brevo.Mensagem{
 		Para:    destinatarios,
@@ -443,17 +443,65 @@ func pastaSegura(nome string) string {
 	return strings.TrimSpace(strings.Map(trocar, nome))
 }
 
+// UsuarioAssinaturaRobo é o login usado como "quem assina" nos envios do
+// robô (cron das 23h, ver .github/workflows/pco-email.yml). Pedido do dono
+// (15/09/2026): já que ninguém aperta "Enviar" de verdade nesses envios, a
+// assinatura pessoal usa a Melissa como padrão — em vez do e-mail
+// automático sair mais seco (só "Frota Macedo Engenharia") do que os
+// enviados na mão.
+const UsuarioAssinaturaRobo = "melissa"
+
+type assinanteEmbutido struct {
+	Nome       string  `json:"nome"`
+	Telefone   *string `json:"telefone"`
+	Categorias *struct {
+		Nome string `json:"nome"`
+	} `json:"categorias"`
+}
+
+// assinanteDoEnvio decide QUEM assina o e-mail: gente assina como ela
+// mesma; o robô assina como `UsuarioAssinaturaRobo`. Se esse login não
+// existir mais, tiver sido desativado, ou a busca falhar por qualquer
+// motivo, cai de volta no Principal do robô puro — `assinaturaDoEnvio` já
+// sabe tratar isso como "só a empresa" — nunca é motivo para o envio
+// falhar.
+func (m *Modulo) assinanteDoEnvio(ctx context.Context, p *seguranca.Principal) *seguranca.Principal {
+	if p.Tipo != seguranca.TipoRobo {
+		return p
+	}
+	var linhas []assinanteEmbutido
+	caminho := "perfis?cliente_id=eq." + banco.Escapar(p.ClienteID) +
+		"&usuario=eq." + banco.Escapar(UsuarioAssinaturaRobo) + "&ativo=eq.true" +
+		"&select=nome,telefone,categorias(nome)&limit=1"
+	if err := m.bd.Buscar(ctx, caminho, &linhas); err != nil || len(linhas) == 0 {
+		return p
+	}
+	a := linhas[0]
+	assinante := &seguranca.Principal{Tipo: seguranca.TipoUsuario, Nome: a.Nome}
+	if a.Telefone != nil {
+		assinante.Telefone = *a.Telefone
+	}
+	if a.Categorias != nil {
+		assinante.CategoriaNome = a.Categorias.Nome
+	}
+	return assinante
+}
+
 // assinaturaDoEnvio monta o "Atenciosamente" do e-mail — PESSOAL, do jeito
 // que o dono pediu (15/09/2026): nome de quem apertou "Enviar", o cargo dela
 // (a CATEGORIA do FrotaHub faz esse papel — não existe um campo "cargo"
 // separado, e categoria já é como o sistema descreve a função de cada um) e
 // o telefone (migração 069), sempre fechando com "Frota Macedo Engenharia".
 //
-// O ROBÔ (23h, cron) NÃO TEM PESSOA NENHUMA POR TRÁS
+// O ROBÔ (23h, cron) NUNCA CHEGA AQUI COMO "ROBÔ"
 //
-//	`DaRequisicao` dá ao robô um Principal com `Nome: "robô"` só para os
-//	logs — assinar o e-mail do cliente como "robô" seria constrangedor. Sem
-//	nome de gente, sem cargo, sem telefone: só a empresa, exatamente como o
+//	Quem chama primeiro passa `p` por `assinanteDoEnvio`, que troca o
+//	Principal do robô pelo login de `UsuarioAssinaturaRobo` (a Melissa,
+//	hoje) — então esta função quase nunca vê `TipoRobo` de verdade. O
+//	`if` abaixo é só a rede de segurança: se aquela busca falhar (login
+//	apagado, banco fora do ar), o Principal do robô puro chega aqui do
+//	jeito que veio, e cai neste caso — assinar como "robô" seria
+//	constrangedor pro cliente, então vira só a empresa, exatamente como o
 //	e-mail sempre assinou antes desta mudança.
 func assinaturaDoEnvio(p *seguranca.Principal) string {
 	if p == nil || p.Tipo == seguranca.TipoRobo {
