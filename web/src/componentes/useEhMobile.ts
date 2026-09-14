@@ -1,11 +1,11 @@
-// rev 1 — perguntar ao navegador se a tela é de celular
+// rev 2 — perguntar ao navegador se a tela é de celular
 //
-// MESMA MEDIDA DO RESTO DO SISTEMA
+// O NÚMERO QUE DECIDE A CASCA INTEIRA (14/09/2026)
 //
-//	900px é o ponto onde `base.css` já vira a barra lateral em gaveta — o
-//	único "isto é celular" que o FrotaHub tinha até hoje. Em vez de inventar
-//	um segundo número, este hook só dá nome ao mesmo limite, para telas como
-//	a de Administrativo (`AdmMobile.tsx`) decidirem o que desenhar.
+//	900px é o "isto é celular" único do FrotaHub — `App.tsx` usa este hook
+//	pra decidir a casca inteira (sem gaveta lateral, sem hambúrguer) e cada
+//	tela-hub (`Compras.tsx`, `Pco.tsx`, ...) usa o mesmo hook pra trocar
+//	`<Painel>` por `<PainelDadosMobile>`. Um número só, um lugar só.
 import { useEffect, useState } from 'react'
 
 const LARGURA_CELULAR = '(max-width: 900px)'

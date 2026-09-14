@@ -20,6 +20,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import { Icone } from '../../componentes/Icone'
 import type { PainelDeOrdens } from './tipos'
@@ -29,6 +31,7 @@ interface Props {
 }
 
 export function Compras({ aoEscolher }: Props) {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<PainelDeOrdens | null>(null)
   const [erro, setErro] = useState('')
 
@@ -45,6 +48,8 @@ export function Compras({ aoEscolher }: Props) {
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
+
+  if (ehMobile) return <PainelDadosMobile etapas={montarEtapas(dados)} aoEscolher={aoEscolher} />
 
   return (
     <div className="orc-painel orc-painel--estreito orc-painel--3">

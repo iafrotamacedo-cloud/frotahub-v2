@@ -222,15 +222,15 @@ aside ::-webkit-scrollbar-thumb{background:#3d3234;border-color:var(--side-bg)}
 }
 
 /* ---------- celular ---------- */
+/* ATÉ 14/09/2026, era aqui que a barra lateral virava gaveta deslizante.
+   Não vira mais: no mobile o dono pediu sem gaveta nenhuma, nem escondida —
+   `App.tsx` simplesmente não desenha `<aside>`/hambúrguer/puxador quando
+   `useEhMobile()` é verdadeiro, então essas regras (`.sd-puxador`, `.side`
+   fixo, `.sd-back`, `.top .burger`) não têm mais elemento pra valer contra.
+   O que sobra aqui é só o que ainda é de verdade responsivo: respiro de
+   conteúdo mais estreito, e a marca decorativa do login que não cabe. */
 .sd-back{display:none}
 @media (max-width:900px){
-  /* No celular a barra já é uma gaveta: o puxador não tem função, e atrapalharia. */
-  .sd-puxador{display:none}
-  .lay.recolhida .side{width:268px;flex-basis:268px}
-  .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform var(--transicao)}
-  body.nav-aberta .side{transform:none}
-  body.nav-aberta .sd-back{display:block;position:fixed;inset:0;background:rgba(20,14,15,.5);z-index:39}
-  .top .burger{display:inline-flex}
   .content{padding:18px 16px 40px}
   .auth-marca{display:none}
 }

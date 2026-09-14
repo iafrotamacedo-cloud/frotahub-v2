@@ -238,6 +238,30 @@
 }
 .vh-mais:hover{border-color:var(--red);color:var(--red);background:var(--red-050)}
 
+/* ---------- CartaoLinha — Padrão 3 do mobile: tabela vira cartão (rev 1, 14/09/2026)
+   Tema claro (listagem, não menu) — mesma família de .cartao/.mx-linha. */
+.cl-lista{display:flex;flex-direction:column;gap:10px}
+.cl-cartao{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  padding:14px 16px;box-shadow:var(--sh-1);
+}
+.cl-cartao.clicavel{cursor:pointer;transition:border-color var(--transicao),transform var(--transicao)}
+.cl-cartao.clicavel:active{transform:scale(.99)}
+.cl-cartao.clicavel:hover,.cl-cartao.clicavel:focus-visible{border-color:var(--red);outline:none}
+.cl-titulo{font-size:15px;font-weight:700;color:var(--ink)}
+.cl-linhas{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.cl-linha{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:13px}
+.cl-rotulo{color:var(--mut);flex:0 0 auto}
+.cl-valor{color:var(--txt);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-acoes{
+  display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2);
+  flex-wrap:wrap;
+}
+.cl-acoes .bt{flex:1 1 auto}
+
+/* ---------- CarregarMais — Padrão 3, troca a paginação numerada (rev 1) ---------- */
+.cm-carregar-mais{width:100%;margin-top:4px}
+
 /* ---------- ficha (pares rótulo/valor) ---------- */
 .ficha{margin:0 0 18px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s)}
 .ficha div{display:flex;gap:10px;padding:2px 0}

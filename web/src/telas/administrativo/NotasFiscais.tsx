@@ -22,6 +22,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import { AguardandoNF } from './AguardandoNF'
@@ -36,6 +38,7 @@ interface Props {
 }
 
 export function NotasFiscais({ onde, perfil, abrir }: Props) {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<PainelDeNF | null>(null)
   const [erro, setErro] = useState('')
 
@@ -57,6 +60,8 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
+
+  if (ehMobile) return <PainelDadosMobile etapas={montarEtapas(dados, perfil)} aoEscolher={abrir} />
 
   return (
     // SEM O SUFIXO "--N": aquele teto (`escuro.css`) foi desenhado para o

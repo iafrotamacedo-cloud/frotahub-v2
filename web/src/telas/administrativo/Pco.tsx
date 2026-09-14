@@ -23,6 +23,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
@@ -43,6 +45,7 @@ interface Props {
 }
 
 export function Pco({ onde, abrir }: Props) {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<PainelDoPCO | null>(null)
   const [erro, setErro] = useState('')
 
@@ -69,6 +72,8 @@ export function Pco({ onde, abrir }: Props) {
 
   if (erro) return <p className="erro">{erro}</p>
   if (!dados) return <Carregando />
+
+  if (ehMobile) return <PainelDadosMobile etapas={montarEtapas(dados)} aoEscolher={abrir} />
 
   return (
     <div className="orc-painel orc-painel--estreito orc-painel--3">

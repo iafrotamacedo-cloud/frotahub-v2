@@ -32,7 +32,7 @@ import { Orcamentos } from './telas/orcamentos/Orcamentos'
 import { Faturamento } from './telas/orcamentos/Faturamento'
 import { APagar } from './telas/financeiro/APagar'
 import { Compras } from './telas/administrativo/Compras'
-import { AdmMobile } from './telas/administrativo/AdmMobile'
+import { PainelMenuMobile } from './telas/PainelMenuMobile'
 import { useEhMobile } from './componentes/useEhMobile'
 import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
@@ -181,154 +181,174 @@ function Casca() {
     document.body.classList.toggle('nav-aberta', aberta)
   }
 
+  // NO MOBILE, VOLTAR TAMBÉM FECHA A ROGUE WORKER
+  //
+  //	Sem gaveta lateral, o chat vira só mais uma tela (aberta a partir de um
+  //	cartão na Início) — e precisa fechar pela mesma seta de sempre, não só
+  //	pelo botão de dentro do próprio ChatRogue.
+  function voltarDoTopo() {
+    if (ehMobile && chatAberto) { setChatAberto(false); return }
+    // "OCs Inseridas" não é hub — só passagem para Processadas/Rejeitadas.
+    // Limpar só o `extra` cairia na tela órfã de dois cartões (rev antiga).
+    if (atual?.tela === 'ocs-inseridas') {
+      navegar(caminho.slice(0, -1))
+      return
+    }
+    // Dentro de uma sub-tela, voltar FECHA um passo. Lista dentro
+    // de Expectativa usa dois extras (`lista`, depois o ticket):
+    // um clique não pode desfazer os dois.
+    if (extra.length > 0) {
+      navegar(caminho, extra.slice(0, -1))
+    } else {
+      navegar(caminho.slice(0, -1))
+    }
+  }
+
   return (
-    <div className={'lay' + (recolhida ? ' recolhida' : '') + (ehEscura ? ' escura' : '')
+    <div className={'lay' + (recolhida && !ehMobile ? ' recolhida' : '') + (ehEscura ? ' escura' : '')
       + (focado ? ' focada' : '')}>
-      <div className="sd-back" onClick={alternarNav} />
+      {/* SEM GAVETA LATERAL NO MOBILE (14/09/2026, pedido do dono)
+          Nem escondida fora da tela — ausente mesmo. O celular navega só
+          pra frente e voltar; a barra, o hambúrguer e o puxador de recolher
+          não têm papel nenhum nesse desenho. */}
+      {!ehMobile && (
+        <>
+          <div className="sd-back" onClick={alternarNav} />
 
-      {/* O puxador vive FORA da barra: recolhida, a barra some, e ele precisa
-          continuar ali para trazê-la de volta. */}
-      <button
-        className="sd-puxador"
-        type="button"
-        onClick={() => setRecolhida(r => !r)}
-        title={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
-        aria-label={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1"
-             strokeLinecap="round" strokeLinejoin="round">
-          <path d={recolhida ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} />
-        </svg>
-      </button>
-
-      <aside className="side">
-        <div className="sd-topo">
+          {/* O puxador vive FORA da barra: recolhida, a barra some, e ele precisa
+              continuar ali para trazê-la de volta. */}
           <button
-            onClick={() => navegar([])}
-            style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
-            aria-label="Ir para o início"
+            className="sd-puxador"
+            type="button"
+            onClick={() => setRecolhida(r => !r)}
+            title={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
+            aria-label={recolhida ? 'Mostrar o menu' : 'Recolher o menu'}
           >
-            <Marca />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1"
+                 strokeLinecap="round" strokeLinejoin="round">
+              <path d={recolhida ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} />
+            </svg>
           </button>
-        </div>
 
-        {chatAberto ? (
-          <ChatRogue
-            aoVoltar={() => setChatAberto(false)}
-            aoNavegar={rotas => {
-              const caminho = caminhoPorRotas(arvore, rotas)
-              if (!caminho) return
-              setChatAberto(false)
-              navegar(caminho)
-            }}
-          />
-        ) : (
-        <nav className="sd-nav">
-          <div className="nv-sec">Menu</div>
+          <aside className="side">
+            <div className="sd-topo">
+              <button
+                onClick={() => navegar([])}
+                style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                aria-label="Ir para o início"
+              >
+                <Marca />
+              </button>
+            </div>
 
-          {arvore.map(item => {
-            const temFilhos = !!item.sub?.length
-            const aberto = abertos.includes(item.t)
-            const ativo = caminho[0]?.t === item.t && caminho.length === 1
+            {chatAberto ? (
+              <ChatRogue
+                aoVoltar={() => setChatAberto(false)}
+                aoNavegar={rotas => {
+                  const caminho = caminhoPorRotas(arvore, rotas)
+                  if (!caminho) return
+                  setChatAberto(false)
+                  navegar(caminho)
+                }}
+              />
+            ) : (
+            <nav className="sd-nav">
+              <div className="nv-sec">Menu</div>
 
-            return (
-              <div key={item.t}>
-                <button
-                  className={'nv-it' + (aberto ? ' aberto' : '') + (ativo ? ' ativo' : '') + (item.breve && !temFilhos ? ' breve' : '')}
-                  onClick={() => (temFilhos ? alternar(item.t) : item.breve ? navegar([item]) : navegar([item]))}
-                  type="button"
-                >
-                  <Icone nome={item.icone} />
-                  <span className="lb">{item.t}</span>
-                  {temFilhos ? <Seta /> : item.breve ? <span className="tag">breve</span> : null}
-                </button>
+              {arvore.map(item => {
+                const temFilhos = !!item.sub?.length
+                const aberto = abertos.includes(item.t)
+                const ativo = caminho[0]?.t === item.t && caminho.length === 1
 
-                {temFilhos && aberto && (
-                  <div className="nv-sub">
-                    {item.sub!.map(filho => (
-                      <button
-                        key={filho.t}
-                        className={'nv-it' + (filho.breve ? ' breve' : '') + (atual?.t === filho.t ? ' ativo' : '')}
-                        onClick={() => navegar([item, filho])}
-                        type="button"
-                      >
-                        <Icone nome={filho.icone} />
-                        <span className="lb">{filho.t}</span>
-                        {filho.breve && <span className="tag">breve</span>}
-                      </button>
-                    ))}
+                return (
+                  <div key={item.t}>
+                    <button
+                      className={'nv-it' + (aberto ? ' aberto' : '') + (ativo ? ' ativo' : '') + (item.breve && !temFilhos ? ' breve' : '')}
+                      onClick={() => (temFilhos ? alternar(item.t) : item.breve ? navegar([item]) : navegar([item]))}
+                      type="button"
+                    >
+                      <Icone nome={item.icone} />
+                      <span className="lb">{item.t}</span>
+                      {temFilhos ? <Seta /> : item.breve ? <span className="tag">breve</span> : null}
+                    </button>
+
+                    {temFilhos && aberto && (
+                      <div className="nv-sub">
+                        {item.sub!.map(filho => (
+                          <button
+                            key={filho.t}
+                            className={'nv-it' + (filho.breve ? ' breve' : '') + (atual?.t === filho.t ? ' ativo' : '')}
+                            onClick={() => navegar([item, filho])}
+                            type="button"
+                          >
+                            <Icone nome={filho.icone} />
+                            <span className="lb">{filho.t}</span>
+                            {filho.breve && <span className="tag">breve</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                )
+              })}
+            </nav>
+            )}
+
+            {!chatAberto && (
+              <div className="sd-rogue-wrap">
+                <button
+                  className="sd-rogue"
+                  type="button"
+                  onClick={() => {
+                    if (recolhida) setRecolhida(false)
+                    setChatAberto(true)
+                  }}
+                >
+                  <Icone nome="balao" />
+                  <span className="lb">Rogue Worker</span>
+                  <span className="hint">perguntar</span>
+                </button>
               </div>
-            )
-          })}
-        </nav>
-        )}
+            )}
 
-        {!chatAberto && (
-          <div className="sd-rogue-wrap">
-            <button
-              className="sd-rogue"
-              type="button"
-              onClick={() => {
-                if (recolhida) setRecolhida(false)
-                setChatAberto(true)
-              }}
-            >
-              <Icone nome="balao" />
-              <span className="lb">Rogue Worker</span>
-              <span className="hint">perguntar</span>
-            </button>
-          </div>
-        )}
-
-        <div className="sd-user">
-          {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
-              Quem pensa "minhas configurações" acha no menu; quem pensa "minha
-              conta" clica no próprio nome. Nenhuma das duas obriga a lembrar da
-              outra (P-29). */}
-          <button className="sd-eu" type="button" onClick={irParaMinhaConta} title="Minha conta">
-            <span className="av">{iniciais}</span>
-            <span className="i">
-              <b>{perfil.nome}</b>
-              <span>{perfil.nivel}</span>
-            </span>
-          </button>
-          <button onClick={sair} type="button">Sair</button>
-        </div>
-      </aside>
+            <div className="sd-user">
+              {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
+                  Quem pensa "minhas configurações" acha no menu; quem pensa "minha
+                  conta" clica no próprio nome. Nenhuma das duas obriga a lembrar da
+                  outra (P-29). */}
+              <button className="sd-eu" type="button" onClick={irParaMinhaConta} title="Minha conta">
+                <span className="av">{iniciais}</span>
+                <span className="i">
+                  <b>{perfil.nome}</b>
+                  <span>{perfil.nivel}</span>
+                </span>
+              </button>
+              <button onClick={sair} type="button">Sair</button>
+            </div>
+          </aside>
+        </>
+      )}
 
       <div className="main">
         {!focado && <header className="top">
-          <button className="burger" onClick={alternarNav} type="button" aria-label="Abrir menu">
-            <Menu />
-          </button>
+          {!ehMobile && (
+            <button className="burger" onClick={alternarNav} type="button" aria-label="Abrir menu">
+              <Menu />
+            </button>
+          )}
           {/* VOLTAR EM TODA TELA
               Estar dentro de alguma coisa e não ter como sair dela obriga a
               pessoa a caçar o item no menu — ou a usar o botão do navegador,
-              que nem todo mundo lembra que funciona aqui. */}
-          {caminho.length > 0 && (
+              que nem todo mundo lembra que funciona aqui. No mobile, isto
+              também é o que fecha a Rogue Worker (ver `voltarDoTopo`) — sem
+              gaveta lateral, o chat é só mais uma tela. */}
+          {(caminho.length > 0 || (ehMobile && chatAberto)) && (
             <button
               type="button"
               className="tp-voltar"
               aria-label="Voltar"
               title="Voltar"
-              onClick={() => {
-                // "OCs Inseridas" não é hub — só passagem para Processadas/Rejeitadas.
-                // Limpar só o `extra` cairia na tela órfã de dois cartões (rev antiga).
-                if (atual?.tela === 'ocs-inseridas') {
-                  navegar(caminho.slice(0, -1))
-                  return
-                }
-                // Dentro de uma sub-tela, voltar FECHA um passo. Lista dentro
-                // de Expectativa usa dois extras (`lista`, depois o ticket):
-                // um clique não pode desfazer os dois.
-                if (extra.length > 0) {
-                  navegar(caminho, extra.slice(0, -1))
-                } else {
-                  navegar(caminho.slice(0, -1))
-                }
-              }}
+              onClick={voltarDoTopo}
             >
               ←
             </button>
@@ -365,7 +385,9 @@ function Casca() {
                 migalha, aqui, e no título grande logo abaixo. Nas telas que têm
                 hero, este some; nas que não têm, ele é o único título. */}
             {!atual?.sub?.length && (
-              <div className="titulo">{atual ? atual.t : 'Início'}</div>
+              <div className="titulo">
+                {ehMobile && chatAberto ? 'Rogue Worker' : atual ? atual.t : 'Início'}
+              </div>
             )}
           </div>
           <div className="tp-acoes" id="tp-acoes" />
@@ -376,8 +398,31 @@ function Casca() {
         <main className={'content'
           + ((atual?.tela === 'trilogo-dados' || atual?.tela === 'orcamentos' || ehEscura
             || atual?.tela?.startsWith('est-')) ? ' content-largo' : '')}>
-          {caminho.length === 0 ? (
-            <Inicio nome={perfil.nome} arvore={arvore} abrir={navegar} />
+          {ehMobile && chatAberto ? (
+            // NO MOBILE, A ROGUE WORKER É SÓ MAIS UMA TELA
+            //
+            //	Sem gaveta lateral pra morar dentro (ver o comentário lá em
+            //	cima, "SEM GAVETA LATERAL NO MOBILE"), o chat vira um cartão
+            //	na Início que troca o conteúdo principal por inteiro — mesma
+            //	`ChatRogue`, só que aqui em vez de dentro do `<aside>`.
+            <ChatRogue
+              aoVoltar={() => setChatAberto(false)}
+              aoNavegar={rotas => {
+                const caminho = caminhoPorRotas(arvore, rotas)
+                if (!caminho) return
+                setChatAberto(false)
+                navegar(caminho)
+              }}
+            />
+          ) : caminho.length === 0 ? (
+            <Inicio
+              nome={perfil.nome}
+              arvore={arvore}
+              abrir={navegar}
+              abrirChat={() => setChatAberto(true)}
+              irParaMinhaConta={irParaMinhaConta}
+              sair={sair}
+            />
           ) : atual?.tela?.startsWith('est-') ? (
             // ESTATÍSTICAS VEM ANTES DO PAINEL GENÉRICO, E É DE PROPÓSITO
             //
@@ -428,19 +473,25 @@ function Casca() {
                 if (filho) navegar([...caminho, filho])
               }}
             />
-          ) : ehMobile && atual?.rota === 'administrativo' && atual?.sub?.length ? (
-            // A CASCA MOBILE DO ADMINISTRATIVO (14/09/2026, pedido do dono)
+          ) : ehMobile && atual?.sub?.length ? (
+            // A CASCA MOBILE DE QUALQUER PASTA (14/09/2026, pedido do dono)
             //
-            //	Mesma árvore, mesma permissão — só o desenho da entrada muda,
-            //	de coluna com hover para lista com rolagem, pensada para o
-            //	encarregado e o almoxarife usarem com o celular em obra. Ver
-            //	o cabeçalho de `AdmMobile.tsx`.
+            //	Era só de Administrativo (`atual?.rota === 'administrativo'`);
+            //	generalizada pro sistema inteiro — Manutenção, Configurações,
+            //	Contrato São Luiz, Financeiro, qualquer nó com `sub`. Mesma
+            //	árvore, mesma permissão, só o desenho da entrada muda — de
+            //	coluna com hover pra lista sem hover. Ver `PainelMenuMobile.tsx`.
+            //
+            //	Não cobre nós-folha com painel de DADOS próprio (compras, pco,
+            //	nf, orcamentos, servicos-hub, est-*) — esses ficam nos ramos
+            //	de cima/baixo, e cada um decide sozinho como fica no mobile
+            //	(ver `PainelDadosMobile.tsx`, usado por dentro de cada um).
             <>
               <header className="hero">
                 <h1>{atual.t}</h1>
                 <p>{atual.desc}</p>
               </header>
-              <AdmMobile
+              <PainelMenuMobile
                 itens={atual.sub}
                 aoEscolher={rota => {
                   const filho = atual.sub!.find(f => f.rota === rota)
