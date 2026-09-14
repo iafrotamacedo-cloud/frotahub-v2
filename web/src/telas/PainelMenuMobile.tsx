@@ -9,12 +9,13 @@
 //	quando ela entra (`ehMobile && atual?.sub?.length`), este arquivo só
 //	desenha a lista.
 //
-// SÓ O NOME, NADA MAIS
+// SÓ O NOME E O ÍCONE — NADA DE DESCRIÇÃO
 //
-//	Pedido do dono: cartão grande, só com o nome do menu — sem ícone, sem
-//	descrição. Ver `CartaoMobile.tsx` para o cartão em si.
+//	Cartão grande, com o mesmo ícone do menu do PC, sem o texto explicativo
+//	da barra. Ver `CartaoMobile.tsx` para o cartão em si.
 import type { ItemMenu } from '../menu/arvore'
 import { CartaoMobile } from '../componentes/CartaoMobile'
+import { Icone } from '../componentes/Icone'
 
 interface Props {
   itens: ItemMenu[]
@@ -28,6 +29,7 @@ export function PainelMenuMobile({ itens, aoEscolher }: Props) {
         <CartaoMobile
           key={item.rota}
           titulo={item.t}
+          icone={<Icone nome={item.icone} />}
           desabilitado={item.breve}
           onClick={() => aoEscolher(item.rota)}
         />

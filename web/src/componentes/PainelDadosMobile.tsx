@@ -56,6 +56,8 @@ export function PainelDadosMobile({ etapas, aoEscolher }: Props) {
           key={e.chave}
           titulo={e.titulo}
           subtitulo={formatarNumero(e.numero, e.rotulo)}
+          icone={e.icone}
+          viva={e.numero === undefined || (e.numero ?? 0) > 0}
           desabilitado={e.desabilitada}
           selo={e.selo}
           onClick={() => (e.filhos?.length ? setAberta(e) : aoEscolher(e.chave))}

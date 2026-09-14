@@ -16,6 +16,7 @@ import { type ItemMenu } from '../menu/arvore'
 import { etapasDoMenu } from '../menu/etapas'
 import { Painel } from '../componentes/Painel'
 import { CartaoMobile } from '../componentes/CartaoMobile'
+import { Icone } from '../componentes/Icone'
 import { useEhMobile } from '../componentes/useEhMobile'
 
 interface Props {
@@ -45,13 +46,14 @@ export function Inicio({ nome, arvore, abrir, abrirChat, irParaMinhaConta, sair 
             <CartaoMobile
               key={item.rota}
               titulo={item.t}
+              icone={<Icone nome={item.icone} />}
               desabilitado={item.breve}
               onClick={() => abrir([item])}
             />
           ))}
-          <CartaoMobile titulo="Rogue Worker" onClick={abrirChat} />
-          <CartaoMobile titulo="Minha conta" onClick={irParaMinhaConta} />
-          <CartaoMobile titulo="Sair" onClick={sair} />
+          <CartaoMobile titulo="Rogue Worker" icone={<Icone nome="balao" />} onClick={abrirChat} />
+          <CartaoMobile titulo="Minha conta" icone={<Icone nome="pessoa" />} onClick={irParaMinhaConta} />
+          <CartaoMobile titulo="Sair" icone={<Icone nome="saida" />} onClick={sair} />
         </div>
       ) : (
         <Painel

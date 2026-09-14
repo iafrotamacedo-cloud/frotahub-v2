@@ -472,19 +472,47 @@
    Administrativo.
    ----------------------------------------------------------------------- */
 .cm-cartao{
-  width:100%;aspect-ratio:1/0.4;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  width:100%;aspect-ratio:1/0.4;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:flex-start;
   border-radius:var(--r-l);border:1px solid var(--d-line);
   background:linear-gradient(180deg,var(--d-card2) 0%,var(--d-card) 46%,#1A1617 100%);
-  box-shadow:var(--sh-escura-2);cursor:pointer;font:inherit;padding:0 16px;
+  box-shadow:var(--sh-escura-2);cursor:pointer;font:inherit;text-align:left;
+  padding:16px 18px 14px;
   transition:border-color var(--transicao),box-shadow var(--transicao),transform var(--transicao);
 }
+/* A faixa de cima é o mesmo sinal do PC (`.pn-col::before`) — viva puxa pro
+   vermelho, o resto fica no cinza discreto da moldura. */
+.cm-cartao::before{
+  content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--d-line2);
+}
+.cm-cartao.viva::before{background:var(--red-h)}
 .cm-cartao:active{transform:scale(.98)}
 .cm-cartao:hover,.cm-cartao:focus-visible{border-color:var(--d-line2);box-shadow:var(--sh-escura-3);outline:none}
 .cm-cartao.desabilitado{opacity:.5;cursor:default}
 .cm-cartao.desabilitado:hover{border-color:var(--d-line);box-shadow:var(--sh-escura-2);transform:none}
-.cm-titulo{font-size:19px;font-weight:700;color:var(--d-txt);text-align:center;line-height:1.25}
+
+/* O selo do ícone — mesmo desenho do `.pn-selo` do PC, um tico menor. */
+.cm-icone{
+  width:38px;height:38px;border-radius:10px;flex:0 0 auto;
+  display:grid;place-items:center;
+  border:1px solid var(--d-line2);background:var(--d-card3);color:var(--d-txt2);
+}
+.cm-icone svg{width:19px;height:19px}
+.cm-cartao.viva .cm-icone{
+  color:var(--red-lift);border-color:rgba(209,73,76,.35);background:rgba(209,73,76,.10);
+}
+
+.cm-corpo{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:3px;width:100%}
+.cm-titulo{font-size:18px;font-weight:700;color:var(--d-txt);text-align:left;line-height:1.25}
 .cm-subtitulo{font-size:13px;color:var(--d-mut)}
+
+.cm-rodape{
+  width:100%;margin-top:auto;padding-top:10px;border-top:1px solid var(--d-line);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;color:var(--d-mut);
+}
+.cm-seta{opacity:.6}
+.cm-cartao:active .cm-seta{opacity:1;transform:translateX(2px)}
 .cm-selo{
   font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--d-mut);border:1px solid var(--d-line2);border-radius:20px;padding:2px 9px;
