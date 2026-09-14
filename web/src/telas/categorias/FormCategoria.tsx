@@ -21,7 +21,7 @@ export function FormCategoria({ categoria, aoFechar, aoSalvar }: Props) {
 
   const [codigo, setCodigo] = useState(categoria?.codigo ?? '')
   const [nome, setNome] = useState(categoria?.nome ?? '')
-  const [nivel, setNivel] = useState<Nivel>(categoria?.nivel ?? 'comum')
+  const [nivel, setNivel] = useState<Nivel>(categoria?.nivel ?? 'operacional')
   const [erro, setErro] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
 

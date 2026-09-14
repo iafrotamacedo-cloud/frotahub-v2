@@ -28,7 +28,8 @@ export interface Matriz {
 
 /** Os níveis que a tela oferece. `builder` fica de fora — ver o comentário no motor. */
 export const NIVEIS: { valor: Nivel; rotulo: string }[] = [
-  { valor: 'comum', rotulo: 'Comum' },
-  { valor: 'gerente', rotulo: 'Gerente' },
+  { valor: 'operacional', rotulo: 'Operacional' },
+  { valor: 'supervisorio', rotulo: 'Supervisório' },
+  { valor: 'gerencial', rotulo: 'Gerencial' },
   { valor: 'ceo', rotulo: 'CEO' },
 ]

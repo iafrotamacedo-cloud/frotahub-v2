@@ -1,5 +1,15 @@
-// rev 3 — o que o sistema sabe sobre quem está logado
-export type Nivel = 'builder' | 'ceo' | 'gerente' | 'comum'
+// rev 4 — o que o sistema sabe sobre quem está logado
+//
+// CINCO NÍVEIS, NÃO MAIS QUATRO (14/09/2026)
+//
+//	`gerente` virou `gerencial` e `comum` virou `operacional` — mesmos dois
+//	nomes de sempre, só honestos com o que representam agora que a hierarquia
+//	ganhou regra própria (quem controla quem, ver `db/migrations/
+//	066_niveis_gerencial_supervisorio.sql`). `supervisorio` é novo, entre os
+//	dois: controlado pelo Gerencial, controla o Operacional — sempre por
+//	VÍNCULO HIERÁRQUICO (tabela `vinculos_hierarquicos`), nunca pela
+//	categoria inteira de uma vez.
+export type Nivel = 'builder' | 'ceo' | 'gerencial' | 'supervisorio' | 'operacional'
 
 export interface Perfil {
   id: string

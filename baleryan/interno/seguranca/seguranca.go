@@ -171,7 +171,7 @@ func (s *Servico) PerfilDe(ctx context.Context, uid string) (*Principal, error) 
 		ClienteID:   p.ClienteID,
 		CategoriaID: p.CategoriaID,
 		Ativo:       p.Ativo,
-		Nivel:       "comum",
+		Nivel:       "operacional",
 	}
 	if p.Clientes != nil {
 		principal.ClienteNome = p.Clientes.Nome

@@ -59,7 +59,7 @@ export function useSessao() {
       clienteId: data.cliente_id,
       categoriaId: data.categoria_id,
       categoriaNome: data.categorias?.nome ?? '',
-      nivel: data.categorias?.nivel ?? 'comum',
+      nivel: data.categorias?.nivel ?? 'operacional',
       rotinas: (permissoes ?? []).map(p => p.rotina as string),
     }
   }, [])

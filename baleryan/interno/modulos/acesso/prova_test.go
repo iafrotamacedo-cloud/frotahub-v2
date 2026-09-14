@@ -68,7 +68,7 @@ func novoFalso() *falso {
 		prot := map[string]any{"id": idProt, "codigo": "builder", "nome": "Builder",
 			"nivel": "builder", "protegida": true, "ativo": true, "criado_em": "2026-08-23"}
 		comum := map[string]any{"id": idComum, "codigo": "administrativo", "nome": "Administrativo",
-			"nivel": "comum", "protegida": false, "ativo": true, "criado_em": "2026-08-23"}
+			"nivel": "operacional", "protegida": false, "ativo": true, "criado_em": "2026-08-23"}
 		switch {
 		case strings.Contains(q, "id=eq."+idProt):
 			json.NewEncoder(w).Encode([]map[string]any{prot})
@@ -168,7 +168,7 @@ func TestCriarCategoriaGravaHistorico(t *testing.T) {
 	defer f.srv.Close()
 
 	cod, resp := f.chamar(t, "POST", "/categorias",
-		`{"codigo":"administrativo","nome":"Administrativo","nivel":"comum"}`, "bom")
+		`{"codigo":"administrativo","nome":"Administrativo","nivel":"operacional"}`, "bom")
 	if cod != 201 {
 		t.Fatalf("esperava 201, veio %d: %v", cod, resp)
 	}
@@ -186,7 +186,7 @@ func TestNaoSeCriaCategoriaBuilder(t *testing.T) {
 	defer f.srv.Close()
 
 	for _, corpo := range []string{
-		`{"codigo":"builder","nome":"Outro dono","nivel":"comum"}`,
+		`{"codigo":"builder","nome":"Outro dono","nivel":"operacional"}`,
 		`{"codigo":"chefia","nome":"Chefia","nivel":"builder"}`,
 	} {
 		cod, resp := f.chamar(t, "POST", "/categorias", corpo, "bom")
@@ -204,7 +204,7 @@ func TestCodigoRepetidoDaFraseClara(t *testing.T) {
 	defer f.srv.Close()
 
 	cod, resp := f.chamar(t, "POST", "/categorias",
-		`{"codigo":"repetida","nome":"Repetida","nivel":"comum"}`, "bom")
+		`{"codigo":"repetida","nome":"Repetida","nivel":"operacional"}`, "bom")
 	if cod != 409 {
 		t.Fatalf("esperava 409, veio %d", cod)
 	}
@@ -322,11 +322,11 @@ func TestRotinaInventadaERecusada(t *testing.T) {
 func TestSoBuilderMexeEmAcesso(t *testing.T) {
 	f := novoFalso()
 	defer f.srv.Close()
-	f.nivelUsuario = "gerente"
+	f.nivelUsuario = "gerencial"
 
 	for _, caso := range []struct{ metodo, caminho, corpo string }{
 		{"GET", "/categorias", ""},
-		{"POST", "/categorias", `{"codigo":"x","nome":"X","nivel":"comum"}`},
+		{"POST", "/categorias", `{"codigo":"x","nome":"X","nivel":"operacional"}`},
 		{"PATCH", "/categorias/" + idComum, `{"nome":"X"}`},
 		{"GET", "/categorias/" + idComum + "/permissoes", ""},
 		{"PUT", "/categorias/" + idComum + "/permissoes", `{"rotinas":[]}`},
@@ -334,7 +334,7 @@ func TestSoBuilderMexeEmAcesso(t *testing.T) {
 	} {
 		cod, _ := f.chamar(t, caso.metodo, caso.caminho, caso.corpo, "bom")
 		if cod != 403 {
-			t.Fatalf("%s %s com gerente devia dar 403, deu %d", caso.metodo, caso.caminho, cod)
+			t.Fatalf("%s %s com gerencial devia dar 403, deu %d", caso.metodo, caso.caminho, cod)
 		}
 	}
 }
