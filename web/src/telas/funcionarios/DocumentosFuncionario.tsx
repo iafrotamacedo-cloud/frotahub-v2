@@ -12,6 +12,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Janela } from '../../componentes/Janela'
 import { Carregando } from '../../componentes/Carregando'
 import { motor, enviarArquivos, ErroMotor, avisoDe } from '../../motor/cliente'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Perfil } from '../../sessao/tipos'
 import type { Funcionario, TipoDocumento, FuncionarioDocumento } from './tipos'
 
@@ -43,6 +45,7 @@ interface Props {
 }
 
 export function DocumentosFuncionario({ funcionario, perfil, aoFechar, aoMudar }: Props) {
+  const ehMobile = useEhMobile()
   const [tipos, setTipos] = useState<TipoDocumento[] | null>(null)
   const [docs, setDocs] = useState<FuncionarioDocumento[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -141,6 +144,58 @@ export function DocumentosFuncionario({ funcionario, perfil, aoFechar, aoMudar }
           <Carregando texto="Carregando os documentos..." />
         ) : tipos.length === 0 ? (
           <div className="vazio">Nenhum tipo de documento cadastrado no catálogo.</div>
+        ) : ehMobile ? (
+          <div className="cl-lista">
+            {Object.entries(
+              tipos.reduce<Record<string, TipoDocumento[]>>((grupos, t) => {
+                (grupos[t.categoria] ??= []).push(t)
+                return grupos
+              }, {})
+            ).map(([categoria, doCategoria]) => (
+              <div key={categoria}>
+                <p className="grupo-linha-mobile">{RUBRICAS[categoria] ?? categoria}</p>
+                {doCategoria.map(t => {
+                  const doc = porTipo.get(t.id)
+                  const status = doc?.status ?? 'pendente'
+                  const vencido = !!doc?.data_validade && doc.data_validade < new Date().toISOString().slice(0, 10) && status === 'aprovado'
+                  return (
+                    <CartaoLinha
+                      key={t.id}
+                      titulo={t.nome}
+                      linhas={[
+                        { rotulo: 'Situação', valor: (
+                          <>
+                            <span className={'pino ' + corDoStatus(vencido ? 'vencido' : status)}>
+                              {NOME_STATUS[vencido ? 'vencido' : status]}
+                            </span>
+                            {doc?.motivo_reprovacao && <p className="dica dica-alerta">{doc.motivo_reprovacao}</p>}
+                          </>
+                        ) },
+                        { rotulo: 'Validade', valor: doc?.data_validade ?? '—' },
+                        ...(podeEnviar ? [{ rotulo: 'Enviar', valor: (
+                          <CampoEnvio
+                            temValidade={t.tem_validade}
+                            ocupado={enviando === t.id}
+                            onEnviar={(arquivo, validade) => enviar(t.id, arquivo, validade)}
+                          />
+                        ) }] : []),
+                      ]}
+                      acoes={podeAprovar && doc && status === 'enviado' && (
+                        <>
+                          <button type="button" className="bt bt-mini" disabled={agindo === doc.id} onClick={() => aprovar(doc)}>
+                            Aprovar
+                          </button>
+                          <button type="button" className="bt bt-mini bt-perigo" disabled={agindo === doc.id} onClick={() => reprovar(doc)}>
+                            Reprovar
+                          </button>
+                        </>
+                      )}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="tabela-rolo">
             <table className="tabela">

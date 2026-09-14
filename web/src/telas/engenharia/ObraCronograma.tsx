@@ -5,10 +5,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor, avisoDe } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Cronograma, Dependencia, EAPNo, Obra } from './tipos'
 import { STATUS_EAP, labelNivel } from './tipos'
 
 export function ObraCronograma({ obraId, voltar }: { obraId: string; voltar: () => void }) {
+  const ehMobile = useEhMobile()
   const [obra, setObra] = useState<Obra | null>(null)
   const [cronograma, setCronograma] = useState<Cronograma | null>(null)
   const [arvore, setArvore] = useState<EAPNo[]>([])
@@ -160,19 +163,35 @@ export function ObraCronograma({ obraId, voltar }: { obraId: string; voltar: () 
           {deps.length > 0 && (
             <>
               <h3>Dependências</h3>
-              <table className="tabela">
-                <thead><tr><th>De → Para</th><th>Tipo</th><th>Lag</th><th></th></tr></thead>
-                <tbody>
+              {ehMobile ? (
+                <div className="cl-lista">
                   {deps.map(d => (
-                    <tr key={d.id}>
-                      <td style={{ fontSize: 12 }}>{d.predecessor_id.slice(0, 8)}… → {d.sucessor_id.slice(0, 8)}…</td>
-                      <td>{d.tipo}</td>
-                      <td>{d.lag_dias}d</td>
-                      <td><button className="linkbtn" type="button" onClick={() => removerDep(d.id)}>remover</button></td>
-                    </tr>
+                    <CartaoLinha
+                      key={d.id}
+                      titulo={<>{d.predecessor_id.slice(0, 8)}… → {d.sucessor_id.slice(0, 8)}…</>}
+                      linhas={[
+                        { rotulo: 'Tipo', valor: d.tipo },
+                        { rotulo: 'Lag', valor: `${d.lag_dias}d` },
+                      ]}
+                      acoes={<button className="bt bt-mini bt-perigo" type="button" onClick={() => removerDep(d.id)}>remover</button>}
+                    />
                   ))}
-                </tbody>
-              </table>
+                </div>
+              ) : (
+                <table className="tabela">
+                  <thead><tr><th>De → Para</th><th>Tipo</th><th>Lag</th><th></th></tr></thead>
+                  <tbody>
+                    {deps.map(d => (
+                      <tr key={d.id}>
+                        <td style={{ fontSize: 12 }}>{d.predecessor_id.slice(0, 8)}… → {d.sucessor_id.slice(0, 8)}…</td>
+                        <td>{d.tipo}</td>
+                        <td>{d.lag_dias}d</td>
+                        <td><button className="linkbtn" type="button" onClick={() => removerDep(d.id)}>remover</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </>
           )}
         </div>

@@ -7,9 +7,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emDataHora, type AcessoObraNF, type ObraNF, type PerfilParaAcessoNF } from './tipos'
 
 export function AcessosObraNF() {
+  const ehMobile = useEhMobile()
   const [obras, setObras] = useState<ObraNF[] | null>(null)
   const [perfis, setPerfis] = useState<PerfilParaAcessoNF[] | null>(null)
   const [acessos, setAcessos] = useState<AcessoObraNF[] | null>(null)
@@ -112,6 +115,20 @@ export function AcessosObraNF() {
 
       {acessos.length === 0 ? (
         <div className="vazio">Nenhum acesso concedido ainda.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {acessos.map(a => (
+            <CartaoLinha
+              key={a.id}
+              titulo={a.perfis?.nome ?? '—'}
+              linhas={[
+                { rotulo: 'Obra', valor: a.centros_custo?.obra_centro_custo ?? '—' },
+                { rotulo: 'Concedido em', valor: emDataHora(a.criado_em) },
+              ]}
+              acoes={<button type="button" className="bt bt-mini bt-perigo" onClick={() => void revogar(a.id)}>revogar</button>}
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">

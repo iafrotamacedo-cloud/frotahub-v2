@@ -12,6 +12,8 @@ import { motor, ErroMotor, avisoDe } from '../../motor/cliente'
 import { Janela } from '../../componentes/Janela'
 import { Carregando } from '../../componentes/Carregando'
 import { ObraCronograma } from './ObraCronograma'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Obra, Contratante } from './tipos'
 import { STATUS_OBRA } from './tipos'
 
@@ -29,6 +31,7 @@ export function Obras({ obraId, abrir, voltar }: Props) {
 }
 
 function ListaDeObras({ abrir }: { abrir: (obraId: string) => void }) {
+  const ehMobile = useEhMobile()
   const [obras, setObras] = useState<Obra[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -71,6 +74,25 @@ function ListaDeObras({ abrir }: { abrir: (obraId: string) => void }) {
         <Carregando texto="Carregando as obras..." />
       ) : erro ? null : obras.length === 0 ? (
         <div className="vazio">Nenhuma obra cadastrada ainda.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {obras.map(o => (
+            <CartaoLinha
+              key={o.id}
+              titulo={o.nome}
+              onClick={() => abrir(o.id)}
+              linhas={[
+                { rotulo: 'Código', valor: <code>{o.codigo ?? '—'}</code> },
+                { rotulo: 'Contratante', valor: o.cliente_contratante?.nome ?? '—' },
+                { rotulo: 'Situação', valor: (
+                  <span className={'pino ' + (o.status === 'em_execucao' ? 'pino-ok' : 'pino-off')}>
+                    {STATUS_OBRA[o.status] ?? o.status}
+                  </span>
+                ) },
+              ]}
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">

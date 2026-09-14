@@ -15,9 +15,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { Historico } from '../../componentes/Historico'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emDataHora, type Destinatario } from './tipos'
 
 export function DestinatariosPCO() {
+  const ehMobile = useEhMobile()
   const [linhas, setLinhas] = useState<Destinatario[] | null>(null)
   const [erro, setErro] = useState('')
   const [recado, setRecado] = useState('')
@@ -112,6 +115,36 @@ export function DestinatariosPCO() {
         <Carregando texto="Carregando..." />
       ) : linhas.length === 0 ? (
         <div className="vazio">Nenhum destinatário cadastrado ainda.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {linhas.map(d => (
+            <CartaoLinha
+              key={d.id}
+              titulo={d.email}
+              linhas={[
+                { rotulo: 'Cadastrado em', valor: emDataHora(d.criado_em) },
+                { rotulo: 'Situação', valor: (
+                  <span className={'pino ' + (d.ativo ? 'pino-ok' : 'pino-off')}>
+                    {d.ativo ? 'Recebendo' : 'Desativado'}
+                  </span>
+                ) },
+              ]}
+              acoes={
+                <>
+                  <button type="button" className="bt bt-mini" onClick={() => setVerHistorico(d)}>histórico</button>
+                  <button
+                    type="button"
+                    className={'bt bt-mini' + (d.ativo ? ' bt-perigo' : '')}
+                    disabled={ocupado === d.id}
+                    onClick={() => void alternar(d)}
+                  >
+                    {d.ativo ? 'desativar' : 'reativar'}
+                  </button>
+                </>
+              }
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">

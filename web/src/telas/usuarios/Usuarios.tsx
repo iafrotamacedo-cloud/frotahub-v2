@@ -15,6 +15,9 @@ import { FormUsuario } from './FormUsuario'
 import { TrocarSenha } from './TrocarSenha'
 import { Historico } from '../../componentes/Historico'
 import { VinculoHierarquico } from './VinculoHierarquico'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Categoria, LinhaUsuario } from './tipos'
 
 type Janelinha =
@@ -42,8 +45,10 @@ export function Usuarios({ perfil, onde, abrir }: Props) {
 }
 
 function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHierarquia: (perfilId: string) => void }) {
+  const ehMobile = useEhMobile()
   const podeGerenciarLogins = ehBuilder(perfil)
   const [linhas, setLinhas] = useState<LinhaUsuario[] | null>(null)
+  const [acumulado, setAcumulado] = useState<LinhaUsuario[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [busca, setBusca] = useState('')
   const [buscaAplicada, setBuscaAplicada] = useState('')
@@ -68,6 +73,7 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
       if (buscaAplicada) params.set('busca', buscaAplicada)
       const r = await motor<{ usuarios: LinhaUsuario[]; tem_mais: boolean }>(`/usuarios?${params}`)
       setLinhas(r.usuarios)
+      setAcumulado(atual => (pagina === 1 ? r.usuarios : [...atual, ...r.usuarios]))
       setTemMais(r.tem_mais)
     } catch (e) {
       setLinhas([])
@@ -147,6 +153,48 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
         <div className="vazio">
           {buscaAplicada ? 'Nenhum login corresponde a essa busca.' : 'Nenhum login cadastrado ainda.'}
         </div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {acumulado.map(u => (
+            <CartaoLinha
+              key={u.id}
+              titulo={<>{u.nome}{u.id === perfil.id && <span className="voce">você</span>}</>}
+              linhas={[
+                { rotulo: 'Usuário', valor: <code>{u.usuario}</code> },
+                { rotulo: 'Categoria', valor: u.categorias?.nome ?? '—' },
+                { rotulo: 'Situação', valor: (
+                  <span className={'pino ' + (u.ativo ? 'pino-ok' : 'pino-off')}>
+                    {u.ativo ? 'Ativo' : 'Inativo'}
+                  </span>
+                ) },
+              ]}
+              acoes={
+                <>
+                  {podeGerenciarLogins && (
+                    <>
+                      <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'editar', alvo: u })}>Editar</button>
+                      <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'senha', alvo: u })}>Senha</button>
+                      <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: u })}>Histórico</button>
+                      <button
+                        type="button"
+                        className={'bt bt-mini' + (u.ativo ? ' bt-perigo' : '')}
+                        disabled={ocupado === u.id || u.id === perfil.id}
+                        title={u.id === perfil.id ? 'Você não pode desativar o seu próprio login.' : undefined}
+                        onClick={() => void alternarSituacao(u)}
+                      >
+                        {u.ativo ? 'Desativar' : 'Reativar'}
+                      </button>
+                    </>
+                  )}
+                  <button type="button" className="bt bt-mini" onClick={() => abrirHierarquia(u.id)}>
+                    Definir hierarquia
+                  </button>
+                </>
+              }
+            />
+          ))}
+          <CarregarMais temMais={temMais} onClick={() => setPagina(p => p + 1)} />
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">
@@ -207,7 +255,7 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
         </div>
       )}
 
-      {!erro && (pagina > 1 || temMais) && (
+      {!ehMobile && !erro && (pagina > 1 || temMais) && (
         <div className="paginas">
           <button type="button" className="bt bt-neutro" disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>
             Anterior

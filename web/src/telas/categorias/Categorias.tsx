@@ -12,6 +12,8 @@ import { Carregando } from '../../componentes/Carregando'
 import { Historico } from '../../componentes/Historico'
 import { FormCategoria } from './FormCategoria'
 import { Permissoes } from './Permissoes'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { NIVEIS_CEO, type Categoria } from './tipos'
 
 type Janelinha =
@@ -33,6 +35,7 @@ interface Props {
 }
 
 export function Categorias({ escopo = 'todas' }: Props) {
+  const ehMobile = useEhMobile()
   const [linhas, setLinhas] = useState<Categoria[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -110,6 +113,53 @@ export function Categorias({ escopo = 'todas' }: Props) {
         <Carregando texto="Carregando as categorias..." />
       ) : linhas.length === 0 ? (
         <div className="vazio">Nenhuma categoria cadastrada ainda.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {linhas.map(c => (
+            <CartaoLinha
+              key={c.id}
+              titulo={<>{c.nome}{c.protegida && <span className="voce">protegida</span>}</>}
+              linhas={[
+                { rotulo: 'Código', valor: <code>{c.codigo}</code> },
+                { rotulo: 'Nível', valor: <span style={{ textTransform: 'capitalize' }}>{c.nivel}</span> },
+                { rotulo: 'Situação', valor: (
+                  <span className={'pino ' + (c.ativo ? 'pino-ok' : 'pino-off')}>
+                    {c.ativo ? 'Em uso' : 'Arquivada'}
+                  </span>
+                ) },
+              ]}
+              acoes={
+                <>
+                  <button
+                    type="button" className="bt bt-mini"
+                    disabled={c.protegida}
+                    title={c.protegida ? 'A categoria do dono do sistema não se edita.' : undefined}
+                    onClick={() => setJanela({ tipo: 'editar', alvo: c })}
+                  >
+                    Editar
+                  </button>
+                  <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'permissoes', alvo: c })}>
+                    Permissões
+                  </button>
+                  {escopo !== 'gerencial' && (
+                    <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: c })}>
+                      Histórico
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={'bt bt-mini' + (c.ativo ? ' bt-perigo' : '')}
+                    disabled={ocupado === c.id || c.protegida}
+                    title={c.protegida ? 'A categoria do dono do sistema não sai de circulação.' : undefined}
+                    onClick={() => void alternarSituacao(c)}
+                  >
+                    {c.ativo ? 'Arquivar' : 'Reativar'}
+                  </button>
+                </>
+              }
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">

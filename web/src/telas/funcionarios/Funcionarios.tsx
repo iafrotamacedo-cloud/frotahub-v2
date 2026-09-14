@@ -10,6 +10,9 @@ import type { Perfil } from '../../sessao/tipos'
 import { Carregando } from '../../componentes/Carregando'
 import { FormFuncionario } from './FormFuncionario'
 import { DocumentosFuncionario } from './DocumentosFuncionario'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Funcionario, Funcao, Conformidade } from './tipos'
 
 type Janelinha =
@@ -22,7 +25,9 @@ function alcanca(perfil: Perfil, rotina: string): boolean {
 }
 
 export function Funcionarios({ perfil }: { perfil: Perfil }) {
+  const ehMobile = useEhMobile()
   const [linhas, setLinhas] = useState<Funcionario[] | null>(null)
+  const [acumulado, setAcumulado] = useState<Funcionario[]>([])
   const [funcoes, setFuncoes] = useState<Funcao[]>([])
   const [conformidade, setConformidade] = useState<Conformidade | null>(null)
   const [busca, setBusca] = useState('')
@@ -47,6 +52,7 @@ export function Funcionarios({ perfil }: { perfil: Perfil }) {
       if (buscaAplicada) params.set('busca', buscaAplicada)
       const r = await motor<{ funcionarios: Funcionario[]; tem_mais: boolean }>(`/funcionarios?${params}`)
       setLinhas(r.funcionarios)
+      setAcumulado(atual => (pagina === 1 ? r.funcionarios : [...atual, ...r.funcionarios]))
       setTemMais(r.tem_mais)
     } catch (e) {
       setLinhas([])
@@ -136,6 +142,26 @@ export function Funcionarios({ perfil }: { perfil: Perfil }) {
         <div className="vazio">
           {buscaAplicada ? 'Nenhum funcionário corresponde a essa busca.' : 'Nenhum funcionário cadastrado ainda.'}
         </div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {acumulado.map(f => (
+            <CartaoLinha
+              key={f.id}
+              titulo={f.nome_completo}
+              onClick={() => setJanela({ tipo: 'documentos', alvo: f })}
+              linhas={[
+                { rotulo: 'Função', valor: f.funcoes?.nome ?? '—' },
+                { rotulo: 'CPF', valor: <code>{f.cpf}</code> },
+                { rotulo: 'Situação', valor: (
+                  <span className={'pino ' + (f.status === 'ativo' ? 'pino-ok' : 'pino-off')}>
+                    {f.status === 'ativo' ? 'Ativo' : f.status === 'inativo' ? 'Inativo' : 'Desligado'}
+                  </span>
+                ) },
+              ]}
+            />
+          ))}
+          <CarregarMais temMais={temMais} onClick={() => setPagina(p => p + 1)} />
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">
@@ -171,7 +197,7 @@ export function Funcionarios({ perfil }: { perfil: Perfil }) {
         </div>
       )}
 
-      {!erro && (pagina > 1 || temMais) && (
+      {!ehMobile && !erro && (pagina > 1 || temMais) && (
         <div className="paginas">
           <button type="button" className="bt bt-neutro" disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>
             Anterior
