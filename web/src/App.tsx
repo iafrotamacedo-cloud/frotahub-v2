@@ -139,6 +139,12 @@ function Casca() {
     || atual?.tela === 'orcamentos' || atual?.tela === 'trilogo-dados' || atual?.tela === 'servicos-hub'
     || atual?.tela === 'consolidacao' || atual?.tela === 'a-pagar' || atual?.tela === 'faturar'
     || atual?.tela === 'inserir-oc' || atual?.tela === 'ocs-inseridas' || atual?.tela === 'pco'
+    // "nf" é folha (não tem `sub` — o painel de 4 cartões é desenhado pelo
+    // próprio NotasFiscais.tsx), igual a "pco": sem entrar aqui pelo nome,
+    // `.content` nunca vira o flex-column que faz os cartões esticarem até o
+    // fim da tela (ver `.lay.escura .content` em escuro.css) — ficam do
+    // tamanho do próprio conteúdo, bem mais baixos que os de PCO/Compras.
+    || atual?.tela === 'nf'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
