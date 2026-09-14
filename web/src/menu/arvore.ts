@@ -52,9 +52,21 @@ export interface ItemMenu {
   /**
    * Trava de NÍVEL — pra mexer em login, em categoria, ou em qualquer coisa
    * que não passa (e não deveria passar) pela matriz de rotina. O builder
-   * sempre está implícito na lista, mesmo sem aparecer nela.
+   * sempre está implícito na lista, mesmo sem aparecer nela — é a garantia
+   * anti-tranca: ninguém consegue esconder uma tela do dono do sistema
+   * configurando `niveis` errado.
    */
   niveis?: Nivel[]
+  /**
+   * A ÚNICA exceção à garantia acima — não é sobre TRANCAR o builder pra
+   * fora (ele sempre pode chegar na tela por trás, `App.tsx` não olha
+   * `oculto*` nenhum), é sobre não POLUIR o menu dele com uma versão
+   * reduzida de algo que ele já tem inteiro. Hoje só "Permissões —
+   * Gerencial" usa isto: é o mesmo componente de "Categorias", só que
+   * travado a um nível abaixo — mostrar os dois pro builder é redundância
+   * pura, não gente enxergando menos.
+   */
+  ocultoDoBuilder?: boolean
   /**
    * O código no catálogo de permissões. Item com `rotina` só aparece para quem
    * a alcança — o menu se ajusta ao login (P-17).
@@ -349,6 +361,7 @@ const ARVORE_COMPLETA: ItemMenu[] = [
         desc: 'Categorias de nível gerencial, supervisório e operacional',
         tela: 'categorias-ceo',
         niveis: ['ceo'],
+        ocultoDoBuilder: true,
       },
       {
         // Sem `niveis`: é a porta de todo mundo. E é ela que faz Configurações
@@ -400,6 +413,11 @@ export function arvoreVisivel(ehBuilder: boolean, rotinas: readonly string[] = [
     const fora: ItemMenu[] = []
     for (const item of itens) {
       if (item.oculto) continue
+      // A ÚNICA checagem deste laço que NÃO abre exceção pro builder — de
+      // propósito, é sobre poluir o menu dele com uma versão reduzida do
+      // que ele já tem inteiro, não sobre acesso (ver o comentário do
+      // campo em cima).
+      if (item.ocultoDoBuilder && ehBuilder) continue
       // O builder passa sempre, aconteça o que acontecer com `niveis` ou com a
       // matriz — é a garantia de que uma configuração errada nunca tranca o
       // dono para fora.
