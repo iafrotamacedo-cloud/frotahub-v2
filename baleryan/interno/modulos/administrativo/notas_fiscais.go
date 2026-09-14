@@ -77,6 +77,45 @@ func (m *Modulo) quemComRotina(w http.ResponseWriter, r *http.Request, rotina st
 	return p
 }
 
+// quemComQualquerRotina autentica uma vez e aceita a primeira rotina, das
+// listadas, que o principal alcançar — usado onde mais de uma rotina de NF dá
+// acesso à mesma consulta (o painel dos 4 cartões interessa tanto a quem
+// recebe quanto a quem entrega).
+//
+// NUNCA chame `quemComRotina`/`quemPodeReceberNF`/`quemPodeEntregarNF` em
+// sequência para este caso ("tenta A, se não tiver tenta B"): cada uma delas
+// já escreve a resposta de erro sozinha (`web.Falhar`) assim que a primeira
+// rotina falha — e como um `http.ResponseWriter` só aceita o primeiro
+// `WriteHeader`, o cliente recebia o 403 da tentativa QUE FALHOU, mesmo
+// quando a segunda tentativa passava. Foi exatamente isto que deixou o CEO
+// (só com `COMPRAS_NF_ENTREGAR`, sem `COMPRAS_NF_RECEBER`) sem ver o painel
+// de Notas Fiscais: a primeira checagem (Receber) escrevia o 403 antes da
+// segunda (Entregar) sequer rodar.
+func (m *Modulo) quemComQualquerRotina(w http.ResponseWriter, r *http.Request, rotinas ...string) *seguranca.Principal {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return nil
+	}
+	for _, rotina := range rotinas {
+		pode, err := m.perm.Pode(r.Context(), p, rotina)
+		if err != nil {
+			m.erro(w, "não consegui conferir sua permissão", err)
+			return nil
+		}
+		if !pode {
+			continue
+		}
+		if p.ClienteID == "" {
+			web.Falhar(w, http.StatusForbidden, "Este login não está ligado a nenhum cliente.")
+			return nil
+		}
+		return p
+	}
+	web.Falhar(w, http.StatusForbidden, "Você não tem acesso a esta rotina.")
+	return nil
+}
+
 // temAcessoAObra confere `centro_custo_acessos` — a concessão por obra que só
 // quem tem `COMPRAS_NF_CONFIGURAR_ACESSO` (ou o builder) pode dar (ver
 // `acessos_obra.go`). Quem já tem essa rotina de configurar passa direto: não
@@ -117,10 +156,7 @@ func (m *Modulo) temAcessoAObra(ctx context.Context, p *seguranca.Principal, obr
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) painelDeNF(w http.ResponseWriter, r *http.Request) {
-	p := m.quemComRotina(w, r, RotinaNFReceber)
-	if p == nil {
-		p = m.quemComRotina(w, r, RotinaNFEntregar)
-	}
+	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
 	if p == nil {
 		return
 	}
@@ -519,10 +555,7 @@ func (m *Modulo) cancelarNF(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) arquivoDaNF(w http.ResponseWriter, r *http.Request) {
-	p := m.quemPodeReceberNF(w, r)
-	if p == nil {
-		p = m.quemPodeEntregarNF(w, r)
-	}
+	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
 	if p == nil {
 		return
 	}
