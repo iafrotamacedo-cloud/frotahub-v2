@@ -5,6 +5,7 @@ export interface LinhaUsuario {
   id: string
   usuario: string
   nome: string
+  telefone: string | null
   ativo: boolean
   criado_em: string
   categorias: { codigo: string; nome: string; nivel: Nivel } | null

@@ -123,11 +123,12 @@ func semCancelar(r *http.Request) context.Context {
 // ---------------------------------------------------------------------------
 
 type linhaUsuario struct {
-	ID         string `json:"id"`
-	Usuario    string `json:"usuario"`
-	Nome       string `json:"nome"`
-	Ativo      bool   `json:"ativo"`
-	CriadoEm   string `json:"criado_em"`
+	ID         string  `json:"id"`
+	Usuario    string  `json:"usuario"`
+	Nome       string  `json:"nome"`
+	Telefone   *string `json:"telefone"`
+	Ativo      bool    `json:"ativo"`
+	CriadoEm   string  `json:"criado_em"`
 	Categorias *struct {
 		Codigo string `json:"codigo"`
 		Nome   string `json:"nome"`
@@ -148,7 +149,7 @@ func (m *Modulo) listar(w http.ResponseWriter, r *http.Request) {
 	// filtrar. Não é redundância inútil: a chave de serviço passa por cima das
 	// políticas, então no servidor o filtro tem que ser explícito.
 	caminho := "perfis?cliente_id=eq." + banco.Escapar(p.ClienteID) +
-		"&select=id,usuario,nome,ativo,criado_em,categorias(codigo,nome,nivel)" +
+		"&select=id,usuario,nome,telefone,ativo,criado_em,categorias(codigo,nome,nivel)" +
 		"&order=usuario.asc" +
 		"&limit=" + strconv.Itoa(porPagina) + "&offset=" + strconv.Itoa(inicio)
 
@@ -179,11 +180,12 @@ func (m *Modulo) listar(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 type perfilAtual struct {
-	ID          string `json:"id"`
-	Usuario     string `json:"usuario"`
-	Nome        string `json:"nome"`
-	CategoriaID string `json:"categoria_id"`
-	Ativo       bool   `json:"ativo"`
+	ID          string  `json:"id"`
+	Usuario     string  `json:"usuario"`
+	Nome        string  `json:"nome"`
+	Telefone    *string `json:"telefone"`
+	CategoriaID string  `json:"categoria_id"`
+	Ativo       bool    `json:"ativo"`
 	Categorias  *struct {
 		Nome string `json:"nome"`
 	} `json:"categorias"`
@@ -196,11 +198,18 @@ func (a *perfilAtual) categoriaNome() string {
 	return a.Categorias.Nome
 }
 
+func (a *perfilAtual) telefoneAtual() string {
+	if a.Telefone == nil {
+		return ""
+	}
+	return *a.Telefone
+}
+
 func (m *Modulo) perfilDoCliente(ctx context.Context, id, clienteID string) (*perfilAtual, error) {
 	var linhas []perfilAtual
 	caminho := "perfis?id=eq." + banco.Escapar(id) +
 		"&cliente_id=eq." + banco.Escapar(clienteID) +
-		"&select=id,usuario,nome,categoria_id,ativo,categorias(nome)&limit=1"
+		"&select=id,usuario,nome,telefone,categoria_id,ativo,categorias(nome)&limit=1"
 	if err := m.bd.Buscar(ctx, caminho, &linhas); err != nil {
 		return nil, fmt.Errorf("Não consegui carregar este login.")
 	}
@@ -225,6 +234,7 @@ func responderErroPerfil(w http.ResponseWriter, err error) {
 type pedidoCriar struct {
 	Usuario     string `json:"usuario"`
 	Nome        string `json:"nome"`
+	Telefone    string `json:"telefone"`
 	Senha       string `json:"senha"`
 	CategoriaID string `json:"categoria_id"`
 }
@@ -248,6 +258,7 @@ func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
 
 	pedido.Usuario = strings.ToLower(strings.TrimSpace(pedido.Usuario))
 	pedido.Nome = strings.TrimSpace(pedido.Nome)
+	pedido.Telefone = strings.TrimSpace(pedido.Telefone)
 
 	if problema := validar(pedido); problema != "" {
 		web.Falhar(w, http.StatusBadRequest, problema)
@@ -277,6 +288,9 @@ func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
 		"id": uid, "usuario": pedido.Usuario, "nome": pedido.Nome,
 		"cliente_id": p.ClienteID, "categoria_id": pedido.CategoriaID, "ativo": true,
 	}
+	if pedido.Telefone != "" {
+		perfil["telefone"] = pedido.Telefone
+	}
 	if err := m.bd.Inserir(r.Context(), "perfis", []map[string]any{perfil}, nil); err != nil {
 		m.apagarNoSupabase(semCancelar(r), uid)
 		web.Falhar(w, http.StatusInternalServerError,
@@ -287,12 +301,19 @@ func (m *Modulo) criar(w http.ResponseWriter, r *http.Request) {
 	// Passo 3: o histórico. Note que a categoria entra pelo NOME, não pelo id:
 	// histórico é para ser lido por gente, e daqui a dois anos o id não diz nada.
 	// A senha, obviamente, não entra de forma nenhuma.
-	resposta := map[string]any{"id": uid, "usuario": pedido.Usuario}
-	err = m.hist.Registrar(semCancelar(r), p, moduloHistorico, uid, "criou", map[string]historico.Mudanca{
+	mudancasCriacao := map[string]historico.Mudanca{
 		"usuario":   {De: nil, Para: pedido.Usuario},
 		"nome":      {De: nil, Para: pedido.Nome},
 		"categoria": {De: nil, Para: categoriaNome},
-	})
+	}
+	// Telefone é opcional — sem valor, não vira linha de histórico dizendo
+	// "mudou de nada para nada" (mesma régua do resto do módulo: rastro cheio
+	// de mudança vazia é rastro que ninguém lê).
+	if pedido.Telefone != "" {
+		mudancasCriacao["telefone"] = historico.Mudanca{De: nil, Para: pedido.Telefone}
+	}
+	resposta := map[string]any{"id": uid, "usuario": pedido.Usuario}
+	err = m.hist.Registrar(semCancelar(r), p, moduloHistorico, uid, "criou", mudancasCriacao)
 	if err != nil {
 		resposta["aviso"] = historico.Aviso
 	}
@@ -396,6 +417,7 @@ func (m *Modulo) apagarNoSupabase(ctx context.Context, uid string) {
 
 type pedidoEditar struct {
 	Nome        *string `json:"nome"`
+	Telefone    *string `json:"telefone"`
 	CategoriaID *string `json:"categoria_id"`
 	Ativo       *bool   `json:"ativo"`
 }
@@ -441,6 +463,21 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 		if nome != atual.Nome {
 			campos["nome"] = nome
 			mudancasDados["nome"] = historico.Mudanca{De: atual.Nome, Para: nome}
+		}
+	}
+
+	if pedido.Telefone != nil {
+		telefone := strings.TrimSpace(*pedido.Telefone)
+		// Ao contrário do nome, telefone pode ser apagado de volta para
+		// vazio — quem cadastrou errado, ou a pessoa nunca teve celular
+		// próprio, precisa conseguir limpar o campo, não só trocar de valor.
+		if telefone != atual.telefoneAtual() {
+			if telefone == "" {
+				campos["telefone"] = nil
+			} else {
+				campos["telefone"] = telefone
+			}
+			mudancasDados["telefone"] = historico.Mudanca{De: atual.telefoneAtual(), Para: telefone}
 		}
 	}
 

@@ -38,6 +38,7 @@ const VERBOS: Record<string, string> = {
 const CAMPOS: Record<string, string> = {
   usuario: 'Usuário',
   nome: 'Nome',
+  telefone: 'Telefone',
   categoria: 'Categoria',
   codigo: 'Código',
   nivel: 'Nível',

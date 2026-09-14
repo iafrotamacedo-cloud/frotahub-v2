@@ -18,6 +18,18 @@ import { Janela } from '../../componentes/Janela'
 import { motor, ErroMotor, avisoDe } from '../../motor/cliente'
 import type { Categoria, LinhaUsuario } from './tipos'
 
+/** (XX) XXXXX-XXXX (celular, 11 dígitos) ou (XX) XXXX-XXXX (fixo, 10) — sem
+ *  travar em nenhum formato: quem digita menos vê a máscara parar de crescer
+ *  no dígito que tem, nunca um erro. Número de fora do Brasil continua
+ *  passando como veio, cru — não existe validação nenhuma no motor. */
+function formatarTelefone(valor: string): string {
+  const d = valor.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
 interface Props {
   usuario: LinhaUsuario | null // null = criar
   categorias: Categoria[]
@@ -30,6 +42,7 @@ export function FormUsuario({ usuario, categorias, aoFechar, aoSalvar }: Props) 
 
   const [nome, setNome] = useState(usuario?.nome ?? '')
   const [curto, setCurto] = useState(usuario?.usuario ?? '')
+  const [telefone, setTelefone] = useState(usuario?.telefone ?? '')
   const [senha, setSenha] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -49,13 +62,17 @@ export function FormUsuario({ usuario, categorias, aoFechar, aoSalvar }: Props) 
       if (editando) {
         const mudou: Record<string, unknown> = {}
         if (nome.trim() !== usuario.nome) mudou.nome = nome.trim()
+        if (telefone.trim() !== (usuario.telefone ?? '')) mudou.telefone = telefone.trim()
         if (categoriaId && categoriaId !== '') mudou.categoria_id = categoriaId
         if (Object.keys(mudou).length === 0) { aoFechar(); return }
         resposta = await motor(`/usuarios/${usuario.id}`, { metodo: 'PATCH', corpo: mudou })
       } else {
         resposta = await motor('/usuarios', {
           metodo: 'POST',
-          corpo: { usuario: curto.trim().toLowerCase(), nome: nome.trim(), senha, categoria_id: categoriaId },
+          corpo: {
+            usuario: curto.trim().toLowerCase(), nome: nome.trim(), telefone: telefone.trim(),
+            senha, categoria_id: categoriaId,
+          },
         })
       }
       aoSalvar(avisoDe(resposta))
@@ -86,6 +103,13 @@ export function FormUsuario({ usuario, categorias, aoFechar, aoSalvar }: Props) 
 
         <label htmlFor="u-nome">Nome</label>
         <input id="u-nome" value={nome} onChange={e => setNome(e.target.value)} placeholder="João da Silva" />
+
+        <label htmlFor="u-telefone">Telefone</label>
+        <input
+          id="u-telefone" value={telefone} inputMode="tel" placeholder="(85) 99999-9999"
+          onChange={e => setTelefone(formatarTelefone(e.target.value))}
+        />
+        <p className="dica">Opcional. Fica junto do cadastro, para contato — não é usado para entrar no sistema.</p>
 
         <label htmlFor="u-cat">Categoria</label>
         {escolhiveis.length === 0 ? (

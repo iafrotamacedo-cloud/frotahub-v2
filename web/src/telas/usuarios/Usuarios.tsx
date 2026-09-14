@@ -161,6 +161,7 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
               titulo={<>{u.nome}{u.id === perfil.id && <span className="voce">você</span>}</>}
               linhas={[
                 { rotulo: 'Usuário', valor: <code>{u.usuario}</code> },
+                { rotulo: 'Telefone', valor: u.telefone ?? '—' },
                 { rotulo: 'Categoria', valor: u.categorias?.nome ?? '—' },
                 { rotulo: 'Situação', valor: (
                   <span className={'pino ' + (u.ativo ? 'pino-ok' : 'pino-off')}>
@@ -202,6 +203,7 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
               <tr>
                 <th>Usuário</th>
                 <th>Nome</th>
+                <th>Telefone</th>
                 <th>Categoria</th>
                 <th>Situação</th>
                 <th className="acoes-col">Ações</th>
@@ -215,6 +217,7 @@ function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHie
                     {u.nome}
                     {u.id === perfil.id && <span className="voce">você</span>}
                   </td>
+                  <td>{u.telefone ?? '—'}</td>
                   <td>{u.categorias?.nome ?? '—'}</td>
                   <td>
                     <span className={'pino ' + (u.ativo ? 'pino-ok' : 'pino-off')}>
