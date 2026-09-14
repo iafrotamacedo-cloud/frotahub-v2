@@ -20,6 +20,15 @@ const (
 	idComum    = "dddddddd-dddd-dddd-dddd-dddddddddddd"
 	idProt     = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
 	idCeoCat   = "99999999-1111-1111-1111-111111111111"
+
+	// perfis de teste pra hierarquia — categoria diferente de perfil, de
+	// propósito, pra não confundir "id da categoria ceo" com "id do login ceo".
+	idPerfilCeo          = "a0000000-1111-1111-1111-111111111111"
+	idPerfilGerencial    = "a0000000-2222-2222-2222-222222222222"
+	idPerfilSupervisorio = "a0000000-3333-3333-3333-333333333333"
+	idPerfilOperacional  = "a0000000-4444-4444-4444-444444444444"
+	idCatGerencial       = "a0000000-5555-5555-5555-555555555555"
+	idCatSupervisorio    = "a0000000-6666-6666-6666-666666666666"
 )
 
 type falso struct {
@@ -31,10 +40,35 @@ type falso struct {
 	marcadas     []map[string]any
 	ativosNaC    int
 	nivelUsuario string // o nível de quem está chamando
+
+	// fixtures pros testes de hierarquia
+	perfis   map[string]map[string]any // id -> linha (com categorias embutida)
+	vinculos map[string]string         // perfil_id -> superior_id
 }
 
 func novoFalso() *falso {
-	f := &falso{catalogo: []map[string]any{}, marcadas: []map[string]any{}, nivelUsuario: "builder"}
+	f := &falso{
+		catalogo: []map[string]any{}, marcadas: []map[string]any{}, nivelUsuario: "builder",
+		vinculos: map[string]string{},
+		perfis: map[string]map[string]any{
+			idPerfilCeo: {
+				"id": idPerfilCeo, "nome": "CEO Teste", "usuario": "ceo1", "ativo": true,
+				"categoria_id": idCeoCat, "categorias": map[string]any{"nome": "CEO", "nivel": "ceo"},
+			},
+			idPerfilGerencial: {
+				"id": idPerfilGerencial, "nome": "Gerencial Teste", "usuario": "gerencial1", "ativo": true,
+				"categoria_id": idCatGerencial, "categorias": map[string]any{"nome": "Gerencial", "nivel": "gerencial"},
+			},
+			idPerfilSupervisorio: {
+				"id": idPerfilSupervisorio, "nome": "Supervisório Teste", "usuario": "supervisorio1", "ativo": true,
+				"categoria_id": idCatSupervisorio, "categorias": map[string]any{"nome": "Supervisório", "nivel": "supervisorio"},
+			},
+			idPerfilOperacional: {
+				"id": idPerfilOperacional, "nome": "Operacional Teste", "usuario": "operacional1", "ativo": true,
+				"categoria_id": idComum, "categorias": map[string]any{"nome": "Administrativo", "nivel": "operacional"},
+			},
+		},
+	}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /auth/v1/user", func(w http.ResponseWriter, r *http.Request) {
@@ -47,21 +81,44 @@ func novoFalso() *falso {
 
 	mux.HandleFunc("GET /rest/v1/perfis", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.RawQuery
-		// contagem de logins ativos numa categoria
-		if strings.Contains(q, "categoria_id=eq.") {
+		switch {
+		// loginsAtivos (acesso.go): só `select=id`, sem mais nada — a contagem
+		// de logins ativos numa categoria, pro "não desativa com gente dentro".
+		case strings.HasSuffix(q, "select=id"):
 			fora := []map[string]any{}
 			for i := 0; i < f.ativosNaC; i++ {
 				fora = append(fora, map[string]any{"id": uidBuilder})
 			}
 			json.NewEncoder(w).Encode(fora)
-			return
+		// o próprio login (seguranca.PerfilDe) — nível dinâmico via f.nivelUsuario.
+		case strings.Contains(q, "id=eq."+uidBuilder):
+			json.NewEncoder(w).Encode([]map[string]any{{
+				"id": uidBuilder, "usuario": "builder", "nome": "Igor Tostes", "ativo": true,
+				"cliente_id": idCliente, "categoria_id": idProt,
+				"clientes":   map[string]any{"nome": "Frota Macedo Engenharia"},
+				"categorias": map[string]any{"nome": "Builder", "nivel": f.nivelUsuario},
+			}})
+		// perfilLeve (hierarquia.go): um perfil específico por id.
+		case temFiltro(q, "id=eq."):
+			id := valorDoFiltro(q, "id=eq.")
+			if pf, ok := f.perfis[id]; ok {
+				json.NewEncoder(w).Encode([]map[string]any{pf})
+			} else {
+				json.NewEncoder(w).Encode([]map[string]any{})
+			}
+		// ceoDoCliente (hierarquia.go): o perfil daquela categoria.
+		case strings.Contains(q, "categoria_id=eq."):
+			catID := valorDoFiltro(q, "categoria_id=eq.")
+			for _, pf := range f.perfis {
+				if pf["categoria_id"] == catID {
+					json.NewEncoder(w).Encode([]map[string]any{pf})
+					return
+				}
+			}
+			json.NewEncoder(w).Encode([]map[string]any{})
+		default:
+			json.NewEncoder(w).Encode([]map[string]any{})
 		}
-		json.NewEncoder(w).Encode([]map[string]any{{
-			"id": uidBuilder, "usuario": "builder", "nome": "Igor Tostes", "ativo": true,
-			"cliente_id": idCliente, "categoria_id": idProt,
-			"clientes":   map[string]any{"nome": "Frota Macedo Engenharia"},
-			"categorias": map[string]any{"nome": "Builder", "nivel": f.nivelUsuario},
-		}})
 	})
 
 	mux.HandleFunc("GET /rest/v1/categorias", func(w http.ResponseWriter, r *http.Request) {
@@ -79,11 +136,41 @@ func novoFalso() *falso {
 			json.NewEncoder(w).Encode([]map[string]any{comum})
 		case strings.Contains(q, "id=eq."+idCeoCat):
 			json.NewEncoder(w).Encode([]map[string]any{ceoCat})
-		case strings.Contains(q, "id=eq."):
+		// ceoDoCliente (hierarquia.go): acha a categoria ceo do cliente — TEM
+		// que vir antes do `temFiltro(q, "id=eq.")` de baixo, senão
+		// "cliente_id=eq." (que contém "id=eq." como substring!) cai lá.
+		case strings.Contains(q, "nivel=eq.ceo"):
+			json.NewEncoder(w).Encode([]map[string]any{ceoCat})
+		case temFiltro(q, "id=eq."):
 			json.NewEncoder(w).Encode([]map[string]any{})
 		default:
 			json.NewEncoder(w).Encode([]map[string]any{prot, comum, ceoCat})
 		}
+	})
+
+	mux.HandleFunc("GET /rest/v1/vinculos_hierarquicos", func(w http.ResponseWriter, r *http.Request) {
+		pid := valorDoFiltro(r.URL.RawQuery, "perfil_id=eq.")
+		if sup, ok := f.vinculos[pid]; ok {
+			json.NewEncoder(w).Encode([]map[string]any{{"superior_id": sup}})
+			return
+		}
+		json.NewEncoder(w).Encode([]map[string]any{})
+	})
+	mux.HandleFunc("POST /rest/v1/vinculos_hierarquicos", func(w http.ResponseWriter, r *http.Request) {
+		bruto, _ := io.ReadAll(r.Body)
+		var linhas []map[string]any
+		json.Unmarshal(bruto, &linhas)
+		for _, l := range linhas {
+			pid, _ := l["perfil_id"].(string)
+			sup, _ := l["superior_id"].(string)
+			f.vinculos[pid] = sup
+		}
+		w.WriteHeader(201)
+	})
+	mux.HandleFunc("DELETE /rest/v1/vinculos_hierarquicos", func(w http.ResponseWriter, r *http.Request) {
+		pid := valorDoFiltro(r.URL.RawQuery, "perfil_id=eq.")
+		delete(f.vinculos, pid)
+		w.WriteHeader(200)
 	})
 	mux.HandleFunc("POST /rest/v1/categorias", func(w http.ResponseWriter, r *http.Request) {
 		bruto, _ := io.ReadAll(r.Body)
@@ -138,6 +225,28 @@ func novoFalso() *falso {
 
 	f.srv = httptest.NewServer(mux)
 	return f
+}
+
+// temFiltro diz se a query tem ESTE filtro, e não só um parecido — sem isto,
+// `strings.Contains(q, "id=eq.")` bate em "cliente_id=eq." também (é
+// substring!), e o mock respondia com o fixture errado.
+func temFiltro(q, prefixo string) bool {
+	return strings.HasPrefix(q, prefixo) || strings.Contains(q, "&"+prefixo)
+}
+
+// valorDoFiltro extrai o valor de um filtro `chave=eq.valor` da query string
+// do PostgREST — só o suficiente pro mock encontrar o id, nunca um parser de
+// verdade.
+func valorDoFiltro(q, prefixo string) string {
+	i := strings.Index(q, prefixo)
+	if i < 0 {
+		return ""
+	}
+	resto := q[i+len(prefixo):]
+	if j := strings.Index(resto, "&"); j >= 0 {
+		return resto[:j]
+	}
+	return resto
 }
 
 func (f *falso) chamar(t *testing.T, metodo, caminho, corpo, token string) (int, map[string]any) {
@@ -399,5 +508,161 @@ func TestCategoriaInexistenteDa404(t *testing.T) {
 	cod, _ := f.chamar(t, "PATCH", "/categorias/00000000-0000-0000-0000-000000000000", `{"nome":"X"}`, "bom")
 	if cod != 404 {
 		t.Fatalf("esperava 404, veio %d", cod)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// vínculo hierárquico
+// ---------------------------------------------------------------------------
+
+func TestNivelEncaixaAbaixoDe(t *testing.T) {
+	casos := []struct {
+		nivel, acima string
+		espera       bool
+	}{
+		{"gerencial", "ceo", true},
+		{"gerencial", "gerencial", false},
+		{"gerencial", "supervisorio", false},
+		{"supervisorio", "gerencial", true},
+		{"supervisorio", "ceo", false},
+		{"operacional", "ceo", true},
+		{"operacional", "gerencial", true},
+		{"operacional", "supervisorio", true},
+		{"operacional", "operacional", false},
+	}
+	for _, c := range casos {
+		if got := nivelEncaixaAbaixoDe(c.nivel, c.acima); got != c.espera {
+			t.Fatalf("nivelEncaixaAbaixoDe(%q, %q) = %v, esperava %v", c.nivel, c.acima, got, c.espera)
+		}
+	}
+}
+
+// Sem NENHUM vínculo gravado, a cadeia é sempre "CEO implícito > o próprio
+// login" — o default nunca vira linha na tabela (ver o cabeçalho do
+// hierarquia.go).
+func TestCadeiaDefaultEhCeoImplicito(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+
+	cod, resp := f.chamar(t, "GET", "/perfis/"+idPerfilOperacional+"/hierarquia", "", "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d: %v", cod, resp)
+	}
+	cadeia, _ := resp["cadeia"].([]any)
+	if len(cadeia) != 2 {
+		t.Fatalf("esperava cadeia de 2 nós (CEO implícito + o próprio), veio %d: %v", len(cadeia), cadeia)
+	}
+	topo := cadeia[0].(map[string]any)
+	if topo["nivel"] != "ceo" || topo["implicito"] != true {
+		t.Fatalf("o topo devia ser o CEO implícito, veio %v", topo)
+	}
+	alvo := cadeia[1].(map[string]any)
+	if alvo["id"] != idPerfilOperacional {
+		t.Fatalf("o segundo nó devia ser o próprio alvo, veio %v", alvo)
+	}
+}
+
+// Com um vínculo explícito no meio, a cadeia caminha por ele em vez de
+// pular direto pro CEO.
+func TestCadeiaCaminhaPelosVinculosExplicitos(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.vinculos[idPerfilGerencial] = idPerfilCeo
+	f.vinculos[idPerfilSupervisorio] = idPerfilGerencial
+	f.vinculos[idPerfilOperacional] = idPerfilSupervisorio
+
+	cod, resp := f.chamar(t, "GET", "/perfis/"+idPerfilOperacional+"/hierarquia", "", "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d: %v", cod, resp)
+	}
+	cadeia, _ := resp["cadeia"].([]any)
+	if len(cadeia) != 4 {
+		t.Fatalf("esperava 4 nós (ceo, gerencial, supervisorio, operacional), veio %d: %v", len(cadeia), cadeia)
+	}
+	ordem := []string{idPerfilCeo, idPerfilGerencial, idPerfilSupervisorio, idPerfilOperacional}
+	for i, esperado := range ordem {
+		if cadeia[i].(map[string]any)["id"] != esperado {
+			t.Fatalf("nó %d devia ser %s, veio %v", i, esperado, cadeia[i])
+		}
+	}
+}
+
+func TestInserirNaHierarquiaFeliz(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	// pré-condição: quem vai entrar (Gerencial) já responde ao CEO.
+	f.vinculos[idPerfilGerencial] = idPerfilCeo
+
+	corpo := `{"acima_id":"` + idPerfilCeo + `","novo_superior_id":"` + idPerfilGerencial + `"}`
+	cod, resp := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d: %v", cod, resp)
+	}
+	if f.vinculos[idPerfilOperacional] != idPerfilGerencial {
+		t.Fatalf("esperava %s passando a responder a %s, ficou %q", idPerfilOperacional, idPerfilGerencial, f.vinculos[idPerfilOperacional])
+	}
+}
+
+// X (quem está entrando) precisa já se reportar a P especificamente — "ter
+// algum superior em algum lugar" não basta (ver o cabeçalho do arquivo).
+func TestInserirRecusaSemPreCondicao(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	// idPerfilGerencial NÃO tem vínculo nenhum ainda.
+
+	corpo := `{"acima_id":"` + idPerfilCeo + `","novo_superior_id":"` + idPerfilGerencial + `"}`
+	cod, _ := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
+	if cod != 400 {
+		t.Fatalf("esperava 400 (pré-condição não satisfeita), veio %d", cod)
+	}
+	if _, existe := f.vinculos[idPerfilOperacional]; existe {
+		t.Fatalf("não podia ter gravado nada")
+	}
+}
+
+// Supervisório só entra logo abaixo de Gerencial — direto sob o CEO é nível
+// errado pro degrau.
+func TestInserirRecusaNivelErrado(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	f.vinculos[idPerfilSupervisorio] = idPerfilCeo // tem vínculo, mas o NÍVEL não bate
+
+	corpo := `{"acima_id":"` + idPerfilCeo + `","novo_superior_id":"` + idPerfilSupervisorio + `"}`
+	cod, _ := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
+	if cod != 400 {
+		t.Fatalf("esperava 400 (nível não encaixa), veio %d", cod)
+	}
+}
+
+// A linha da tela precisa bater com a cadeia de verdade — "acima_id" errado
+// (cadeia mudou nesse meio tempo) é recusado, não aceito silenciosamente.
+func TestInserirRecusaAcimaDesatualizado(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	f.vinculos[idPerfilGerencial] = idPerfilCeo
+
+	corpo := `{"acima_id":"` + idPerfilGerencial + `","novo_superior_id":"` + idPerfilGerencial + `"}`
+	cod, _ := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
+	if cod != 409 {
+		t.Fatalf("esperava 409 (acima_id desatualizado — o de verdade é o CEO implícito), veio %d", cod)
+	}
+}
+
+func TestRemoverDaHierarquiaVoltaAoDefault(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	f.vinculos[idPerfilOperacional] = idPerfilGerencial
+
+	cod, _ := f.chamar(t, "DELETE", "/perfis/"+idPerfilOperacional+"/hierarquia", "", "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200, veio %d", cod)
+	}
+	if _, existe := f.vinculos[idPerfilOperacional]; existe {
+		t.Fatalf("o vínculo devia ter sumido")
 	}
 }

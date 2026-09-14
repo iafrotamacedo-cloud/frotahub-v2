@@ -208,6 +208,36 @@
 .mx-bypass:hover{background:var(--red-050);color:var(--ink)}
 .mx-bypass input{width:auto;margin:0;accent-color:var(--red)}
 
+/* ---------- Vínculo Hierárquico — o organograma (rev 1, 14/09/2026)
+   Tela clara (não é menu, é conferência de um login só — mesma regra de
+   sempre: menu escuro, listagem clara). Coluna única, sem SVG: cartão por
+   nó, conector fino entre eles com o "+" centralizado em cima. */
+.vh-arvore{display:flex;flex-direction:column;align-items:center;max-width:420px;margin:0 auto}
+.vh-grupo{display:flex;flex-direction:column;align-items:center;width:100%}
+.vh-no{
+  width:100%;background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
+  box-shadow:var(--sh-1);padding:14px 18px;display:flex;flex-direction:column;gap:3px;
+}
+.vh-nivel{
+  align-self:flex-start;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--red);background:var(--red-050);border-radius:20px;padding:2px 9px;margin-bottom:2px;
+}
+.vh-nome{font-size:15px;color:var(--ink)}
+.vh-meta{font-size:12px;color:var(--mut)}
+.vh-meta code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+.vh-remover{align-self:flex-end;margin-top:8px}
+
+.vh-conector{display:flex;flex-direction:column;align-items:center;height:44px;position:relative}
+.vh-linha{width:2px;flex:1;background:var(--line-2)}
+.vh-mais{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:26px;height:26px;border-radius:50%;font:inherit;
+  background:var(--card);border:1.5px solid var(--line-2);color:var(--mut);
+  font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:border-color var(--transicao),color var(--transicao),background var(--transicao);
+}
+.vh-mais:hover{border-color:var(--red);color:var(--red);background:var(--red-050)}
+
 /* ---------- ficha (pares rótulo/valor) ---------- */
 .ficha{margin:0 0 18px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-s)}
 .ficha div{display:flex;gap:10px;padding:2px 0}

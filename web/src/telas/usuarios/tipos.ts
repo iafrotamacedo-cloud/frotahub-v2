@@ -26,3 +26,25 @@ export interface Pagina<T> {
   usuarios?: T[]
   historico?: T[]
 }
+
+/** Um nó do organograma — `VinculoHierarquico.tsx`. */
+export interface NoCadeia {
+  id: string
+  nome: string
+  usuario: string
+  nivel: Nivel
+  categoria_nome: string
+  /** Só verdadeiro no nó de topo quando ele vem do default (CEO único do
+   *  cliente) — ainda não existe vínculo gravado até ali. */
+  implicito?: boolean
+}
+
+/** Um candidato no popup de "quem entra aqui" — `GET /perfis`. */
+export interface PerfilLeve {
+  id: string
+  nome: string
+  usuario: string
+  nivel: Nivel
+  categoria_nome: string
+  ativo: boolean
+}

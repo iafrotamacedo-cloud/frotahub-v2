@@ -317,12 +317,17 @@ const ARVORE_COMPLETA: ItemMenu[] = [
     desc: 'Usuários, permissões e ajustes do sistema',
     sub: [
       {
+        // O CEO entra aqui só pra achar "Definir hierarquia" — dentro da
+        // tela, Editar/Senha/Histórico/Novo login continuam escondidos pra
+        // quem não é builder (Usuarios.tsx, `podeGerenciarLogins`), e o
+        // backend recusa de qualquer forma se alguém tentar por fora
+        // (usuarios.go continua 100% ExigeBuilder, P-29).
         t: 'Usuários e Logins',
         rota: 'usuarios',
         icone: 'pessoas',
         desc: 'Quem entra no sistema e em que categoria',
         tela: 'usuarios',
-        niveis: ['builder'],
+        niveis: ['builder', 'ceo'],
       },
       {
         t: 'Categorias',

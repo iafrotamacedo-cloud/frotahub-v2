@@ -465,7 +465,11 @@ function Casca() {
               />
             </>
           ) : atual?.tela === 'usuarios' ? (
-            <Usuarios perfil={perfil} />
+            <Usuarios
+              perfil={perfil}
+              onde={extra[0]}
+              abrir={onde => navegar(caminho, [onde])}
+            />
           ) : atual?.tela === 'categorias' ? (
             <Categorias />
           ) : atual?.tela === 'categorias-ceo' ? (

@@ -68,6 +68,10 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /categorias/{id}/historico", m.verHistorico)
 	mux.HandleFunc("PATCH /rotinas/{codigo}", m.marcarRotinaParaBypass)
 	mux.HandleFunc("PUT /categorias/{id}/modulos-liberados", m.gravarModulosLiberados)
+	mux.HandleFunc("GET /perfis", m.listarPerfis)
+	mux.HandleFunc("GET /perfis/{id}/hierarquia", m.verHierarquia)
+	mux.HandleFunc("PUT /perfis/{id}/hierarquia", m.inserirNaHierarquia)
+	mux.HandleFunc("DELETE /perfis/{id}/hierarquia", m.removerDaHierarquia)
 }
 
 func (m *Modulo) quemEBuilder(w http.ResponseWriter, r *http.Request) *seguranca.Principal {

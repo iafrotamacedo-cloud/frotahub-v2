@@ -9,11 +9,12 @@
 // custa zero, despaginar trezentos custa uma reescrita.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
-import type { Perfil } from '../../sessao/tipos'
+import { ehBuilder, type Perfil } from '../../sessao/tipos'
 import { Carregando } from '../../componentes/Carregando'
 import { FormUsuario } from './FormUsuario'
 import { TrocarSenha } from './TrocarSenha'
 import { Historico } from '../../componentes/Historico'
+import { VinculoHierarquico } from './VinculoHierarquico'
 import type { Categoria, LinhaUsuario } from './tipos'
 
 type Janelinha =
@@ -23,7 +24,25 @@ type Janelinha =
   | { tipo: 'senha'; alvo: LinhaUsuario }
   | { tipo: 'historico'; alvo: LinhaUsuario }
 
-export function Usuarios({ perfil }: { perfil: Perfil }) {
+interface Props {
+  perfil: Perfil
+  /** O perfil cujo vínculo hierárquico está aberto — vem do endereço
+   *  (`extra[0]`), mesmo desenho de `Obras`/`DadosTrilogo`. O voltar do
+   *  cabeçalho já fecha sozinho (App.tsx reage a `extra.length`), por isso
+   *  esta tela não pede um `voltar` próprio. */
+  onde?: string
+  abrir: (perfilId: string) => void
+}
+
+export function Usuarios({ perfil, onde, abrir }: Props) {
+  if (onde) {
+    return <VinculoHierarquico perfilId={onde} />
+  }
+  return <ListaDeUsuarios perfil={perfil} abrirHierarquia={abrir} />
+}
+
+function ListaDeUsuarios({ perfil, abrirHierarquia }: { perfil: Perfil; abrirHierarquia: (perfilId: string) => void }) {
+  const podeGerenciarLogins = ehBuilder(perfil)
   const [linhas, setLinhas] = useState<LinhaUsuario[] | null>(null)
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [busca, setBusca] = useState('')
@@ -97,9 +116,11 @@ export function Usuarios({ perfil }: { perfil: Perfil }) {
           <h1>Usuários e Logins</h1>
           <p>Quem entra no FrotaHub, com que nome e em que categoria.</p>
         </div>
-        <button className="bt bt-forte" type="button" onClick={() => setJanela({ tipo: 'novo' })}>
-          Novo login
-        </button>
+        {podeGerenciarLogins && (
+          <button className="bt bt-forte" type="button" onClick={() => setJanela({ tipo: 'novo' })}>
+            Novo login
+          </button>
+        )}
       </header>
 
       {recado && (
@@ -153,19 +174,30 @@ export function Usuarios({ perfil }: { perfil: Perfil }) {
                     </span>
                   </td>
                   <td className="acoes">
-                    <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'editar', alvo: u })}>Editar</button>
-                    <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'senha', alvo: u })}>Senha</button>
-                    <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: u })}>Histórico</button>
-                    <button
-                      type="button"
-                      className={'bt bt-mini' + (u.ativo ? ' bt-perigo' : '')}
-                      disabled={ocupado === u.id || u.id === perfil.id}
-                      // O próprio login não se desativa: sem esta trava, um clique
-                      // distraído tranca o dono do sistema para fora.
-                      title={u.id === perfil.id ? 'Você não pode desativar o seu próprio login.' : undefined}
-                      onClick={() => void alternarSituacao(u)}
-                    >
-                      {u.ativo ? 'Desativar' : 'Reativar'}
+                    {podeGerenciarLogins ? (
+                      <>
+                        <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'editar', alvo: u })}>Editar</button>
+                        <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'senha', alvo: u })}>Senha</button>
+                        <button type="button" className="bt bt-mini" onClick={() => setJanela({ tipo: 'historico', alvo: u })}>Histórico</button>
+                        <button
+                          type="button"
+                          className={'bt bt-mini' + (u.ativo ? ' bt-perigo' : '')}
+                          disabled={ocupado === u.id || u.id === perfil.id}
+                          // O próprio login não se desativa: sem esta trava, um clique
+                          // distraído tranca o dono do sistema para fora.
+                          title={u.id === perfil.id ? 'Você não pode desativar o seu próprio login.' : undefined}
+                          onClick={() => void alternarSituacao(u)}
+                        >
+                          {u.ativo ? 'Desativar' : 'Reativar'}
+                        </button>
+                      </>
+                    ) : null}
+                    {/* Ver modulos/acesso/hierarquia.go: mexer no vínculo é
+                        builder OU ceo — quem chega nesta tela já é essa
+                        dupla (arvore.ts, niveis: ['builder','ceo']), não
+                        precisa filtrar de novo aqui. */}
+                    <button type="button" className="bt bt-mini" onClick={() => abrirHierarquia(u.id)}>
+                      Definir hierarquia
                     </button>
                   </td>
                 </tr>
