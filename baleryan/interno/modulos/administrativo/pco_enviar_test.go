@@ -12,6 +12,8 @@ package administrativo
 import (
 	"strings"
 	"testing"
+
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 )
 
 func strPtr(s string) *string   { return &s }
@@ -130,7 +132,9 @@ func TestMontarHTMLDoEnvio(t *testing.T) {
 			Fornecedores: &fornecedorEmbutido{RazaoSocial: "Outro Fornecedor", CNPJ: "11111111000191"},
 		},
 	}
-	html := montarHTMLDoEnvio(ordens, "10-09-2026")
+	html := montarHTMLDoEnvio(ordens, "10-09-2026", assinaturaDoEnvio(&seguranca.Principal{
+		Tipo: seguranca.TipoUsuario, Nome: "Maria Comprador", CategoriaNome: "Compras", Telefone: "(85) 99999-9999",
+	}))
 
 	if strings.Count(html, "<tr>") != 2 {
 		t.Errorf("esperava 2 linhas de item, achei %d", strings.Count(html, "<tr>"))
@@ -168,5 +172,44 @@ func TestMontarHTMLDoEnvio(t *testing.T) {
 	// nunca num CNPJ vazio ou numa linha quebrada.
 	if !strings.Contains(html, "Não informado") {
 		t.Error("OC sem CNPJ de faturamento deveria mostrar \"Não informado\", não sumir")
+	}
+	// PEDIDO DO DONO (15/09/2026): assinatura pessoal — nome de quem enviou.
+	if !strings.Contains(html, "Maria Comprador") {
+		t.Error("a assinatura pessoal (nome de quem enviou) não apareceu no e-mail")
+	}
+}
+
+func TestAssinaturaDoEnvio(t *testing.T) {
+	pessoa := assinaturaDoEnvio(&seguranca.Principal{
+		Tipo: seguranca.TipoUsuario, Nome: "Maria <Compradora>", CategoriaNome: "Compras & Suprimentos",
+		Telefone: "(85) 99999-9999",
+	})
+	if !strings.Contains(pessoa, "Maria &lt;Compradora&gt;") {
+		t.Errorf("nome não apareceu escapado na assinatura: %s", pessoa)
+	}
+	if !strings.Contains(pessoa, "Compras &amp; Suprimentos") {
+		t.Errorf("cargo (categoria) não apareceu escapado na assinatura: %s", pessoa)
+	}
+	if !strings.Contains(pessoa, "(85) 99999-9999") {
+		t.Errorf("telefone não apareceu na assinatura: %s", pessoa)
+	}
+	if !strings.Contains(pessoa, "Frota Macedo Engenharia") {
+		t.Errorf("assinatura pessoal também precisa fechar com o nome da empresa: %s", pessoa)
+	}
+
+	// O ROBÔ NÃO ASSINA COMO "ROBÔ" — SÓ A EMPRESA
+	robo := assinaturaDoEnvio(&seguranca.Principal{Tipo: seguranca.TipoRobo, Nome: "robô"})
+	if strings.Contains(robo, "robô") {
+		t.Errorf("o envio automático não pode assinar como \"robô\" num e-mail pro cliente: %s", robo)
+	}
+	if !strings.Contains(robo, "Frota Macedo Engenharia") {
+		t.Errorf("o envio automático precisa continuar assinando como a empresa: %s", robo)
+	}
+
+	// SEM TELEFONE OU CARGO, A LINHA SOME — NÃO FICA UM ESPAÇO EM BRANCO
+	minima := assinaturaDoEnvio(&seguranca.Principal{Tipo: seguranca.TipoUsuario, Nome: "João"})
+	esperada := "<p>Atenciosamente,<br><br>\n  <strong>João</strong><br>\n  Frota Macedo Engenharia</p>"
+	if minima != esperada {
+		t.Errorf("assinatura sem cargo nem telefone =\n%s\nesperava\n%s", minima, esperada)
 	}
 }

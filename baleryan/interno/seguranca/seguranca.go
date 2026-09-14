@@ -50,6 +50,7 @@ type Principal struct {
 	ClienteNome   string `json:"cliente_nome,omitempty"`
 	CategoriaID   string `json:"categoria_id,omitempty"`
 	CategoriaNome string `json:"categoria_nome,omitempty"`
+	Telefone      string `json:"telefone,omitempty"`
 	Nivel         string `json:"nivel,omitempty"`
 	Ativo         bool   `json:"ativo"`
 }
@@ -77,12 +78,13 @@ type usuarioSupabase struct {
 
 // perfilBanco espelha exatamente o que a consulta abaixo devolve.
 type perfilBanco struct {
-	ID          string `json:"id"`
-	Usuario     string `json:"usuario"`
-	Nome        string `json:"nome"`
-	Ativo       bool   `json:"ativo"`
-	ClienteID   string `json:"cliente_id"`
-	CategoriaID string `json:"categoria_id"`
+	ID          string  `json:"id"`
+	Usuario     string  `json:"usuario"`
+	Nome        string  `json:"nome"`
+	Telefone    *string `json:"telefone"`
+	Ativo       bool    `json:"ativo"`
+	ClienteID   string  `json:"cliente_id"`
+	CategoriaID string  `json:"categoria_id"`
 	Clientes    *struct {
 		Nome string `json:"nome"`
 	} `json:"clientes"`
@@ -147,7 +149,7 @@ func (s *Servico) usuarioDoToken(ctx context.Context, token string) (string, err
 // O nível vem da CATEGORIA, nunca da pessoa — assim os dois não podem discordar.
 func (s *Servico) PerfilDe(ctx context.Context, uid string) (*Principal, error) {
 	caminho := "perfis?id=eq." + banco.Escapar(uid) +
-		"&select=id,usuario,nome,ativo,cliente_id,categoria_id,clientes(nome),categorias(nome,nivel)&limit=1"
+		"&select=id,usuario,nome,telefone,ativo,cliente_id,categoria_id,clientes(nome),categorias(nome,nivel)&limit=1"
 
 	var linhas []perfilBanco
 	if err := s.bd.Buscar(ctx, caminho, &linhas); err != nil {
@@ -172,6 +174,9 @@ func (s *Servico) PerfilDe(ctx context.Context, uid string) (*Principal, error) 
 		CategoriaID: p.CategoriaID,
 		Ativo:       p.Ativo,
 		Nivel:       "operacional",
+	}
+	if p.Telefone != nil {
+		principal.Telefone = *p.Telefone
 	}
 	if p.Clientes != nil {
 		principal.ClienteNome = p.Clientes.Nome

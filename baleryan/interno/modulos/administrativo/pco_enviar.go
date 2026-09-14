@@ -334,7 +334,7 @@ func (m *Modulo) enviarLote(w http.ResponseWriter, r *http.Request, p *seguranca
 		}
 	}
 
-	if err := m.enviarPorEmail(r.Context(), p.ClienteID, enviar); err != nil {
+	if err := m.enviarPorEmail(r.Context(), p, enviar); err != nil {
 		// O envio falhou (ou não está configurado): desfaz a marca — a OC
 		// volta a ser "pendente de envio", não fica presa num limbo.
 		_ = m.bd.Atualizar(r.Context(), "ordens_compra",
@@ -371,8 +371,8 @@ func idsDe(ordens []ordemParaEnvio) []string {
 // chama o correio. Função pura quanto ao BANCO de OCs (só lê o que recebeu) —
 // a única escrita daqui para fora é buscar destinatários e baixar do
 // armazém, nenhuma delas em `ordens_compra`.
-func (m *Modulo) enviarPorEmail(ctx context.Context, clienteID string, ordens []ordemParaEnvio) error {
-	destinatarios, err := m.destinatariosAtivos(ctx, clienteID)
+func (m *Modulo) enviarPorEmail(ctx context.Context, p *seguranca.Principal, ordens []ordemParaEnvio) error {
+	destinatarios, err := m.destinatariosAtivos(ctx, p.ClienteID)
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,7 @@ func (m *Modulo) enviarPorEmail(ctx context.Context, clienteID string, ordens []
 		return fmt.Errorf("não consegui montar o zip: %w", err)
 	}
 
-	html := montarHTMLDoEnvio(ordens, data)
+	html := montarHTMLDoEnvio(ordens, data, assinaturaDoEnvio(p))
 
 	return m.brevo.Enviar(ctx, brevo.Mensagem{
 		Para:    destinatarios,
@@ -443,11 +443,43 @@ func pastaSegura(nome string) string {
 	return strings.TrimSpace(strings.Map(trocar, nome))
 }
 
+// assinaturaDoEnvio monta o "Atenciosamente" do e-mail — PESSOAL, do jeito
+// que o dono pediu (15/09/2026): nome de quem apertou "Enviar", o cargo dela
+// (a CATEGORIA do FrotaHub faz esse papel — não existe um campo "cargo"
+// separado, e categoria já é como o sistema descreve a função de cada um) e
+// o telefone (migração 069), sempre fechando com "Frota Macedo Engenharia".
+//
+// O ROBÔ (23h, cron) NÃO TEM PESSOA NENHUMA POR TRÁS
+//
+//	`DaRequisicao` dá ao robô um Principal com `Nome: "robô"` só para os
+//	logs — assinar o e-mail do cliente como "robô" seria constrangedor. Sem
+//	nome de gente, sem cargo, sem telefone: só a empresa, exatamente como o
+//	e-mail sempre assinou antes desta mudança.
+func assinaturaDoEnvio(p *seguranca.Principal) string {
+	if p == nil || p.Tipo == seguranca.TipoRobo {
+		return `<p>Atenciosamente,<br><br>
+  <strong>Frota Macedo Engenharia</strong></p>`
+	}
+	var linhas strings.Builder
+	linhas.WriteString("<p>Atenciosamente,<br><br>\n")
+	if nome := strings.TrimSpace(p.Nome); nome != "" {
+		fmt.Fprintf(&linhas, "  <strong>%s</strong><br>\n", escaparHTML(nome))
+	}
+	if cargo := strings.TrimSpace(p.CategoriaNome); cargo != "" {
+		fmt.Fprintf(&linhas, "  %s<br>\n", escaparHTML(cargo))
+	}
+	if telefone := strings.TrimSpace(p.Telefone); telefone != "" {
+		fmt.Fprintf(&linhas, "  %s<br>\n", escaparHTML(telefone))
+	}
+	linhas.WriteString("  Frota Macedo Engenharia</p>")
+	return linhas.String()
+}
+
 // montarHTMLDoEnvio monta o corpo do e-mail — adaptação do "Modelo 2" da
 // skill `pco-organizer` (a versão HTML com tabela de verdade; o envio manda
 // HTML sempre, então a versão Markdown/texto de fallback para o Outlook não
 // se aplica aqui).
-func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
+func montarHTMLDoEnvio(ordens []ordemParaEnvio, data, assinatura string) string {
 	agrupadas := map[string][]ordemParaEnvio{}
 	var centros []string
 	for _, o := range ordens {
@@ -513,9 +545,8 @@ func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
   <p>Os PDFs completos de cada ordem estão nas respectivas pastas do anexo.
   Ficamos à disposição para qualquer esclarecimento.</p>
 
-  <p>Atenciosamente,<br><br>
-  <strong>Frota Macedo Engenharia</strong></p>
-</div>`, data, linhas.String(), len(ordens), total.Reais(), data)
+  %s
+</div>`, data, linhas.String(), len(ordens), total.Reais(), data, assinatura)
 }
 
 func escaparHTML(s string) string {

@@ -189,7 +189,7 @@ func TestFluxoCompleto30OCs(t *testing.T) {
 		t.Fatalf("CAS envio: esperava 15, veio %d", len(confirmadas))
 	}
 
-	if err := mod.enviarPorEmail(ctx, p.ClienteID, pendentesLista); err != nil {
+	if err := mod.enviarPorEmail(ctx, p, pendentesLista); err != nil {
 		_ = mod.bd.Atualizar(ctx, "ordens_compra",
 			"id=in.("+strings.Join(idsPendentes, ",")+")",
 			map[string]any{"pco_enviado_em": nil})
@@ -266,7 +266,7 @@ func TestEnviarPCOPendentes(t *testing.T) {
 		}
 	}
 
-	if err := mod.enviarPorEmail(ctx, p.ClienteID, enviar); err != nil {
+	if err := mod.enviarPorEmail(ctx, p, enviar); err != nil {
 		idsRollback := idsDe(enviar)
 		_ = mod.bd.Atualizar(ctx, "ordens_compra",
 			"id=in.("+strings.Join(idsRollback, ",")+")",
