@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { CancelarNF } from './CancelarNF'
 import { emReais, emDataHora, type NotaFiscal } from './tipos'
 
@@ -34,6 +36,7 @@ const VAZIA_DA_VISTA: Record<VistaDeNF, string> = {
 }
 
 export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string }) {
+  const ehMobile = useEhMobile()
   const [notas, setNotas] = useState<NotaFiscal[] | null>(null)
   const [erro, setErro] = useState('')
   const [avancando, setAvancando] = useState<string | null>(null)
@@ -94,6 +97,37 @@ export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string 
         <Carregando texto="Carregando..." />
       ) : notas.length === 0 ? (
         <div className="vazio">{VAZIA_DA_VISTA[vista]}</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {notas.map(nf => (
+            <CartaoLinha
+              key={nf.id}
+              titulo={nf.numero}
+              onClick={() => void abrirArquivo(nf)}
+              linhas={[
+                { rotulo: 'O.C.', valor: nf.ordem_numero || '—' },
+                { rotulo: 'Obra/centro', valor: nf.obra_centro_custo || '—' },
+                { rotulo: 'Valor', valor: emReais(nf.valor) },
+                { rotulo: 'Recebida em', valor: emDataHora(nf.recebida_em) },
+              ]}
+              acoes={
+                <>
+                  {avanco && (
+                    <button
+                      type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
+                      onClick={() => void avancar(nf)}
+                    >
+                      {avancando === nf.id ? '...' : avanco.rotulo}
+                    </button>
+                  )}
+                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
+                    cancelar
+                  </button>
+                </>
+              }
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela">

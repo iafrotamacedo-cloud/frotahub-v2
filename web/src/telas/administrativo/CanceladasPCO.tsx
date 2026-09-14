@@ -12,6 +12,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais, emDataHora, formatarCNPJ, type OrdemCancelada } from './tipos'
 
 const ROTULO_TIPO: Record<OrdemCancelada['tipo'], string> = {
@@ -20,6 +22,7 @@ const ROTULO_TIPO: Record<OrdemCancelada['tipo'], string> = {
 }
 
 export function CanceladasPCO() {
+  const ehMobile = useEhMobile()
   const [linhas, setLinhas] = useState<OrdemCancelada[] | null>(null)
   const [erro, setErro] = useState('')
   const [tipo, setTipo] = useState<'' | OrdemCancelada['tipo']>('')
@@ -100,6 +103,32 @@ export function CanceladasPCO() {
         <Carregando texto="Carregando..." />
       ) : linhas.length === 0 ? (
         <div className="vazio">Nenhuma OC excluída ou substituída depois do envio.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {linhas.map(l => (
+            <CartaoLinha
+              key={l.id}
+              titulo={l.numero || '—'}
+              onClick={() => void abrirArquivo(l)}
+              linhas={[
+                { rotulo: 'Obra/centro', valor: l.obra_centro_custo || '—' },
+                { rotulo: 'Faturamento', valor: l.comprador_nome || '—' },
+                { rotulo: 'Fornecedor', valor: l.fornecedor_nome || '—' },
+                { rotulo: 'Valor', valor: l.valor != null ? emReais(l.valor) : '—' },
+                {
+                  rotulo: 'Tipo', valor: (
+                    <span className={'pino ' + (l.tipo === 'excluida' ? 'pino-err' : 'pino-warn')}>
+                      {ROTULO_TIPO[l.tipo]}
+                    </span>
+                  ),
+                },
+                { rotulo: 'Enviada em', valor: emDataHora(l.enviado_em) },
+                { rotulo: 'Removida em', valor: emDataHora(l.removida_em) },
+                { rotulo: 'Substituta', valor: l.substituta_numero || '—' },
+              ]}
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela adm-tabela-canceladas">

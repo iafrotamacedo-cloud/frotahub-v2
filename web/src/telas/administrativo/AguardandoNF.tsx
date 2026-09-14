@@ -8,10 +8,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { ReceberNF } from './ReceberNF'
 import { emReais, type OrdemAguardandoNF } from './tipos'
 
 export function AguardandoNF() {
+  const ehMobile = useEhMobile()
   const [ordens, setOrdens] = useState<OrdemAguardandoNF[] | null>(null)
   const [erro, setErro] = useState('')
   const [recebendo, setRecebendo] = useState<OrdemAguardandoNF | null>(null)
@@ -46,6 +49,23 @@ export function AguardandoNF() {
         <div className="vazio">
           Nenhuma OC aguardando nota fiscal — ou você ainda não tem nenhuma obra liberada
           para receber. Fale com quem configura os acessos por obra.
+        </div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {ordens.map(o => (
+            <CartaoLinha
+              key={o.ordem_compra_id}
+              titulo={o.numero || '—'}
+              onClick={() => setRecebendo(o)}
+              linhas={[
+                { rotulo: 'Obra/centro', valor: o.obra_centro_custo || '—' },
+                { rotulo: 'Fornecedor', valor: o.fornecedor_nome || '—' },
+                { rotulo: 'Total', valor: emReais(o.total) },
+                { rotulo: 'Recebido', valor: emReais(o.recebido) },
+                { rotulo: 'Falta', valor: emReais(o.restante) },
+              ]}
+            />
+          ))}
         </div>
       ) : (
         <div className="tabela-rolo">

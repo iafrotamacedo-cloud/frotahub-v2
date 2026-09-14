@@ -28,6 +28,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { ajustarCelulas } from '../trilogo/encolher'
 import { quando } from '../trilogo/tipos'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import {
   emReais, formatarCNPJ, motivoRejeicaoSimplificado, precisaSubstituir,
   type OrdemDeCompra, type VistaDasOrdens,
@@ -67,13 +69,16 @@ export function TabelaDeOrdens({
   onEnviar?: (id: string) => void
   enviandoId?: string | null
 }) {
+  const ehMobile = useEhMobile()
   const rejeitadas = vista === 'rejeitadas'
   const corpo = useRef<HTMLTableSectionElement>(null)
+  // O encolhimento de célula (`ajustarCelulas`) só faz sentido pra `<table>`
+  // de verdade — no mobile não existe `<td>` nenhum pra medir.
   useLayoutEffect(() => {
-    if (!rejeitadas) ajustarCelulas(corpo.current)
-  }, [ordens, rejeitadas])
+    if (!rejeitadas && !ehMobile) ajustarCelulas(corpo.current)
+  }, [ordens, rejeitadas, ehMobile])
   useEffect(() => {
-    if (rejeitadas) return
+    if (rejeitadas || ehMobile) return
     let t: number | undefined
     function aoRedimensionar() {
       window.clearTimeout(t)
@@ -81,7 +86,108 @@ export function TabelaDeOrdens({
     }
     window.addEventListener('resize', aoRedimensionar)
     return () => { window.clearTimeout(t); window.removeEventListener('resize', aoRedimensionar) }
-  }, [rejeitadas])
+  }, [rejeitadas, ehMobile])
+
+  if (ehMobile) {
+    return (
+      <div className="cl-lista">
+        {ordens.map(o => rejeitadas ? (
+          <CartaoLinha
+            key={o.id}
+            titulo={rotuloOC(o)}
+            // Só um clique claro no cartão inteiro quando só existe UMA ação
+            // "abrir" (reparar ou ver) — precisando substituir, "ver" e
+            // "substituir" são duas ações co-iguais, cada uma vira botão.
+            onClick={!precisaSubstituir(o.erro_leitura) ? () => (onReparar ?? onVer)(o) : undefined}
+            linhas={[
+              { rotulo: 'Obra/centro', valor: nomeObraSemCidade(o) },
+              { rotulo: 'Faturamento', valor: faturamentoDaLinha(o) },
+              { rotulo: 'Valor', valor: o.total != null ? emReais(o.total) : '—' },
+              { rotulo: 'Inserida em', valor: quando(o.criado_em) },
+              {
+                rotulo: 'Motivo', valor: (
+                  <span className="adm-motivo-rejeicao">{motivoRejeicaoSimplificado(o.erro_leitura)}</span>
+                ),
+              },
+            ]}
+            acoes={
+              <>
+                {precisaSubstituir(o.erro_leitura) && (
+                  <>
+                    <button type="button" className="bt bt-mini" onClick={() => onVer(o)}>ver</button>
+                    <button type="button" className="bt bt-mini" onClick={() => onSubstituir?.(o)}>substituir</button>
+                  </>
+                )}
+                {onExcluir && (
+                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => onExcluir(o)}>excluir</button>
+                )}
+              </>
+            }
+          />
+        ) : (
+          <CartaoLinha
+            key={o.id}
+            titulo={rotuloOC(o)}
+            onClick={() => onVer(o)}
+            linhas={[
+              { rotulo: 'Obra', valor: obraDaLinha(o) },
+              { rotulo: 'Faturamento', valor: faturamentoDaLinha(o) },
+              { rotulo: 'Valor', valor: o.total != null ? emReais(o.total) : '—' },
+              { rotulo: 'Inserida em', valor: quando(o.criado_em) },
+              {
+                rotulo: 'Leitura', valor: (
+                  <span className={'pino ' + CLASSE_STATUS[o.status]}>{NOME_STATUS[o.status]}</span>
+                ),
+              },
+            ]}
+            acoes={
+              <>
+                {onLer && (o.status === 'inserido' || o.status === 'falhou' || o.status === 'lendo') && (
+                  <button
+                    type="button"
+                    className="bt bt-mini"
+                    disabled={lendoId === o.id || loteRodando}
+                    onClick={() => onLer(o.id)}
+                  >
+                    {lendoId === o.id
+                      ? 'lendo…'
+                      : o.status === 'falhou'
+                        ? 'ler de novo'
+                        : o.status === 'lendo'
+                          ? 'retomar'
+                          : 'ler'}
+                  </button>
+                )}
+                {onEnviar && (
+                  <button
+                    type="button"
+                    className="bt bt-mini"
+                    disabled={enviandoId === o.id || enviandoId === '*'}
+                    onClick={() => onEnviar(o.id)}
+                  >
+                    {enviandoId === o.id ? 'enviando…' : 'enviar'}
+                  </button>
+                )}
+                {onSubstituir && (
+                  <button
+                    type="button"
+                    className="bt bt-mini"
+                    title="Substituir por outra OC (número pode ser diferente)"
+                    onClick={() => onSubstituir(o)}
+                  >
+                    substituir
+                  </button>
+                )}
+                {onExcluir && (
+                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => onExcluir(o)}>excluir</button>
+                )}
+              </>
+            }
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="tabela-rolo tri-painel">
