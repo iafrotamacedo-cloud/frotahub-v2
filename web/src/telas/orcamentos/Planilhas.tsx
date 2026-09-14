@@ -18,11 +18,16 @@ import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
 import { FichaDoOrcamento } from './FichaDoOrcamento'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais, emDataHora, contaPorExtenso, type Orcamento, type Pagina } from './tipos'
 
 export function Planilhas({ voltar }: { voltar: () => void }) {
+  const ehMobile = useEhMobile()
   const [tipo, setTipo] = useState<'gerados' | 'lancados'>('gerados')
   const [pagina, setPagina] = useState<Pagina<Orcamento> | null>(null)
+  const [acumulado, setAcumulado] = useState<Orcamento[]>([])
   const [numero, setNumero] = useState(1)
   const [por, setPor] = useState(100)
   const [conta, setConta] = useState('')
@@ -52,7 +57,9 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
 
   const carregar = useCallback(async () => {
     try {
-      setPagina(await motor<Pagina<Orcamento>>('/orcamentos/planilhas?' + filtro()))
+      const r = await motor<Pagina<Orcamento>>('/orcamentos/planilhas?' + filtro())
+      setPagina(r)
+      setAcumulado(atual => (numero === 1 ? r.linhas : [...atual, ...r.linhas]))
       setErro('')
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui carregar a planilha.')
@@ -152,7 +159,34 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
           <em>{pagina ? `${pagina.total.toLocaleString('pt-BR')} no filtro` : '—'}</em>
         </div>
 
-        {!pagina ? <Carregando /> : (
+        {!pagina ? <Carregando /> : ehMobile ? (
+          <div className="cl-lista">
+            {acumulado.length === 0 && (
+              <p className="orc-vazio">Nada por aqui com este filtro.</p>
+            )}
+            {acumulado.map(o => (
+              <CartaoLinha
+                key={o.id}
+                titulo={<>{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}{o.loja && <span className="orc-detalhe"> · {o.loja}</span>}</>}
+                onClick={() => setAberto(o.id)}
+                linhas={[
+                  { rotulo: 'Nota', valor: o.notas ?? '–' },
+                  { rotulo: 'DAV', valor: o.davs ?? '–' },
+                  { rotulo: 'Valor', valor: emReais(o.valor) },
+                  { rotulo: soLancados ? 'Lançado em' : 'Data', valor: emDataHora(soLancados ? o.lancado_em : o.criado_em) },
+                  { rotulo: 'Conta', valor: contaPorExtenso(o.conta) },
+                  ...(!soLancados ? [{ rotulo: 'Lançado', valor: <Marca v={o.status === 'lancado'} /> }] : []),
+                  { rotulo: 'Faturado', valor: <Marca v={o.faturado} /> },
+                  { rotulo: 'Pago', valor: <Marca v={o.pago} /> },
+                ]}
+              />
+            ))}
+            <CarregarMais
+              temMais={!!pagina && numero < pagina.paginas}
+              onClick={() => setNumero(n => n + 1)}
+            />
+          </div>
+        ) : (
           <div className="orc-rolagem">
             <table className="orc-tabela">
               <thead>
@@ -191,7 +225,7 @@ export function Planilhas({ voltar }: { voltar: () => void }) {
         )}
 
       </div>
-      <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />
+      {!ehMobile && <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />}
     </div>
   )
 }

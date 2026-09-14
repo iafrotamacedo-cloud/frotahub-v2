@@ -22,6 +22,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import {
   emReais, emData, contaPorExtenso,
   type Faturamento as Dados, type Faturas as DadosDeFaturas, type Fatura,
@@ -89,6 +91,7 @@ export function Faturamento() {
  *   de dezembro — a alternativa é ele nunca ser cobrado.
  */
 function RelatorioMensal() {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<RelatorioMensalDados | null>(null)
   const [erro, setErro] = useState('')
   const [baixando, setBaixando] = useState(false)
@@ -166,6 +169,23 @@ function RelatorioMensal() {
           <p className="orc-vazio grande">
             Nada a cobrar. Tudo o que foi lançado no Trílogo já entrou numa planilha anterior.
           </p>
+        ) : ehMobile ? (
+          <div className="cl-lista">
+            {dados.linhas.map((l, i) => (
+              <CartaoLinha
+                key={i}
+                titulo={l[2] ? String(l[2]) : <em className="ruim">sem o nome do cliente</em>}
+                linhas={[
+                  { rotulo: 'Nº', valor: String(l[0]) },
+                  { rotulo: 'Ticket', valor: String(l[1]) },
+                  { rotulo: 'Valor', valor: emReais(Number(l[3])) },
+                  { rotulo: 'Data', valor: emData(String(l[4])) },
+                  { rotulo: 'Orçamento', valor: emReais(Number(l[5])) },
+                  { rotulo: 'Conta', valor: String(l[6]) },
+                ]}
+              />
+            ))}
+          </div>
         ) : (
           <div className="orc-rolagem">
             <table className="orc-tabela rel-mensal">
@@ -213,6 +233,7 @@ function RelatorioMensal() {
 // ---------------------------------------------------------------------------
 
 function Fila() {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState('')
   const [recado, setRecado] = useState('')
@@ -315,30 +336,47 @@ function Fila() {
           <em>{dados.faturas} {dados.faturas === 1 ? 'fatura' : 'faturas'}</em>
         </div>
 
-        <div className="orc-rolagem">
-          <table className="orc-tabela">
-            <thead>
-              <tr>
-                <th>Loja</th><th>Conta</th>
-                <th style={{ textAlign: 'right' }}>Orçamentos</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vazio && (
-                <tr><td colSpan={4} className="orc-vazio">Nada a faturar — tudo que existe já está numa fatura.</td></tr>
-              )}
-              {dados.celulas.map(c => (
-                <tr key={c.unidade_id + c.conta}>
-                  <td><span className="orc-nome">{c.loja}</span></td>
-                  <td>{contaPorExtenso(c.conta)}</td>
-                  <td style={{ textAlign: 'right' }}>{c.orcamentos}</td>
-                  <td style={{ textAlign: 'right' }}>{emReais(c.valor)}</td>
+        {ehMobile ? (
+          <div className="cl-lista">
+            {vazio && <p className="orc-vazio">Nada a faturar — tudo que existe já está numa fatura.</p>}
+            {dados.celulas.map(c => (
+              <CartaoLinha
+                key={c.unidade_id + c.conta}
+                titulo={c.loja}
+                linhas={[
+                  { rotulo: 'Conta', valor: contaPorExtenso(c.conta) },
+                  { rotulo: 'Orçamentos', valor: c.orcamentos },
+                  { rotulo: 'Valor', valor: emReais(c.valor) },
+                ]}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="orc-rolagem">
+            <table className="orc-tabela">
+              <thead>
+                <tr>
+                  <th>Loja</th><th>Conta</th>
+                  <th style={{ textAlign: 'right' }}>Orçamentos</th>
+                  <th style={{ textAlign: 'right' }}>Valor</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {vazio && (
+                  <tr><td colSpan={4} className="orc-vazio">Nada a faturar — tudo que existe já está numa fatura.</td></tr>
+                )}
+                {dados.celulas.map(c => (
+                  <tr key={c.unidade_id + c.conta}>
+                    <td><span className="orc-nome">{c.loja}</span></td>
+                    <td>{contaPorExtenso(c.conta)}</td>
+                    <td style={{ textAlign: 'right' }}>{c.orcamentos}</td>
+                    <td style={{ textAlign: 'right' }}>{emReais(c.valor)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="fat-acoes">
@@ -387,6 +425,7 @@ type Rascunho = Partial<Pick<Fatura, 'pco_numero' | 'nf_numero' | 'nf_em' | 'rec
 }
 
 function Emitidas() {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<DadosDeFaturas | null>(null)
   const [erro, setErro] = useState('')
   const [competencia, setCompetencia] = useState('')
@@ -466,6 +505,59 @@ function Emitidas() {
           <em>{competencia || 'todas as competências'}</em>
         </div>
 
+        {ehMobile ? (
+          <div className="cl-lista">
+            {dados.faturas.length === 0 && (
+              <p className="orc-vazio">Nenhuma fatura nesta competência.</p>
+            )}
+            {dados.faturas.map(f => {
+              const r = rascunhos[f.id] ?? {}
+              const mexeu = Object.keys(r).length > 0
+              return (
+                <CartaoLinha
+                  key={f.id}
+                  titulo={<>{f.loja} <span className="orc-detalhe">{f.competencia} · {f.orcamentos} orçamentos</span></>}
+                  linhas={[
+                    { rotulo: 'Conta', valor: contaPorExtenso(f.conta) },
+                    { rotulo: 'Valor', valor: emReais(f.valor) },
+                    { rotulo: 'PCO', valor: (
+                      <input className="fat-campo" maxLength={40} placeholder="—"
+                        value={r.pco_numero ?? f.pco_numero ?? ''}
+                        onChange={e => anotar(f.id, 'pco_numero', e.target.value)} />
+                    ) },
+                    { rotulo: 'Nota', valor: (
+                      <input className="fat-campo" maxLength={40} placeholder="—"
+                        value={r.nf_numero ?? f.nf_numero ?? ''}
+                        onChange={e => anotar(f.id, 'nf_numero', e.target.value)} />
+                    ) },
+                    { rotulo: 'Recebido em', valor: (
+                      <input type="date" className="fat-campo"
+                        value={r.recebido_em ?? f.recebido_em ?? ''}
+                        onChange={e => anotar(f.id, 'recebido_em', e.target.value)} />
+                    ) },
+                    { rotulo: 'Valor recebido', valor: (
+                      <>
+                        <input className="fat-campo fat-campo-valor" inputMode="decimal" placeholder="—"
+                          value={r.valor_recebido ?? (f.valor_recebido === null ? '' : String(f.valor_recebido).replace('.', ','))}
+                          onChange={e => anotar(f.id, 'valor_recebido', e.target.value)} />
+                        {f.recebida && Math.abs(f.diferenca) >= 0.01 && (
+                          <span className="fat-diferenca" title="faturado menos recebido">
+                            {f.diferenca > 0 ? 'faltam ' : 'sobram '}{emReais(Math.abs(f.diferenca))}
+                          </span>
+                        )}
+                      </>
+                    ) },
+                  ]}
+                  acoes={mexeu && (
+                    <button type="button" className="bt bt-mini bt-forte" disabled={salvando === f.id} onClick={() => void salvar(f)}>
+                      {salvando === f.id ? '…' : 'salvar'}
+                    </button>
+                  )}
+                />
+              )
+            })}
+          </div>
+        ) : (
         <div className="orc-rolagem">
           <table className="orc-tabela">
             <thead>
@@ -543,6 +635,7 @@ function Emitidas() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </>
   )

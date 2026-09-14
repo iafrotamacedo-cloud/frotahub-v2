@@ -20,6 +20,8 @@
 //	resposta só (ver `interno/modulos/estatisticas` no motor).
 import { useEffect, useMemo, useState } from 'react'
 import { Painel } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Fonte, type Base } from './dados'
 import { calcular, type Filtro } from './calculo'
 import { hoje, iso } from './formato'
@@ -73,6 +75,7 @@ interface Props {
 }
 
 export function Estatisticas({ tela, titulo, descricao, abrir, extra = [], abrirExtra, perfil }: Props) {
+  const ehMobile = useEhMobile()
   const [base, setBase] = useState<Base | null>(null)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -133,7 +136,9 @@ export function Estatisticas({ tela, titulo, descricao, abrir, extra = [], abrir
             {tela !== 'est-financeiras' && <> · período: <b>{atalho ?? 'personalizado'}</b></>}
           </div>
         </header>
-        <Painel etapas={etapas} aoEscolher={abrir} />
+        {ehMobile
+          ? <PainelDadosMobile etapas={etapas} aoEscolher={abrir} />
+          : <Painel etapas={etapas} aoEscolher={abrir} />}
       </div>
     )
   }

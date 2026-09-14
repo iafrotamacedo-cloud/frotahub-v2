@@ -10,6 +10,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
 import { Painel, type Etapa } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import { Arquivos } from './Arquivos'
 import { Lancar } from './Lancar'
@@ -26,6 +28,7 @@ interface Props {
 }
 
 export function Orcamentos({ onde, abrir, voltar }: Props) {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<DadosDoPainel | null>(null)
   const [erro, setErro] = useState('')
 
@@ -62,7 +65,9 @@ export function Orcamentos({ onde, abrir, voltar }: Props) {
             : 'nenhum arquivo inserido ainda'}
         </span>
       </div>
-      <Painel etapas={montarEtapas(dados)} aoEscolher={abrir} />
+      {ehMobile
+        ? <PainelDadosMobile etapas={montarEtapas(dados)} aoEscolher={abrir} />
+        : <Painel etapas={montarEtapas(dados)} aoEscolher={abrir} />}
     </div>
   )
 }

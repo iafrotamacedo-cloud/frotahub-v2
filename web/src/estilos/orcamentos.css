@@ -41,6 +41,30 @@
 .orc-barra-titulo { font-weight: 650; color: var(--d-txt); font-size: 13px; }
 .orc-barra-dir { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .orc-topo { margin-bottom: var(--folga); }
+
+/* NO MOBILE A BARRA CRESCE, EM VEZ DE ESTOURAR A LARGURA
+ *
+ *   A barra de topo é usada em toda tela do módulo, e o título divide o
+ *   espaço com um a três botões de ação — "Ler notas", "Gerar orçamentos",
+ *   "salvar como…". Numa linha só de 46px fixos, três botões ao lado de um
+ *   título comprido não cabem, e sem `flex-wrap` o excesso empurra a barra
+ *   para fora da tela (regra da casa: sem deslizamento lateral no mobile).
+ *   Aqui ela quebra para uma segunda linha e cresce em altura, em vez de
+ *   estourar em largura. */
+@media (max-width: 900px) {
+  .orc-topo, .orc-barra {
+    flex-wrap: wrap; height: auto; min-height: 46px; padding: 8px 12px;
+  }
+  .orc-barra-dir, .orc-ficha-direita {
+    flex-wrap: wrap; margin-left: 0; width: 100%;
+  }
+  /* Um rótulo comprido ("Lançar todos que podem subir (47)") não pode
+     empurrar a barra para fora da tela — quebra dentro do próprio botão. */
+  .orc-barra .orc-bt, .orc-ficha-direita .orc-bt {
+    white-space: normal; text-align: center; max-width: 100%;
+  }
+  .fat-abas { flex-wrap: wrap; }
+}
 .orc-pulso {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--ok); box-shadow: 0 0 0 3px rgba(63, 164, 106, .16);
@@ -837,6 +861,11 @@
 
 .orc-pend-marca { width: 34px; text-align: center; }
 .orc-pend-marca input { cursor: pointer; }
+
+.orc-pend-marca-todos {
+  display: flex; align-items: center; gap: 8px; margin: 0 4px 4px;
+  font-size: 13px; color: var(--txt); cursor: pointer;
+}
 
 /* A linha escolhida fica marcada de leve. Marcar é dizer "esta eu já cobrei" —
    um destaque forte competiria com a leitura do resto da lista. */

@@ -35,6 +35,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motor, enviarArquivos, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais } from '../orcamentos/tipos'
 
 interface Nota {
@@ -104,6 +106,7 @@ type Aba = 'notas' | 'tickets'
 type FiltroSN = 'todos' | 'sim' | 'nao'
 
 export function Consolidacao() {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<Consolidado | null>(null)
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('notas')
@@ -319,7 +322,35 @@ export function Consolidacao() {
           )}
 
           <div className="orc-lista">
-          {aba === 'notas' ? (
+          {aba === 'notas' ? ehMobile ? (
+            <div className="cl-lista">
+              {!notas.length && (
+                <p className="orc-vazio">Nenhuma nota — importe o CSV do Obra Prima para começar.</p>
+              )}
+              {notas.map(n => (
+                <CartaoLinha
+                  key={n.nf}
+                  titulo={<>{n.nf}{n.intrusa && <span className="orc-detalhe"> · marcada como intrusa</span>}</>}
+                  linhas={[
+                    { rotulo: 'Fornecedor', valor: n.fornecedor ?? 'fornecedor não identificado' },
+                    { rotulo: 'Valor', valor: emReais(n.valor) },
+                    { rotulo: 'Tickets', valor: n.tickets === 0 ? <span className="mut">nenhum ainda</span> : `${n.tickets} ticket${n.tickets > 1 ? 's' : ''}` },
+                    { rotulo: 'Orçado', valor: n.tickets > 0 ? emReais(n.orcado) : <span className="mut">—</span> },
+                    { rotulo: 'Margem', valor: n.margem === null ? <span className="mut">—</span> : emPercentual(n.margem) },
+                  ]}
+                  acoes={
+                    <>
+                      {n.tickets > 0 && (
+                        <button type="button" className="bt bt-mini" onClick={() => setNotaAberta(n)}>ver tickets</button>
+                      )}
+                      <BotaoIntrusa marcada={n.intrusa} carregando={alternando.has(n.nf)}
+                        onClick={() => void alternarIntrusa(n.nf)} />
+                    </>
+                  }
+                />
+              ))}
+            </div>
+          ) : (
             <div className="orc-rolagem">
               <table className="orc-tabela">
                 <thead>
@@ -391,6 +422,25 @@ export function Consolidacao() {
                   </tfoot>
                 )}
               </table>
+            </div>
+          ) : ehMobile ? (
+            <div className="cl-lista">
+              {!tickets.length && <p className="orc-vazio">Nenhum orçamento com esse texto.</p>}
+              {tickets.map(o => (
+                <CartaoLinha
+                  key={o.orcamento_id}
+                  titulo={<>{o.ticket}{o.parte > 1 ? '-' + o.parte : ''}{o.rateio && <span className="orc-detalhe"> · rateio</span>}</>}
+                  linhas={[
+                    { rotulo: 'Loja', valor: o.loja ?? 'loja não identificada' },
+                    { rotulo: 'Valor', valor: emReais(o.valor) },
+                    { rotulo: 'NF', valor: o.nfs
+                      ? <>{o.nfs}{o.nota_excluida && <span className="orc-selo espera" style={{ marginLeft: 6 }}>nota excluída</span>}</>
+                      : o.legado ? <span className="mut">do legado</span> : <span className="mut">—</span> },
+                    { rotulo: 'No relatório', valor: sim(o.no_relatorio) },
+                    { rotulo: 'Pago ao fornecedor', valor: sim(o.pago) },
+                  ]}
+                />
+              ))}
             </div>
           ) : (
             <div className="orc-rolagem">
@@ -466,6 +516,31 @@ export function Consolidacao() {
                 </em>
                 <button type="button" className="mut" onClick={() => setNotaAberta(null)}>fechar</button>
               </div>
+              {ehMobile ? (
+                <div className="cl-lista">
+                  {notaAberta.ticket_numeros.map(t => {
+                    const meus = daNota.filter(o => o.ticket === t)
+                    if (!meus.length) {
+                      return (
+                        <CartaoLinha key={t} titulo={t}
+                          linhas={[{ rotulo: 'Situação', valor: <span className="orc-selo espera">nenhum orçamento gerado</span> }]} />
+                      )
+                    }
+                    return meus.map(o => (
+                      <CartaoLinha
+                        key={o.orcamento_id}
+                        titulo={`${o.ticket}${o.parte > 1 ? '-' + o.parte : ''}`}
+                        linhas={[
+                          { rotulo: 'Loja', valor: o.loja ?? <span className="mut">—</span> },
+                          { rotulo: 'Valor', valor: emReais(o.valor) },
+                          { rotulo: 'No relatório', valor: sim(o.no_relatorio) },
+                          { rotulo: 'Pago', valor: sim(o.pago) },
+                        ]}
+                      />
+                    ))
+                  })}
+                </div>
+              ) : (
               <div className="orc-rolagem">
                 <table className="orc-tabela">
                   <thead>
@@ -509,6 +584,7 @@ export function Consolidacao() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           )}
           </div>

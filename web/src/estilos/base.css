@@ -233,6 +233,12 @@ aside ::-webkit-scrollbar-thumb{background:#3d3234;border-color:var(--side-bg)}
 @media (max-width:900px){
   .content{padding:18px 16px 40px}
   .auth-marca{display:none}
+  /* .jn-pe É O RODAPÉ DE BOTÕES DE QUASE TODO FORMULÁRIO DA CASA (Padrão 5)
+     Ela nunca teve `flex-wrap`: no PC cabem três ou quatro botões numa linha
+     só. Em 375px, "Visualizar orçamento" + "Trocar PDF" + "Excluir PDF" +
+     "Lançar no Trílogo" não cabem — sem isto a linha empurraria a tela para
+     o lado, o que a regra da casa proíbe. Aqui ela quebra, em vez disso. */
+  .jn-pe{flex-wrap:wrap; justify-content:flex-start}
 }
 
 /* ---------------------------------------------------------------------------

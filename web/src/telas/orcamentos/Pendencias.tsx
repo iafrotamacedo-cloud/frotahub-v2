@@ -49,6 +49,8 @@ import { Confirmar } from '../../componentes/Confirmar'
 import { useFocado } from '../../componentes/Foco'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { BarraDeVolta } from './Arquivos'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais, emDataHora, type ListaDePendencias, type Pendencia, type Orcamento, type Pagina } from './tipos'
 
 const LISTAS = [
@@ -98,6 +100,7 @@ export function Pendencias({ lista, voltar, embutido }: {
    *  reconferência e as três saídas continuam existindo UMA vez (CORE-06). */
   embutido?: boolean
 }) {
+  const ehMobile = useEhMobile()
   // Correções chama a lista da equipe de 'equipe'; aqui ela sempre se chamou
   // 'encarregados', que é o nome que o motor usa no `destino`. A tradução é uma
   // linha, e trocar o nome no motor seria mexer numa palavra que a view, o PDF e
@@ -331,6 +334,14 @@ export function Pendencias({ lista, voltar, embutido }: {
                 Nada esperando decisão. Nenhum orçamento está travado por teto
                 ou por duplicidade.
               </p>
+            ) : ehMobile ? (
+              <div className="cl-lista">
+                {decisoes.linhas.map(o => (
+                  <DecisaoMobile key={o.id} o={o}
+                    ocupado={tratando === o.id}
+                    tratar={a => setConfirmando({ o, acao: a })} />
+                ))}
+              </div>
             ) : (
               <div className="orc-rolagem">
                 <table className="orc-tabela">
@@ -401,6 +412,28 @@ export function Pendencias({ lista, voltar, embutido }: {
               Nada esperando aqui. Todo orçamento desta fila já pode subir, ou
               já subiu.
             </p>
+          ) : ehMobile ? (
+            <div className="cl-lista">
+              <label className="orc-pend-marca-todos">
+                <input
+                  type="checkbox"
+                  checked={todosMarcados}
+                  onChange={() => setEscolhidos(todosMarcados
+                    ? new Set()
+                    : new Set(tickets.map(t => t.ticket)))}
+                />
+                marcar todos
+              </label>
+              {tickets.map(t => (
+                <LinhaMobile
+                  key={t.ticket}
+                  t={t}
+                  qual={qual}
+                  marcado={escolhidos.has(t.ticket)}
+                  alternar={() => alternar(t.ticket)}
+                />
+              ))}
+            </div>
           ) : (
             <div className="orc-rolagem">
               <table className="orc-tabela">
@@ -522,6 +555,81 @@ function Decisao({ o, ocupado, tratar }: {
         </div>
       </td>
     </tr>
+  )
+}
+
+function DecisaoMobile({ o, ocupado, tratar }: {
+  o: Orcamento
+  ocupado: boolean
+  tratar: (acao: 'apagar' | 'lancar' | 'aprovar') => void
+}) {
+  const duplicata = o.lancamento_bloqueio === 'possivel_duplicata'
+  return (
+    <CartaoLinha
+      titulo={`${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}`}
+      linhas={[
+        { rotulo: 'Loja', valor: o.loja ?? '–' },
+        { rotulo: 'Valor', valor: emReais(o.valor) },
+        { rotulo: 'Por que travou', valor: (
+          <>
+            <span className={`orc-marca ${duplicata ? 'erro' : 'espera'}`}>
+              {duplicata ? 'já tem custo deste valor' : 'passa do teto'}
+            </span>
+            {o.lancamento_bloqueio_detalhe && <div className="orc-sub">{o.lancamento_bloqueio_detalhe}</div>}
+          </>
+        ) },
+      ]}
+      acoes={
+        <>
+          {duplicata ? (
+            <button type="button" className="bt bt-mini" disabled={ocupado} onClick={() => tratar('lancar')}>lançar assim mesmo</button>
+          ) : (
+            <button type="button" className="bt bt-mini" disabled={ocupado} onClick={() => tratar('aprovar')}>pedir aprovação</button>
+          )}
+          <button type="button" className="bt bt-mini bt-forte" disabled={ocupado} onClick={() => tratar('apagar')}>apagar</button>
+        </>
+      }
+    />
+  )
+}
+
+function LinhaMobile({ t, qual, marcado, alternar }: {
+  t: Pendencia
+  qual: Qual
+  marcado: boolean
+  alternar: () => void
+}) {
+  return (
+    <CartaoLinha
+      titulo={<>
+        {t.ticket}
+        {t.orcamentos > 1 && <span className="orc-detalhe"> · {t.orcamentos} partes · {t.partes.join(', ')}</span>}
+      </>}
+      linhas={[
+        { rotulo: 'Loja', valor: t.loja || '–' },
+        { rotulo: 'Conta', valor: t.conta || '–' },
+        { rotulo: 'Situação', valor: (
+          <>
+            {t.ticket_status || '–'}
+            {t.reaberto && <div className="orc-sub aviso">reaberto</div>}
+            {t.recusa && (
+              <div className="orc-sub">
+                já tentado{t.tentativas > 1 ? ` ${t.tentativas}×` : ''}
+                {t.recusa_em ? ` em ${emDataHora(t.recusa_em)}` : ''}
+              </div>
+            )}
+          </>
+        ) },
+        { rotulo: qual === 'cliente' ? 'O que o cliente disse' : 'O que foi pedido',
+          valor: (qual === 'cliente' ? t.motivo : t.descricao) || '–' },
+        { rotulo: 'Parado', valor: emReais(t.valor) },
+        { rotulo: 'Desde', valor: t.desde_em ? emDataHora(t.desde_em) : '–' },
+        { rotulo: 'Cobrado', valor: t.avisado_em ? emDataHora(t.avisado_em) : 'nunca' },
+        { rotulo: 'Marcar', valor: (
+          <input type="checkbox" checked={marcado} onChange={alternar} aria-label={`marcar o chamado ${t.ticket}`} />
+        ) },
+      ]}
+    />
   )
 }
 

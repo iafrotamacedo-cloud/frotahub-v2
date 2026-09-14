@@ -420,11 +420,22 @@ button.tri-num:hover{color:var(--red);text-decoration:underline}
 .fi-fita img{width:100%;height:100%;object-fit:cover;display:block}
 .fi-fita-video{display:block;width:100%;height:100%;background:#14171B}
 
-@media (max-width:860px){
-  .fi-folha{height:auto;padding:24px 20px 28px}
+/* ALINHADO A 900px — o mesmo corte que o resto do mobile usa (`useEhMobile`).
+ * Sem a folha A4: fora do papel, largura e altura fixas eram o único
+ * ingrediente daquele desenho — sem elas, sobra a coluna única de sempre. */
+@media (max-width:900px){
+  .fi-folha{width:auto;height:auto;padding:18px 16px 24px;border-radius:0;box-shadow:none}
+  .fi-mesa{padding:0}
   .fi-corpo{flex-direction:column}
   .fi-esquerda{flex:1 1 auto}
   .fi-tempo{max-height:420px}
+  /* O CABEÇALHO TINHA ALTURA FIXA PENSADA PRO PAPEL A4
+     Numa loja com nome comprido, numero+tracinho+loja+selo não cabem numa
+     linha de 375px ao lado do status e da data — sem isto o texto vazaria
+     da folha. Aqui ele quebra em duas linhas e cresce, como o resto do
+     mobile já faz nos cabeçalhos com muito conteúdo. */
+  .fi-l1, .fi-l2 { height: auto; min-height: 45px; flex: 0 0 auto; flex-wrap: wrap; padding: 8px 0; }
+  .fi-dir { margin-left: 0; width: 100%; justify-content: space-between; }
 }
 
 /* ---------- extrair: um botão, duas saídas ---------- */

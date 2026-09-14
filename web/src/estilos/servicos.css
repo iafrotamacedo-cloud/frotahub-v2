@@ -63,6 +63,26 @@
 .sv-item-linha input{margin:0;padding:7px 9px;font-size:13px}
 .sv-item-linha .bt{padding:0;width:30px;height:32px}
 
+/* NO MOBILE A DESCRIÇÃO GANHA A PRÓPRIA LINHA
+ * Com só 72px+100px+30px de colunas fixas, "Descrição" ficava espremida
+ * num resto de ~90px em 375px de largura. Ela sobe para uma linha só sua;
+ * qtd, valor e o × continuam juntos, que é a combinação que cabe. */
+@media (max-width:900px){
+  .sv-item-linha{
+    grid-template-columns:1fr 1fr 38px;
+    grid-template-areas:"desc desc desc" "qtd valor remover";
+    row-gap:6px;
+  }
+  /* `min-width:0` desfaz o mínimo padrão do `<input>` (~190px de conteúdo) —
+     sem isto o grid nunca encolhe os campos abaixo disso, e a linha vaza
+     para fora do cartão mesmo com `1fr`. */
+  .sv-item-linha input{min-width:0}
+  .sv-item-linha input:first-child{grid-area:desc}
+  .sv-item-linha input:nth-child(2){grid-area:qtd}
+  .sv-item-linha input:nth-child(3){grid-area:valor}
+  .sv-item-linha .bt{grid-area:remover}
+}
+
 /* O subtotal ao lado do título da lista, e o total geral embaixo das duas —
    mesma ideia de ConferirValor.tsx: o número formatado é o retorno visual
    de que o que foi digitado bateu, sem precisar somar de cabeça. */

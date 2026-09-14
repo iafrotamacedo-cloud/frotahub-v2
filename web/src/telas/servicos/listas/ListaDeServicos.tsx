@@ -21,6 +21,10 @@ import type { Perfil } from '../../../sessao/tipos'
 import type { ItemLista, Status } from '../tipos'
 import { FichaDoTicket, type Acao } from '../FichaDoTicket'
 import { CelulaConta, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from '../celulas'
+import { CartaoLinha } from '../../../componentes/CartaoLinha'
+import { CarregarMais } from '../../../componentes/CarregarMais'
+import { useEhMobile } from '../../../componentes/useEhMobile'
+import { contaPorExtenso, emReais } from '../../trilogo/tipos'
 
 /** Ação de linha que espera confirmação (componentes/Confirmar.tsx) antes de rodar. */
 type AcaoPendente = { tipo: 'voltar' | 'rejeitar' | 'retirar'; item: ItemLista }
@@ -36,7 +40,9 @@ interface Props {
 }
 
 export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }: Props) {
+  const ehMobile = useEhMobile()
   const [pagina, setPagina] = useState<Pagina<ItemLista> | null>(null)
+  const [acumulado, setAcumulado] = useState<ItemLista[]>([])
   const [numeroDaPagina, setNumeroDaPagina] = useState(1)
   const [por, setPor] = useState(100)
   const [busca, setBusca] = useState('')
@@ -59,7 +65,9 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
       if (comPCO) params.set('pco', 'sim')
       if (semPCO) params.set('pco', 'nao')
       if (buscaAplicada) params.set('busca', buscaAplicada)
-      setPagina(await motor<Pagina<ItemLista>>(`/servicos/lista?${params}`))
+      const r = await motor<Pagina<ItemLista>>(`/servicos/lista?${params}`)
+      setPagina(r)
+      setAcumulado(atual => (numeroDaPagina === 1 ? r.linhas : [...atual, ...r.linhas]))
     } catch (e) {
       setPagina(null)
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar a lista.')
@@ -178,6 +186,48 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
         <div className="vazio">
           {buscaAplicada ? 'Nenhum serviço corresponde a essa busca.' : 'Nenhum serviço nesta fila.'}
         </div>
+      ) : ehMobile ? (
+        <>
+          <div className="cl-lista">
+            {acumulado.map(it => (
+              <CartaoLinha
+                key={it.id}
+                titulo={it.ticket}
+                onClick={() => setAberto(it)}
+                linhas={[
+                  { rotulo: 'Loja', valor: it.loja || '—' },
+                  { rotulo: 'Conta', valor: (
+                    <span className={'tri-conta ' + (it.conta === 'civil' ? 'ct-civil' : 'ct-inst')}>
+                      {contaPorExtenso(it.conta)}
+                    </span>
+                  ) },
+                  { rotulo: 'Descrição', valor: (it.chamado_descricao || '—').replace(/\s+/g, ' ').trim() },
+                  { rotulo: 'Valor', valor: it.orcamento_valor != null ? emReais(it.orcamento_valor) : '—' },
+                ]}
+                acoes={status !== 'faturado' && (
+                  status === 'orcamento_lancado' ? (
+                    <>
+                      <button type="button" className="bt bt-mini bt-neutro" onClick={() => setPendente({ tipo: 'retirar', item: it })}>
+                        Retirar cotação
+                      </button>
+                      <button type="button" className="bt bt-mini bt-perigo" onClick={() => setPendente({ tipo: 'rejeitar', item: it })}>
+                        Rejeitar
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="bt bt-mini bt-neutro" onClick={() => setPendente({ tipo: 'voltar', item: it })}>
+                      Voltar pro contrato
+                    </button>
+                  )
+                )}
+              />
+            ))}
+          </div>
+          <CarregarMais
+            temMais={numeroDaPagina < pagina!.paginas}
+            onClick={() => setNumeroDaPagina(n => n + 1)}
+          />
+        </>
       ) : (
         <>
           <div className="tabela-rolo tri-painel">
@@ -228,11 +278,11 @@ export function ListaDeServicos({ titulo, status, comPCO, semPCO, acao, perfil }
               </tbody>
             </table>
           </div>
-          <Paginacao
+          {!ehMobile && <Paginacao
             pagina={pagina} por={por}
             aoTrocarPagina={setNumeroDaPagina}
             aoTrocarPor={p => { setPor(p); setNumeroDaPagina(1) }}
-          />
+          />}
         </>
       )}
 

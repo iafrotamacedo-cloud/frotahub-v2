@@ -22,10 +22,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Insercao, Paginacao } from './Arquivos'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais, emDataHora, type Documento, type Pagina } from './tipos'
 
 export function Direto({ voltar }: { voltar: () => void }) {
+  const ehMobile = useEhMobile()
   const [pagina, setPagina] = useState<Pagina<Documento> | null>(null)
+  const [acumulado, setAcumulado] = useState<Documento[]>([])
   const [erro, setErro] = useState('')
   const [recado, setRecado] = useState('')
   const [pag, setPag] = useState(1)
@@ -44,7 +49,9 @@ export function Direto({ voltar }: { voltar: () => void }) {
     if (de) q.set('de', de)
     if (ate) q.set('ate', ate)
     try {
-      setPagina(await motor<Pagina<Documento>>('/orcamentos/direto?' + q))
+      const r = await motor<Pagina<Documento>>('/orcamentos/direto?' + q)
+      setPagina(r)
+      setAcumulado(atual => (pag === 1 ? r.linhas : [...atual, ...r.linhas]))
       setErro('')
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui carregar a lista.')
@@ -63,6 +70,25 @@ export function Direto({ voltar }: { voltar: () => void }) {
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui amarrar o ticket.')
     }
+  }
+
+  function celulaTicket(d: Documento) {
+    const temTicket = (d.ticket_numeros?.length ?? 0) > 0
+    if (temTicket) return d.ticket_numeros!.map(t => <span key={t} className="orc-tk">{t}</span>)
+    if (digitando === d.id) {
+      return (
+        <span className="orc-digita">
+          <input autoFocus inputMode="numeric" placeholder="ticket" value={numero}
+            onChange={e => setNumero(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={e => {
+              if (e.key === 'Enter') void amarrar(d.id)
+              if (e.key === 'Escape') { setDigitando(null); setNumero('') }
+            }} />
+          <button type="button" className="forte" onClick={() => void amarrar(d.id)}>ok</button>
+        </span>
+      )
+    }
+    return <button type="button" className="orc-mais" onClick={() => { setDigitando(d.id); setNumero('') }}>informar</button>
   }
 
   async function mandar(d: Documento) {
@@ -106,7 +132,43 @@ export function Direto({ voltar }: { voltar: () => void }) {
       {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
       {recado && <p className="orc-recado" style={{ margin: '0 16px 8px' }}>{recado}</p>}
 
-      {!pagina ? <Carregando /> : (
+      {!pagina ? <Carregando /> : ehMobile ? (
+        <>
+          <div className="cl-lista">
+            {acumulado.length === 0 && (
+              <p className="orc-vazio">Nenhuma nota nesta fila.</p>
+            )}
+            {acumulado.map(d => (
+              <CartaoLinha
+                key={d.id}
+                titulo={d.nome_arquivo}
+                linhas={[
+                  { rotulo: 'Nota', valor: d.numero ?? d.dav_numero ?? '–' },
+                  { rotulo: 'Loja', valor: (d as Documento & { loja?: string }).loja ?? '–' },
+                  { rotulo: 'Ticket', valor: celulaTicket(d) },
+                  { rotulo: 'Valor', valor: emReais(d.valor_total) },
+                  { rotulo: 'Inserida em', valor: emDataHora(d.inserido_em) },
+                ]}
+                acoes={
+                  d.status === 'usado'
+                    ? <span className="orc-selo ok">no lançamento</span>
+                    : (
+                      <button type="button" className="bt bt-mini bt-forte"
+                        disabled={!((d.ticket_numeros?.length ?? 0) > 0) || !d.valor_total}
+                        onClick={() => void mandar(d)}>
+                        mandar para lançar
+                      </button>
+                    )
+                }
+              />
+            ))}
+          </div>
+          <CarregarMais
+            temMais={!!pagina && pag < pagina.paginas}
+            onClick={() => setPag(n => n + 1)}
+          />
+        </>
+      ) : (
         <>
           <div className="orc-lista">
             <div className="orc-rolagem">
@@ -132,24 +194,7 @@ export function Direto({ voltar }: { voltar: () => void }) {
                       </td>
                       <td>{d.numero ?? d.dav_numero ?? '–'}</td>
                       <td>{(d as Documento & { loja?: string }).loja ?? '–'}</td>
-                      <td>
-                        {temTicket
-                          ? d.ticket_numeros!.map(t => <span key={t} className="orc-tk">{t}</span>)
-                          : digitando === d.id
-                            ? (
-                              <span className="orc-digita">
-                                <input autoFocus inputMode="numeric" placeholder="ticket" value={numero}
-                                  onChange={e => setNumero(e.target.value.replace(/\D/g, ''))}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') void amarrar(d.id)
-                                    if (e.key === 'Escape') { setDigitando(null); setNumero('') }
-                                  }} />
-                                <button type="button" className="forte" onClick={() => void amarrar(d.id)}>ok</button>
-                              </span>
-                            )
-                            : <button type="button" className="orc-mais"
-                              onClick={() => { setDigitando(d.id); setNumero('') }}>informar</button>}
-                      </td>
+                      <td>{celulaTicket(d)}</td>
                       <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
                       <td>{emDataHora(d.inserido_em)}</td>
                       <td className="orc-acoes">
@@ -173,8 +218,8 @@ export function Direto({ voltar }: { voltar: () => void }) {
             </table>
             </div>
           </div>
-          <Paginacao pagina={pagina} por={por}
-            aoTrocarPagina={setPag} aoTrocarPor={n => { setPor(n); setPag(1) }} />
+          {!ehMobile && <Paginacao pagina={pagina} por={por}
+            aoTrocarPagina={setPag} aoTrocarPor={n => { setPor(n); setPag(1) }} />}
         </>
       )}
     </div>

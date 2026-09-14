@@ -21,6 +21,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { motor, baixarDoMotor } from '../../motor/cliente'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { emReais, emData, emDataHora } from '../orcamentos/tipos'
 
 interface DAV {
@@ -52,6 +54,7 @@ interface Aberto {
 }
 
 export function APagar() {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<Aberto | null>(null)
   const [ate, setAte] = useState(hoje())
   const [erro, setErro] = useState('')
@@ -166,32 +169,52 @@ export function APagar() {
           )}
 
           <div className="orc-lista">
-            <div className="orc-rolagem">
-              <table className="orc-tabela">
-                <thead>
-                  <tr>
-                    <th>DAV</th><th>Emissão</th><th style={{ textAlign: 'right' }}>Valor</th>
-                    <th>Arquivo</th><th>Inserida em</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!dados.davs.length && (
-                    <tr><td colSpan={5}><p className="orc-vazio">
-                      Nenhuma DAV em aberto até esta data.
-                    </p></td></tr>
-                  )}
-                  {dados.davs.map(d => (
-                    <tr key={d.id}>
-                      <td><span className="orc-nome">{d.dav_numero ?? d.numero ?? '—'}</span></td>
-                      <td>{d.emissao ? emData(d.emissao) : <span className="mut">sem data</span>}</td>
-                      <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
-                      <td>{d.nome_arquivo}</td>
-                      <td>{emDataHora(d.inserido_em)}</td>
+            {ehMobile ? (
+              <div className="cl-lista">
+                {!dados.davs.length && (
+                  <p className="orc-vazio">Nenhuma DAV em aberto até esta data.</p>
+                )}
+                {dados.davs.map(d => (
+                  <CartaoLinha
+                    key={d.id}
+                    titulo={d.dav_numero ?? d.numero ?? '—'}
+                    linhas={[
+                      { rotulo: 'Emissão', valor: d.emissao ? emData(d.emissao) : <span className="mut">sem data</span> },
+                      { rotulo: 'Valor', valor: emReais(d.valor_total) },
+                      { rotulo: 'Arquivo', valor: d.nome_arquivo },
+                      { rotulo: 'Inserida em', valor: emDataHora(d.inserido_em) },
+                    ]}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="orc-rolagem">
+                <table className="orc-tabela">
+                  <thead>
+                    <tr>
+                      <th>DAV</th><th>Emissão</th><th style={{ textAlign: 'right' }}>Valor</th>
+                      <th>Arquivo</th><th>Inserida em</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {!dados.davs.length && (
+                      <tr><td colSpan={5}><p className="orc-vazio">
+                        Nenhuma DAV em aberto até esta data.
+                      </p></td></tr>
+                    )}
+                    {dados.davs.map(d => (
+                      <tr key={d.id}>
+                        <td><span className="orc-nome">{d.dav_numero ?? d.numero ?? '—'}</span></td>
+                        <td>{d.emissao ? emData(d.emissao) : <span className="mut">sem data</span>}</td>
+                        <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
+                        <td>{d.nome_arquivo}</td>
+                        <td>{emDataHora(d.inserido_em)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {dados.pedidos.length > 0 && (
@@ -200,47 +223,76 @@ export function APagar() {
                 <h2>Pedidos anteriores</h2>
                 <em>O que já foi mandado à Rodrigues — e o que ela ainda não faturou</em>
               </div>
-              <div className="orc-rolagem">
-                <table className="orc-tabela">
-                  <thead>
-                    <tr>
-                      <th>Nº</th><th>Corte</th><th>DAVs</th>
-                      <th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th>
-                      <th style={{ textAlign: 'right' }}>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dados.pedidos.map(p => (
-                      <tr key={p.id}>
-                        <td><span className="orc-nome">{p.numero}</span></td>
-                        <td>{emData(p.ate)}</td>
-                        <td>{p.davs}</td>
-                        <td style={{ textAlign: 'right' }}>{emReais(p.valor)}</td>
-                        <td>
-                          {p.enviado_em
-                            ? <span className="orc-selo ok">enviado {emData(p.enviado_em)}</span>
-                            : <span className="orc-selo espera">fechado, não enviado</span>}
-                        </td>
-                        <td className="orc-acoes">
-                          {!p.enviado_em && (
-                            <>
-                              <button type="button" onClick={() => void marcar(p, 'enviado')}>
-                                marcar como enviado
-                              </button>
-                              {/* REABRIR SÓ ENQUANTO NÃO FOI ENVIADO
-                                  Depois disso a Rodrigues tem a relação em mãos,
-                                  e mudar a nossa faria as duas discordarem. */}
-                              <button type="button" className="mut" onClick={() => void marcar(p, 'reabrir')}>
-                                reabrir
-                              </button>
-                            </>
-                          )}
-                        </td>
+              {ehMobile ? (
+                <div className="cl-lista">
+                  {dados.pedidos.map(p => (
+                    <CartaoLinha
+                      key={p.id}
+                      titulo={p.numero}
+                      linhas={[
+                        { rotulo: 'Corte', valor: emData(p.ate) },
+                        { rotulo: 'DAVs', valor: p.davs },
+                        { rotulo: 'Valor', valor: emReais(p.valor) },
+                        { rotulo: 'Situação', valor: p.enviado_em
+                          ? <span className="orc-selo ok">enviado {emData(p.enviado_em)}</span>
+                          : <span className="orc-selo espera">fechado, não enviado</span> },
+                      ]}
+                      acoes={!p.enviado_em && (
+                        <>
+                          <button type="button" className="bt bt-mini bt-forte" onClick={() => void marcar(p, 'enviado')}>
+                            marcar como enviado
+                          </button>
+                          <button type="button" className="bt bt-mini bt-neutro" onClick={() => void marcar(p, 'reabrir')}>
+                            reabrir
+                          </button>
+                        </>
+                      )}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="orc-rolagem">
+                  <table className="orc-tabela">
+                    <thead>
+                      <tr>
+                        <th>Nº</th><th>Corte</th><th>DAVs</th>
+                        <th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th>
+                        <th style={{ textAlign: 'right' }}>Ações</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {dados.pedidos.map(p => (
+                        <tr key={p.id}>
+                          <td><span className="orc-nome">{p.numero}</span></td>
+                          <td>{emData(p.ate)}</td>
+                          <td>{p.davs}</td>
+                          <td style={{ textAlign: 'right' }}>{emReais(p.valor)}</td>
+                          <td>
+                            {p.enviado_em
+                              ? <span className="orc-selo ok">enviado {emData(p.enviado_em)}</span>
+                              : <span className="orc-selo espera">fechado, não enviado</span>}
+                          </td>
+                          <td className="orc-acoes">
+                            {!p.enviado_em && (
+                              <>
+                                <button type="button" onClick={() => void marcar(p, 'enviado')}>
+                                  marcar como enviado
+                                </button>
+                                {/* REABRIR SÓ ENQUANTO NÃO FOI ENVIADO
+                                    Depois disso a Rodrigues tem a relação em mãos,
+                                    e mudar a nossa faria as duas discordarem. */}
+                                <button type="button" className="mut" onClick={() => void marcar(p, 'reabrir')}>
+                                  reabrir
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </>

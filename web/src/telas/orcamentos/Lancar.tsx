@@ -33,13 +33,18 @@ import { motor } from '../../motor/cliente'
 import { FichaDoOrcamento } from './FichaDoOrcamento'
 import { Carregando } from '../../componentes/Carregando'
 import { BarraDeVolta, Paginacao } from './Arquivos'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import {
   emReais, emDataHora, contaPorExtenso,
   type Orcamento, type Pagina,
 } from './tipos'
 
 export function Lancar({ voltar }: { voltar: () => void }) {
+  const ehMobile = useEhMobile()
   const [pagina, setPagina] = useState<Pagina<Orcamento> | null>(null)
+  const [acumulado, setAcumulado] = useState<Orcamento[]>([])
   const [numero, setNumero] = useState(1)
   const [por, setPor] = useState(100)
   const [status, setStatus] = useState('gerado')
@@ -82,7 +87,9 @@ export function Lancar({ voltar }: { voltar: () => void }) {
         // decisão. Aqui eles só apareceriam para não poder subir.
         q.set('decisao', 'nao')
       }
-      setPagina(await motor<Pagina<Orcamento>>('/orcamentos?' + q))
+      const r = await motor<Pagina<Orcamento>>('/orcamentos?' + q)
+      setPagina(r)
+      setAcumulado(atual => (numero === 1 ? r.linhas : [...atual, ...r.linhas]))
       setErro('')
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não consegui carregar a lista.')
@@ -328,7 +335,54 @@ export function Lancar({ voltar }: { voltar: () => void }) {
           </p>
         )}
 
-        {!pagina ? <Carregando /> : (
+        {!pagina ? <Carregando /> : ehMobile ? (
+          <div className="cl-lista">
+            {acumulado.length === 0 && (
+              <p className="orc-vazio">Nada por aqui com este filtro.</p>
+            )}
+            {acumulado.map(o => (
+              <CartaoLinha
+                key={o.id}
+                titulo={`${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}`}
+                linhas={[
+                  { rotulo: 'Conta', valor: contaPorExtenso(o.conta) + (o.rateio ? ' · rateio' : '') },
+                  { rotulo: 'Loja', valor: o.loja ?? '–' },
+                  { rotulo: 'Nota', valor: o.notas ?? '–' },
+                  { rotulo: 'Valor', valor: o.reduzido_pelo_teto
+                    ? `${emReais(o.valor)} (era ${emReais(o.valor_antes_do_teto)})`
+                    : emReais(o.valor) },
+                  { rotulo: 'Gerado em', valor: emDataHora(o.criado_em) },
+                  ...(o.status === 'gerado' && !podeSubir(o)
+                    ? [{ rotulo: 'Motivo', valor: porqueNaoSobe(o) }]
+                    : []),
+                ]}
+                acoes={
+                  <>
+                    <button type="button" className="bt bt-mini" onClick={() => setAbrindo(o.id)}>ver</button>
+                    {o.status === 'gerado' && (
+                      <button type="button" className="bt bt-mini bt-forte" disabled={lancando === o.id} onClick={() => void lancar(o)}>
+                        {lancando === o.id ? 'lançando…' : 'lançar'}
+                      </button>
+                    )}
+                    {o.status === 'aguardando_aprovacao' && (
+                      <button type="button" className="bt bt-mini bt-forte" onClick={() => void aprovar(o)}>aprovar</button>
+                    )}
+                    {o.status === 'lancado' && (
+                      <span className="orc-selo ok">custo {o.trilogo_custo_id}</span>
+                    )}
+                    {o.status !== 'lancado' && (
+                      <button type="button" className="bt bt-mini bt-perigo" onClick={() => void apagar(o)}>apagar</button>
+                    )}
+                  </>
+                }
+              />
+            ))}
+            <CarregarMais
+              temMais={!!pagina && numero < pagina.paginas}
+              onClick={() => setNumero(n => n + 1)}
+            />
+          </div>
+        ) : (
           <div className="orc-rolagem">
             <table className="orc-tabela">
               <colgroup>
@@ -434,7 +488,7 @@ export function Lancar({ voltar }: { voltar: () => void }) {
         )}
 
       </div>
-      <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />
+      {!ehMobile && <Paginacao pagina={pagina} por={por} aoTrocarPagina={setNumero} aoTrocarPor={n => { setPor(n); setNumero(1) }} />}
     </div>
   )
 }

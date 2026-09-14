@@ -19,10 +19,14 @@ import type { Perfil } from '../../../sessao/tipos'
 import type { Candidato } from '../tipos'
 import { PromoverCandidato } from '../PromoverCandidato'
 import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, useEncolher } from '../celulas'
+import { CartaoLinha } from '../../../componentes/CartaoLinha'
+import { useEhMobile } from '../../../componentes/useEhMobile'
+import { contaPorExtenso, quando } from '../../trilogo/tipos'
 
 type Janelinha = { tipo: 'nenhuma' } | { tipo: 'promover'; alvo: Candidato } | { tipo: 'descartar'; alvo: Candidato }
 
 export function Candidatos({ perfil }: { perfil: Perfil }) {
+  const ehMobile = useEhMobile()
   const [linhas, setLinhas] = useState<Candidato[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -90,6 +94,39 @@ export function Candidatos({ perfil }: { perfil: Perfil }) {
         <Carregando texto="Carregando os candidatos..." />
       ) : erro ? null : linhas.length === 0 ? (
         <div className="vazio">Nenhum candidato pendente no momento.</div>
+      ) : ehMobile ? (
+        <div className="cl-lista">
+          {linhas.map(c => (
+            <CartaoLinha
+              key={c.id}
+              titulo={c.ticket}
+              onClick={() => setAberto(c.ticket)}
+              linhas={[
+                { rotulo: 'Loja', valor: c.loja || '—' },
+                { rotulo: 'Conta', valor: (
+                  <span className={'tri-conta ' + (c.conta === 'civil' ? 'ct-civil' : 'ct-inst')}>
+                    {contaPorExtenso(c.conta)}
+                  </span>
+                ) },
+                { rotulo: 'Descrição', valor: (c.descricao || '—').replace(/\s+/g, ' ').trim() },
+                { rotulo: 'Por que o sistema suspeita', valor: c.motivo || '—' },
+                { rotulo: 'Criado em', valor: c.criado_em ? quando(c.criado_em) : '—' },
+              ]}
+              acoes={
+                <>
+                  <button type="button" className="bt bt-mini" disabled={agindo === c.id}
+                    onClick={() => setJanela({ tipo: 'promover', alvo: c })}>
+                    É Serviço
+                  </button>
+                  <button type="button" className="bt bt-mini bt-neutro" disabled={agindo === c.id}
+                    onClick={() => setJanela({ tipo: 'descartar', alvo: c })}>
+                    Não é Serviço
+                  </button>
+                </>
+              }
+            />
+          ))}
+        </div>
       ) : (
         <div className="tabela-rolo">
           <table className="tabela sv-tabela">

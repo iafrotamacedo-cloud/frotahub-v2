@@ -21,6 +21,9 @@ import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDaNota } from './VisorDaNota'
 import { ConferirValor } from './ConferirValor'
 import { Carregando } from '../../componentes/Carregando'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import {
   emDataHora, emReais, confiancaEmPalavras, oQueConferir,
   type Documento, type Pagina, type ResultadoDaInsercao, type ResultadoDaGeracao,
@@ -66,7 +69,14 @@ const vaziaDaVista: Record<Vista, string> = {
 }
 
 export function Arquivos({ fila, voltar }: Props) {
+  const ehMobile = useEhMobile()
   const [pagina, setPagina] = useState<Pagina<Documento> | null>(null)
+  // NO MOBILE, A LISTA CRESCE — NÃO VIRA PÁGINA
+  //
+  //	"Carregar mais" (Padrão 3) empilha o que já veio em vez de trocar de
+  //	página. `acumulado` guarda essa soma; o desktop nem olha pra ela, e ela
+  //	é zerada sempre que `numero` volta a 1 (busca ou vista mudou).
+  const [acumulado, setAcumulado] = useState<Documento[]>([])
   const [numero, setNumero] = useState(1)
   const [por, setPor] = useState(100)
   const [busca, setBusca] = useState('')
@@ -128,7 +138,9 @@ export function Arquivos({ fila, voltar }: Props) {
         ...(busca ? { busca } : {}),
         ...(vista !== 'fila' ? { vista } : {}),
       })
-      setPagina(await motor<Pagina<Documento>>('/orcamentos/documentos?' + q))
+      const r = await motor<Pagina<Documento>>('/orcamentos/documentos?' + q)
+      setPagina(r)
+      setAcumulado(atual => (numero === 1 ? r.linhas : [...atual, ...r.linhas]))
       setErro('')
       // Quantas faltam ler é pergunta da FILA, não desta página — e por isso é
       // outra chamada. Falhar aqui não derruba a lista: some o botão, que é
@@ -379,7 +391,57 @@ export function Arquivos({ fila, voltar }: Props) {
 
         {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
 
-        {!pagina && ocupado ? <Carregando /> : (
+        {!pagina && ocupado ? <Carregando /> : ehMobile ? (
+          <div className="cl-lista">
+            {acumulado.length === 0 && (
+              <p className="orc-vazio">{vaziaDaVista[vista]}</p>
+            )}
+            {acumulado.map(d => (
+              <CartaoLinha
+                key={d.id}
+                titulo={d.nome_arquivo}
+                linhas={[
+                  ...(d.numero || d.emitente_nome
+                    ? [{ rotulo: 'Detalhe', valor: [
+                        d.numero ? `nº ${d.numero}` : '',
+                        d.emitente_nome ?? '',
+                        d.valor_total ? emReais(d.valor_total) : '',
+                      ].filter(Boolean).join(' · ') }]
+                    : []),
+                  { rotulo: 'Inserida em', valor: emDataHora(d.inserido_em) },
+                  ...(fila === 'rateio'
+                    ? [{ rotulo: 'Tickets', valor: <Tickets numeros={d.ticket_numeros} soltos={d.ticket_soltos} /> }]
+                    : []),
+                  { rotulo: 'Leitura', valor: <Leitura d={d} /> },
+                  ...(d.motivo_conferencia
+                    ? [{ rotulo: 'Motivo', valor: <span className="orc-detalhe ruim">{d.motivo_conferencia}</span> }]
+                    : []),
+                  ...(d.duplicada_de
+                    ? [{ rotulo: 'Duplicada de', valor: `“${d.duplicada_de_nome ?? 'outra nota'}”${d.duplicada_de_em ? ` em ${emDataHora(d.duplicada_de_em)}` : ''}` }]
+                    : []),
+                ]}
+                acoes={
+                  <>
+                    {(d.motivo_conferencia || (fila === 'orcamento' && precisaDeGente(d)))
+                      ? <button type="button" className="bt bt-mini bt-forte" onClick={() => setConferindo(d)}>conferir</button>
+                      : <button type="button" className="bt bt-mini" onClick={() => void abrirArquivo(d)}>ver</button>}
+                    {fila === 'rateio' && vista === 'fila' && (
+                      <button type="button" className="bt bt-mini" onClick={() => setAbrindo(d)}>amarrar tickets</button>
+                    )}
+                    {vista === 'fora'
+                      ? <button type="button" className="bt bt-mini bt-neutro" onClick={() => void restaurar(d.id)}>devolver à fila</button>
+                      : <button type="button" className="bt bt-mini bt-neutro" onClick={() => void tirarDaFila(d)}>tirar da fila</button>}
+                  </>
+                }
+              />
+            ))}
+            <CarregarMais
+              temMais={!!pagina && numero < pagina.paginas}
+              carregando={ocupado}
+              onClick={() => setNumero(n => n + 1)}
+            />
+          </div>
+        ) : (
           <div className="orc-rolagem">
             <table className="orc-tabela">
               <colgroup>
@@ -467,12 +529,12 @@ export function Arquivos({ fila, voltar }: Props) {
 
       </div>
 
-      <Paginacao
+      {!ehMobile && <Paginacao
         pagina={pagina}
         por={por}
         aoTrocarPagina={setNumero}
         aoTrocarPor={n => { setPor(n); setNumero(1) }}
-      />
+      />}
 
       {desfazer && (
         <div className="orc-desfaz" role="status">

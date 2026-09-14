@@ -15,6 +15,8 @@ import { motor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { useFocado } from '../../componentes/Foco'
 import { BarraDeVolta } from './Arquivos'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Pendencias } from './Pendencias'
 import { VisorDaNota, type Acoes } from './VisorDaNota'
 import { ConfirmarComSenha } from './ConfirmarComSenha'
@@ -162,6 +164,7 @@ export function Correcoes({ frente, voltar }: { frente?: string; voltar: () => v
 // ---------------------------------------------------------------------------
 
 function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const ehMobile = useEhMobile()
   const [abrindo, setAbrindo] = useState<Documento | null>(null)
   const [erro, setErro] = useState('')
 
@@ -200,31 +203,49 @@ function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Prom
   return (
     <>
       {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
-      <div className="orc-rolagem">
-        <table className="orc-tabela">
-          <thead>
-            <tr><th>Arquivo</th><th>Nota</th><th style={{ textAlign: 'right' }}>Valor</th><th>Inserida em</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {dados.sem_ticket.map(d => (
-              <tr key={d.id}>
-                <td>
-                  <span className="orc-nome">{d.nome_arquivo}</span>
-                  {d.emitente_nome && <span className="orc-detalhe">{d.emitente_nome}</span>}
-                </td>
-                <td>{d.numero ?? d.dav_numero ?? '–'}</td>
-                <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
-                <td>{emDataHora(d.inserido_em)}</td>
-                <td className="orc-acoes">
-                  <button type="button" className="forte" onClick={() => { setErro(''); setAbrindo(d) }}>
-                    inserir ticket
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {ehMobile ? (
+        <div className="cl-lista">
+          {dados.sem_ticket.map(d => (
+            <CartaoLinha
+              key={d.id}
+              titulo={d.nome_arquivo}
+              onClick={() => { setErro(''); setAbrindo(d) }}
+              linhas={[
+                { rotulo: 'Nota', valor: d.numero ?? d.dav_numero ?? '–' },
+                { rotulo: 'Emitente', valor: d.emitente_nome ?? '–' },
+                { rotulo: 'Valor', valor: emReais(d.valor_total) },
+                { rotulo: 'Inserida em', valor: emDataHora(d.inserido_em) },
+              ]}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="orc-rolagem">
+          <table className="orc-tabela">
+            <thead>
+              <tr><th>Arquivo</th><th>Nota</th><th style={{ textAlign: 'right' }}>Valor</th><th>Inserida em</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+            </thead>
+            <tbody>
+              {dados.sem_ticket.map(d => (
+                <tr key={d.id}>
+                  <td>
+                    <span className="orc-nome">{d.nome_arquivo}</span>
+                    {d.emitente_nome && <span className="orc-detalhe">{d.emitente_nome}</span>}
+                  </td>
+                  <td>{d.numero ?? d.dav_numero ?? '–'}</td>
+                  <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
+                  <td>{emDataHora(d.inserido_em)}</td>
+                  <td className="orc-acoes">
+                    <button type="button" className="forte" onClick={() => { setErro(''); setAbrindo(d) }}>
+                      inserir ticket
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -244,6 +265,7 @@ function SemTicket({ dados, recarregar }: { dados: Dados; recarregar: () => Prom
 //	mesma foto é agir sobre um estado que já mudou. Por isso o botão trava de
 //	novo assim que roda: a única forma de saber o estado é olhar de novo.
 function SemAssociacao({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const ehMobile = useEhMobile()
   const [abrindo, setAbrindo] = useState<{ documento: string; nome: string; valor: number | null; tickets: number[] } | null>(null)
   const [conf, setConf] = useState<Record<string, Conferencia>>({})
   const [atualizando, setAtualizando] = useState(false)
@@ -351,44 +373,67 @@ function SemAssociacao({ dados, recarregar }: { dados: Dados; recarregar: () => 
 
       {erro && <p className="erro" style={{ margin: '0 16px 8px' }}>{erro}</p>}
 
-      <div className="orc-rolagem">
-        <table className="orc-tabela">
-          <thead>
-            <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {notas.map(n => {
-              const c = conf[n.documento]
-              const cor = c ? (c.pronta ? ' linha-verde' : ' linha-vermelha') : ''
-              return (
-                <tr key={n.documento} className={cor.trim()}>
-                  <td>
-                    <span className="orc-nome">{n.nome}</span>
-                    {n.numero && <span className="orc-detalhe">nº {n.numero}</span>}
-                  </td>
-                  <td>
-                    {n.tickets.map(t => (
-                      <span key={t} className="orc-tk">{t}</span>
-                    ))}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>{emReais(n.valor)}</td>
-                  <td>
-                    {!c ? <span className="mut">atualize para ver</span>
-                      : c.pronta ? <span className="orc-selo ok">pronta para processar</span>
-                        : <span className="orc-detalhe ruim">{c.motivos?.[0] ?? 'ticket continua não associado'}</span>}
-                  </td>
-                  <td className="orc-acoes">
-                    <button type="button" className="forte"
-                      onClick={() => setAbrindo({ documento: n.documento, nome: n.nome, valor: n.valor, tickets: n.tickets })}>
-                      corrigir
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {ehMobile ? (
+        <div className="cl-lista">
+          {notas.map(n => {
+            const c = conf[n.documento]
+            return (
+              <CartaoLinha
+                key={n.documento}
+                titulo={n.nome}
+                onClick={() => setAbrindo({ documento: n.documento, nome: n.nome, valor: n.valor, tickets: n.tickets })}
+                linhas={[
+                  ...(n.numero ? [{ rotulo: 'Nota', valor: `nº ${n.numero}` }] : []),
+                  { rotulo: 'Tickets', valor: n.tickets.map(t => <span key={t} className="orc-tk">{t}</span>) },
+                  { rotulo: 'Valor', valor: emReais(n.valor) },
+                  { rotulo: 'Situação', valor: !c ? <span className="mut">atualize para ver</span>
+                    : c.pronta ? <span className="orc-selo ok">pronta para processar</span>
+                      : <span className="orc-detalhe ruim">{c.motivos?.[0] ?? 'ticket continua não associado'}</span> },
+                ]}
+              />
+            )
+          })}
+        </div>
+      ) : (
+        <div className="orc-rolagem">
+          <table className="orc-tabela">
+            <thead>
+              <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Situação</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+            </thead>
+            <tbody>
+              {notas.map(n => {
+                const c = conf[n.documento]
+                const cor = c ? (c.pronta ? ' linha-verde' : ' linha-vermelha') : ''
+                return (
+                  <tr key={n.documento} className={cor.trim()}>
+                    <td>
+                      <span className="orc-nome">{n.nome}</span>
+                      {n.numero && <span className="orc-detalhe">nº {n.numero}</span>}
+                    </td>
+                    <td>
+                      {n.tickets.map(t => (
+                        <span key={t} className="orc-tk">{t}</span>
+                      ))}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>{emReais(n.valor)}</td>
+                    <td>
+                      {!c ? <span className="mut">atualize para ver</span>
+                        : c.pronta ? <span className="orc-selo ok">pronta para processar</span>
+                          : <span className="orc-detalhe ruim">{c.motivos?.[0] ?? 'ticket continua não associado'}</span>}
+                    </td>
+                    <td className="orc-acoes">
+                      <button type="button" className="forte"
+                        onClick={() => setAbrindo({ documento: n.documento, nome: n.nome, valor: n.valor, tickets: n.tickets })}>
+                        corrigir
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -427,6 +472,7 @@ function agruparPorNota(linhas: Dados['sem_associacao']) {
 //	Elas parecem intercambiáveis na tela e não são. Por isso o desconto mostra o
 //	número antes de perguntar, e as outras não precisam.
 function Extrapoladas({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const ehMobile = useEhMobile()
   const [abrindo, setAbrindo] = useState<Documento | null>(null)
   const [desconto, setDesconto] = useState<Desconto | null>(null)
   const [confirmando, setConfirmando] = useState(false)
@@ -520,34 +566,59 @@ function Extrapoladas({ dados, recarregar }: { dados: Dados; recarregar: () => P
   return (
     <>
       {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
-      <div className="orc-rolagem">
-        <table className="orc-tabela">
-          <thead>
-            <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Por quê</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {notas.map(d => (
-              <tr key={d.id}>
-                <td>
-                  <span className="orc-nome">{d.nome_arquivo}</span>
-                  {d.numero && <span className="orc-detalhe">nº {d.numero}</span>}
-                </td>
-                <td>{(d.ticket_numeros ?? []).map(t => <span key={t} className="orc-tk">{t}</span>)}</td>
-                <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
-                <td>
-                  <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
-                  {d.desconto_bp > 0 && (
-                    <span className="orc-selo aviso">desconto de {(d.desconto_bp / 100).toLocaleString('pt-BR')}% autorizado</span>
-                  )}
-                </td>
-                <td className="orc-acoes">
-                  <button type="button" className="forte" onClick={() => void abrir(d)}>tratar</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {ehMobile ? (
+        <div className="cl-lista">
+          {notas.map(d => (
+            <CartaoLinha
+              key={d.id}
+              titulo={d.nome_arquivo}
+              onClick={() => void abrir(d)}
+              linhas={[
+                ...(d.numero ? [{ rotulo: 'Nota', valor: `nº ${d.numero}` }] : []),
+                { rotulo: 'Tickets', valor: (d.ticket_numeros ?? []).map(t => <span key={t} className="orc-tk">{t}</span>) },
+                { rotulo: 'Valor', valor: emReais(d.valor_total) },
+                { rotulo: 'Por quê', valor: (
+                  <>
+                    <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
+                    {d.desconto_bp > 0 && (
+                      <span className="orc-selo aviso">desconto de {(d.desconto_bp / 100).toLocaleString('pt-BR')}% autorizado</span>
+                    )}
+                  </>
+                ) },
+              ]}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="orc-rolagem">
+          <table className="orc-tabela">
+            <thead>
+              <tr><th>Arquivo</th><th>Tickets</th><th style={{ textAlign: 'right' }}>Valor</th><th>Por quê</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+            </thead>
+            <tbody>
+              {notas.map(d => (
+                <tr key={d.id}>
+                  <td>
+                    <span className="orc-nome">{d.nome_arquivo}</span>
+                    {d.numero && <span className="orc-detalhe">nº {d.numero}</span>}
+                  </td>
+                  <td>{(d.ticket_numeros ?? []).map(t => <span key={t} className="orc-tk">{t}</span>)}</td>
+                  <td style={{ textAlign: 'right' }}>{emReais(d.valor_total)}</td>
+                  <td>
+                    <span className="orc-detalhe ruim">{d.bloqueio_motivo}</span>
+                    {d.desconto_bp > 0 && (
+                      <span className="orc-selo aviso">desconto de {(d.desconto_bp / 100).toLocaleString('pt-BR')}% autorizado</span>
+                    )}
+                  </td>
+                  <td className="orc-acoes">
+                    <button type="button" className="forte" onClick={() => void abrir(d)}>tratar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }
@@ -567,6 +638,7 @@ function Extrapoladas({ dados, recarregar }: { dados: Dados; recarregar: () => P
 //   dentro seria empurrar a pessoa para uma manobra.
 
 function Apagados({ dados, recarregar }: { dados: Dados; recarregar: () => Promise<void> }) {
+  const ehMobile = useEhMobile()
   const [erro, setErro] = useState('')
 
   async function restaurar(id: string) {
@@ -584,26 +656,43 @@ function Apagados({ dados, recarregar }: { dados: Dados; recarregar: () => Promi
   return (
     <>
       {erro && <p className="erro" style={{ margin: '10px 16px' }}>{erro}</p>}
-      <div className="orc-rolagem">
-        <table className="orc-tabela">
-          <thead>
-            <tr><th>Ticket</th><th>Loja</th><th style={{ textAlign: 'right' }}>Valor</th><th>Gerado em</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
-          </thead>
-          <tbody>
-            {dados.apagados.map(o => (
-              <tr key={o.id}>
-                <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span></td>
-                <td>{o.loja ?? '–'}</td>
-                <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
-                <td>{emDataHora(o.criado_em)}</td>
-                <td className="orc-acoes">
-                  <button type="button" className="forte" onClick={() => void restaurar(o.id)}>restaurar</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {ehMobile ? (
+        <div className="cl-lista">
+          {dados.apagados.map(o => (
+            <CartaoLinha
+              key={o.id}
+              titulo={`${o.ticket}${o.parte > 1 ? `-${o.parte}` : ''}`}
+              onClick={() => void restaurar(o.id)}
+              linhas={[
+                { rotulo: 'Loja', valor: o.loja ?? '–' },
+                { rotulo: 'Valor', valor: emReais(o.valor) },
+                { rotulo: 'Gerado em', valor: emDataHora(o.criado_em) },
+              ]}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="orc-rolagem">
+          <table className="orc-tabela">
+            <thead>
+              <tr><th>Ticket</th><th>Loja</th><th style={{ textAlign: 'right' }}>Valor</th><th>Gerado em</th><th style={{ textAlign: 'right' }}>Ações</th></tr>
+            </thead>
+            <tbody>
+              {dados.apagados.map(o => (
+                <tr key={o.id}>
+                  <td><span className="orc-nome">{o.ticket}{o.parte > 1 ? `-${o.parte}` : ''}</span></td>
+                  <td>{o.loja ?? '–'}</td>
+                  <td style={{ textAlign: 'right' }}>{emReais(o.valor)}</td>
+                  <td>{emDataHora(o.criado_em)}</td>
+                  <td className="orc-acoes">
+                    <button type="button" className="forte" onClick={() => void restaurar(o.id)}>restaurar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   )
 }

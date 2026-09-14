@@ -21,13 +21,19 @@ import type { Perfil } from '../../sessao/tipos'
 import { FichaChamado } from '../trilogo/FichaChamado'
 import { CONTA_ROTULO, STATUS_ORDEM, STATUS_ROTULO, type ItemLista } from './tipos'
 import { CelulaConta, CelulaData, CelulaDescricao, CelulaLoja, CelulaTicket, CelulaValor, useEncolher } from './celulas'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
+import { emReais, quando } from '../trilogo/tipos'
 
 export function Planilha({ perfil }: { perfil: Perfil }) {
+  const ehMobile = useEhMobile()
   const [status, setStatus] = useState('')
   const [conta, setConta] = useState('')
   const [busca, setBusca] = useState('')
   const [buscaAplicada, setBuscaAplicada] = useState('')
   const [pagina, setPagina] = useState<Pagina<ItemLista> | null>(null)
+  const [acumulado, setAcumulado] = useState<ItemLista[]>([])
   const [numeroDaPagina, setNumeroDaPagina] = useState(1)
   const [por, setPor] = useState(100)
   const [erro, setErro] = useState<string | null>(null)
@@ -54,7 +60,9 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
       const p = paramsDoFiltro()
       p.set('pagina', String(numeroDaPagina))
       p.set('por_pagina', String(por))
-      setPagina(await motor<Pagina<ItemLista>>(`/servicos/lista?${p}`))
+      const r = await motor<Pagina<ItemLista>>(`/servicos/lista?${p}`)
+      setPagina(r)
+      setAcumulado(atual => (numeroDaPagina === 1 ? r.linhas : [...atual, ...r.linhas]))
     } catch (e) {
       setPagina(null)
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar a planilha.')
@@ -131,6 +139,32 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
         <Carregando texto="Carregando a planilha..." />
       ) : erro ? null : pagina!.linhas.length === 0 ? (
         <div className="vazio">Nenhum serviço com esses filtros.</div>
+      ) : ehMobile ? (
+        <>
+          <div className="cl-lista">
+            {acumulado.map(it => (
+              <CartaoLinha
+                key={it.id}
+                titulo={it.ticket}
+                onClick={() => setAberto(it.ticket)}
+                linhas={[
+                  { rotulo: 'Loja', valor: it.loja || '—' },
+                  { rotulo: 'Conta', valor: CONTA_ROTULO[it.conta] ?? it.conta },
+                  { rotulo: 'Descrição', valor: (it.chamado_descricao || '—').replace(/\s+/g, ' ').trim() },
+                  { rotulo: 'Status', valor: STATUS_ROTULO[it.status] ?? it.status },
+                  { rotulo: 'Valor', valor: it.orcamento_valor != null ? emReais(it.orcamento_valor) : '—' },
+                  { rotulo: 'PCO', valor: it.pco_numero ?? '—' },
+                  { rotulo: 'Nota fiscal', valor: it.nf_numero ?? (it.com_nf ? 'sim' : '—') },
+                  { rotulo: 'Entrou em', valor: it.entrou_em ? quando(it.entrou_em) : '—' },
+                ]}
+              />
+            ))}
+          </div>
+          <CarregarMais
+            temMais={numeroDaPagina < pagina!.paginas}
+            onClick={() => setNumeroDaPagina(n => n + 1)}
+          />
+        </>
       ) : (
         <>
           <div className="tabela-rolo tri-painel">
@@ -170,11 +204,11 @@ export function Planilha({ perfil }: { perfil: Perfil }) {
               </tbody>
             </table>
           </div>
-          <Paginacao
+          {!ehMobile && <Paginacao
             pagina={pagina} por={por}
             aoTrocarPagina={setNumeroDaPagina}
             aoTrocarPor={p => { setPor(p); setNumeroDaPagina(1) }}
-          />
+          />}
         </>
       )}
     </>

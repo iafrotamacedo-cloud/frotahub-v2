@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Painel as PainelDeCards, type Etapa } from '../../componentes/Painel'
+import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import type { Painel } from './tipos'
@@ -31,6 +33,7 @@ interface Props {
 }
 
 export function Hub({ onde, perfil, abrir }: Props) {
+  const ehMobile = useEhMobile()
   const [dados, setDados] = useState<Painel | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
@@ -99,7 +102,9 @@ export function Hub({ onde, perfil, abrir }: Props) {
           <button type="button" onClick={() => setRecado(null)} aria-label="Fechar aviso">×</button>
         </div>
       )}
-      <PainelDeCards etapas={montarEtapas(dados)} aoEscolher={abrir} />
+      {ehMobile
+        ? <PainelDadosMobile etapas={montarEtapas(dados)} aoEscolher={abrir} />
+        : <PainelDeCards etapas={montarEtapas(dados)} aoEscolher={abrir} />}
       {marcando && (
         <MarcarComoServico
           aoFechar={() => setMarcando(false)}

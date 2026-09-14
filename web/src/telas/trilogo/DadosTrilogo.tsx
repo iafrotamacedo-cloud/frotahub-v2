@@ -27,6 +27,9 @@ import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import { ajustarCelulas } from './encolher'
 import { FichaChamado } from './FichaChamado'
+import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { CarregarMais } from '../../componentes/CarregarMais'
+import { useEhMobile } from '../../componentes/useEhMobile'
 import {
   SEM_FILTRO, classeDaPrioridade, classeDoStatus, contaPorExtenso, emReais, quando,
   type Escolhas, type Filtros, type Pagina, type Rodada,
@@ -53,6 +56,7 @@ interface Props {
 }
 
 export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilogo }: Props) {
+  const ehMobile = useEhMobile()
   const [filtros, setFiltros] = useState<Filtros | null>(null)
   const [escolhas, setEscolhas] = useState<Escolhas>(() => ({ ...SEM_FILTRO, ...inicial }))
   const [busca, setBusca] = useState('')
@@ -63,6 +67,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
   const [pronto, setPronto] = useState(lojaTrilogo == null)
 
   const [dados, setDados] = useState<Pagina | null>(null)
+  const [acumulado, setAcumulado] = useState<Pagina['linhas']>([])
   const [erro, setErro] = useState<string | null>(null)
   const [recado, setRecado] = useState<string | null>(null)
   // PDF é documento: abre na tela (ver `claude/padroes-de-tela.md`).
@@ -140,7 +145,9 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
     p.set('pagina', String(pagina))
     p.set('por_pagina', String(porPagina))
     try {
-      setDados(await motor<Pagina>(`/trilogo/chamados?${p}`))
+      const r = await motor<Pagina>(`/trilogo/chamados?${p}`)
+      setDados(r)
+      setAcumulado(atual => (pagina === 1 ? r.linhas : [...atual, ...r.linhas]))
     } catch (e) {
       setDados(null)
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui carregar os chamados.')
@@ -171,6 +178,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
    * janela, e um número fixo estaria errado na maioria das telas.
    */
   useLayoutEffect(() => {
+    if (ehMobile) return
     function ajustar() {
       const el = painel.current
       if (!el) return
@@ -189,15 +197,17 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
     ajustar()
     window.addEventListener('resize', ajustar)
     return () => window.removeEventListener('resize', ajustar)
-  }, [dados, ticket, filtros])
+  }, [dados, ticket, filtros, ehMobile])
 
   // O encolhimento roda depois do desenho, quando as colunas já têm largura, e de
   // novo quando a janela muda de tamanho.
   // `ticket` entra nas dependências de propósito: com a ficha aberta a lista fica
   // escondida, e escondida ela tem largura zero. Sem recalcular ao voltar, as
   // colunas voltariam com o tamanho de letra medido contra o nada.
-  useLayoutEffect(() => { if (!ticket) ajustarCelulas(corpo.current) }, [dados, ticket])
+  // NO MOBILE NÃO HÁ COLUNA PARA ENCOLHER — a lista vira cartão (Padrão 3).
+  useLayoutEffect(() => { if (!ticket && !ehMobile) ajustarCelulas(corpo.current) }, [dados, ticket, ehMobile])
   useEffect(() => {
+    if (ehMobile) return
     let t: number | undefined
     function aoRedimensionar() {
       window.clearTimeout(t)
@@ -205,7 +215,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
     }
     window.addEventListener('resize', aoRedimensionar)
     return () => { window.clearTimeout(t); window.removeEventListener('resize', aoRedimensionar) }
-  }, [])
+  }, [ehMobile])
 
   function mudar(campo: keyof Escolhas, valor: string) {
     setEscolhas(e => ({ ...e, [campo]: valor }))
@@ -452,6 +462,40 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
             ? 'Nenhum chamado corresponde a esses filtros.'
             : 'A base ainda está vazia. Rode a leitura do Trílogo.'}
         </div>
+      ) : ehMobile ? (
+        <>
+          <div className="cl-lista">
+            {acumulado.map(c => (
+              <CartaoLinha
+                key={c.id}
+                titulo={<>{c.numero}{c.saiu_em && <span className="tri-saiu"> saiu</span>}</>}
+                onClick={() => abrir(c.numero)}
+                linhas={[
+                  { rotulo: 'Loja', valor: c.loja },
+                  { rotulo: 'Conta', valor: (
+                    <span className={'tri-conta ' + (c.conta === 'civil' ? 'ct-civil' : 'ct-inst')}>
+                      {contaPorExtenso(c.conta)}
+                    </span>
+                  ) },
+                  { rotulo: 'Status', valor: <span className={'pino ' + classeDoStatus(c.status)}>{c.status || '—'}</span> },
+                  { rotulo: 'Prioridade', valor: c.prioridade
+                    ? <span className={'pino ' + classeDaPrioridade(c.prioridade)}>{c.prioridade}</span>
+                    : <span className="tri-vazio">—</span> },
+                  { rotulo: 'Descrição', valor: (c.descricao || '—').replace(/\s+/g, ' ').trim() },
+                  { rotulo: 'Responsável', valor: c.responsavel || '—' },
+                  { rotulo: 'Criado em', valor: quando(c.criado_em) },
+                  { rotulo: 'Prazo', valor: quando(c.prazo, false) },
+                  { rotulo: 'Custo', valor: emReais(c.custo_total) },
+                  { rotulo: 'Anexos', valor: c.anexos || '—' },
+                ]}
+              />
+            ))}
+          </div>
+          <CarregarMais
+            temMais={dados!.pagina < dados!.paginas}
+            onClick={() => setPagina(p => p + 1)}
+          />
+        </>
       ) : (
         <>
           <div className="tabela-rolo tri-painel" ref={painel}>
@@ -531,7 +575,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
             </table>
           </div>
 
-          <div className="tri-rodape">
+          {!ehMobile && <div className="tri-rodape">
             <span className="tri-mostrando">
               Mostrando <b>{((dados!.pagina - 1) * dados!.por_pagina + 1).toLocaleString('pt-BR')}</b>
               –<b>{Math.min(dados!.pagina * dados!.por_pagina, dados!.total).toLocaleString('pt-BR')}</b>
@@ -557,7 +601,7 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
               <button type="button" disabled={dados!.pagina >= dados!.paginas} onClick={() => setPagina(p => p + 1)} title="Próxima página" aria-label="Próxima página">›</button>
               <button type="button" disabled={dados!.pagina >= dados!.paginas} onClick={() => setPagina(dados!.paginas)} title="Última página" aria-label="Última página">»</button>
             </div>
-          </div>
+          </div>}
         </>
       )}
       </div>
