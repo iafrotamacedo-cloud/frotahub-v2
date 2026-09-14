@@ -234,14 +234,6 @@ func (m *Modulo) resolverFornecedor(ctx context.Context, clienteID string, ex Ex
 	return fmt.Sprint(gravados[0]["id"]), nil
 }
 
-// TRAVA TEMPORÁRIA (12/09/2026) — DESLIGADA DE PROPÓSITO
-//
-//	O dono está testando o resto do módulo com OCs falsas (OCs_Teste, as
-//	OC_BLOC_* que ele mandou analisar) e não quer essas obras/CNPJs de
-//	mentira "aprendidas" em `centros_custo`. Vira `true` (e esta trava some)
-//	quando as OCs de verdade começarem a passar pelo sistema de novo.
-const aprenderCentrosCusto = false
-
 // resolverCentroCusto alimenta `centros_custo` sozinho — mesma receita de
 // `resolverFornecedor`, migração 062. Só registra quando o CNPJ de
 // faturamento já passou no filtro de raiz (`compradorCNPJParaBanco`
@@ -249,10 +241,16 @@ const aprenderCentrosCusto = false
 // como se fosse bom. Pedido do dono: só guardar, sem validar nada com isso —
 // por isso o erro aqui nunca impede a leitura, só vira log (mesmo trato de
 // `resolverFornecedor` acima).
+//
+// A TRAVA DE TESTE SAIU (14/09/2026)
+//
+//	Existiu uma constante `aprenderCentrosCusto = false` aqui entre 12 e
+//	14/09/2026, enquanto o dono testava o resto do módulo com OCs falsas
+//	(OCs_Teste, os OC_BLOC_* que ele mandou analisar) e não queria essas
+//	obras/CNPJs de mentira "aprendidos". As OCs de verdade voltaram a
+//	passar pelo sistema — banco e R2 zerados dos dados de teste — e a
+//	trava foi embora, exatamente como o comentário original previa.
 func (m *Modulo) resolverCentroCusto(ctx context.Context, clienteID string, ex Extraida) error {
-	if !aprenderCentrosCusto {
-		return nil
-	}
 	obra := strings.TrimSpace(ex.ObraCentroCusto)
 	if obra == "" || compradorCNPJParaBanco(ex.CompradorCNPJ) == nil {
 		return nil
