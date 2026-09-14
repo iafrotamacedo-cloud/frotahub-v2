@@ -1,44 +1,95 @@
-name: PCO — enviar por e-mail
-# Manda o pacote de OCs pendentes de envio ao cliente, por Brevo — ver o
-# cabeçalho de baleryan/interno/modulos/administrativo/pco_enviar.go.
+name: PCO — ler e enviar
+# Duas etapas, sequenciais, uma corrida só: lê todas as OCs pendentes na
+# fila de inserção, e manda por e-mail (Brevo) tudo que ficou processado —
+# ver os cabeçalhos de baleryan/interno/modulos/administrativo/ler.go e
+# pco_enviar.go.
 #
-# MESMA ROTA DO BOTÃO MANUAL, NÃO UM ROBÔ À PARTE
+# PEDIDO DO DONO (15/09/2026)
 #
-#   Ao contrário dos outros robôs deste repositório (Trílogo, leitor de
-#   notas, Serviços — todos `go run ./cmd/...` falando direto com o
-#   Supabase), este workflow não roda Go nenhum: ele bate na MESMA rota HTTP
-#   que o botão "Enviar tudo" da tela PCO usa
-#   (POST /administrativo/compras/pco/enviar), só que autenticado pela chave
-#   de robô em vez de um login. É a regra de "enviar o PCO" existindo uma
-#   vez só (CORE-06) — ver o cabeçalho de `pco_enviar.go`.
+#   "de forma sequencial... primeiro, às 23h horário de Fortaleza, todos os
+#   dias: leitura de todas as OCs não lidas na fila de inserção; envio de
+#   todas as processadas, logo após a leitura." As duas etapas moram no
+#   MESMO job, uma depois da outra — não dois workflows agendados para
+#   horários próximos (que poderiam correr fora de ordem ou se sobrepor),
+#   e sim um passo literalmente esperando o outro terminar.
+#
+# MESMAS ROTAS DOS BOTÕES MANUAIS, NÃO UM ROBÔ À PARTE
+#
+#   Igual ao resto deste repositório (Trílogo, leitor de notas, Serviços):
+#   nenhuma regra de negócio mora aqui. Este workflow só bate nas MESMAS
+#   rotas HTTP que a tela usa — GET .../ordens/porler + POST .../{id}/ler
+#   (o "Ler ordens (N)" de Inserir OC, um POST por vez, na mesma ordem) e
+#   POST .../pco/enviar (o "Enviar tudo" da tela PCO) — autenticado pela
+#   chave de robô em vez de um login. A regra de "ler uma OC" e "enviar o
+#   PCO" existe uma vez só, dentro do motor (CORE-06).
+#
+# UMA OC QUE NÃO LÊ NÃO DERRUBA AS OUTRAS
+#
+#   Mesma disciplina do botão "Ler ordens" (`InserirOC.tsx`, `lerTodas`):
+#   cada OC é um POST independente. Uma que falha (formato estranho,
+#   filtro de negócio reprovando) vira `falhou`, com o motivo gravado, e o
+#   laço segue para a próxima — o job só falha de verdade se a CHAMADA em
+#   si quebrar (rede, servidor fora do ar), nunca por uma OC rejeitada.
 #
 # NUNCA ENVIA VAZIO
 #
-#   A rota já garante isso sozinha: sem OC pendente, ela responde
-#   `"enviado": false` e não toca no Brevo. Este workflow não precisa (e não
-#   deve) decidir isso de novo.
+#   A rota de envio já garante isso sozinha: sem OC pendente, ela responde
+#   `"enviado": false` e não toca no Brevo. Este workflow não precisa (e
+#   não deve) decidir isso de novo.
 on:
-  # Cron desligado a pedido do dono (11/09/2026, à noite) — envio passa a
-  # ser só pelo botão manual na tela do PCO. Reativar: descomentar o
-  # `schedule` abaixo (20h em Fortaleza/UTC−3 = 23h UTC).
-  # schedule:
-  #   - cron: "0 23 * * *"
+  # 23h em Fortaleza (UTC−3, sem horário de verão) = 02h UTC do dia seguinte.
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch: {}
 
 # Duas rodadas ao mesmo tempo (o cron batendo em cima de um clique manual,
 # por exemplo) não dariam erro — a trava de verdade é o CAS no banco, dentro
-# da rota (ver `pco_enviar.go`) — mas não há razão para o Actions rodar duas
-# cópias do mesmo pedido HTTP ao mesmo tempo.
+# de cada rota — mas não há razão para o Actions rodar duas cópias do mesmo
+# pedido ao mesmo tempo.
 concurrency:
   group: pco-email
   cancel-in-progress: false
 
 jobs:
-  enviar:
+  processar:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
-      - name: Chamar a rota de envio
+      - name: Ler todas as OCs pendentes na fila de inserção
+        env:
+          ROBOT_KEY: ${{ secrets.ROBOT_KEY }}
+        run: |
+          set -e
+          BASE=https://baleryan.onrender.com
+
+          ids=$(curl -sS -H "X-Robot-Key: $ROBOT_KEY" \
+            "$BASE/administrativo/compras/ordens/porler" | jq -r '.ordens[].id')
+
+          if [ -z "$ids" ]; then
+            echo "Nada na fila para ler."
+          else
+            total=$(echo "$ids" | wc -l)
+            echo "$total OC(s) na fila."
+            i=0
+            for id in $ids; do
+              i=$((i + 1))
+              echo "[$i/$total] lendo OC $id..."
+              resposta=$(curl -sS -w '\n%{http_code}' -X POST \
+                -H "X-Robot-Key: $ROBOT_KEY" \
+                "$BASE/administrativo/compras/ordens/$id/ler")
+              codigo=$(echo "$resposta" | tail -n1)
+              corpo=$(echo "$resposta" | sed '$d')
+              echo "$corpo"
+              # Uma OC que não leu não é motivo para parar o laço — ela fica
+              # "falhou" (ou volta para "inserido", se a culpa foi do
+              # servidor), com o motivo gravado, e a próxima tentativa segue.
+              if [ "$codigo" -ge 300 ]; then
+                echo "AVISO: OC $id respondeu HTTP $codigo — seguindo para a próxima."
+              fi
+            done
+          fi
+
+      - name: Enviar por e-mail tudo que ficou processado
         env:
           ROBOT_KEY: ${{ secrets.ROBOT_KEY }}
         run: |

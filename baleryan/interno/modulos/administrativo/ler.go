@@ -44,6 +44,7 @@ import (
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
 )
@@ -57,15 +58,47 @@ const TetoDaLeitura = 500
 // para retomar OCs presas (ver cabeçalho).
 const statusPorLer = "inserido,falhou,lendo"
 
+// quemPodeLerOrdens é o mesmo desenho de `quemPodeEnviarPCO`
+// (`pco_enviar.go`) — o robô do cron diário (23h Fortaleza, ver
+// `.github/workflows/pco-email.yml`) lê a fila pendente antes de mandar o
+// PCO, e passa direto, sem entrar na matriz de rotina (mesma exceção de
+// sempre para `TipoRobo`). Quem é gente continua exigindo `RotinaOrdens`,
+// igual a `m.quem`.
+func (m *Modulo) quemPodeLerOrdens(w http.ResponseWriter, r *http.Request) *seguranca.Principal {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return nil
+	}
+	if p.Tipo == seguranca.TipoRobo {
+		return p
+	}
+	if err := m.perm.Exige(r.Context(), p, RotinaOrdens); err != nil {
+		web.Falhar(w, permissao.StatusDoErro(err), err.Error())
+		return nil
+	}
+	if p.ClienteID == "" {
+		web.Falhar(w, http.StatusForbidden, "Este login não está ligado a nenhum cliente.")
+		return nil
+	}
+	return p
+}
+
 // ---------------------------------------------------------------------------
 // GET /administrativo/compras/ordens/porler
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) ordensPorLer(w http.ResponseWriter, r *http.Request) {
-	p := m.quem(w, r)
+	p := m.quemPodeLerOrdens(w, r)
 	if p == nil {
 		return
 	}
+	clienteID, err := m.clienteDoPrincipal(r, p)
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	p.ClienteID = clienteID
 	var linhas []map[string]any
 	total, err := m.bd.BuscarContando(r.Context(), "ordens_compra?cliente_id=eq."+
 		banco.Escapar(p.ClienteID)+"&status=in.("+statusPorLer+")&order=criado_em"+
@@ -86,10 +119,16 @@ func (m *Modulo) ordensPorLer(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) lerOrdem(w http.ResponseWriter, r *http.Request) {
-	p := m.quem(w, r)
+	p := m.quemPodeLerOrdens(w, r)
 	if p == nil {
 		return
 	}
+	clienteID, err := m.clienteDoPrincipal(r, p)
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	p.ClienteID = clienteID
 	id, ok := umUUID(r.PathValue("id"))
 	if !ok {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
