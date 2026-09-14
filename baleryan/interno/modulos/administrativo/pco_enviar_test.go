@@ -121,7 +121,8 @@ func TestMontarHTMLDoEnvio(t *testing.T) {
 		{
 			NomeArquivo: "a.pdf", Numero: strPtr("019731"),
 			ObraCentroCusto: strPtr("MSL VILLAS - AQUIRAZ"), Total: f64Ptr(415.90),
-			Fornecedores: &fornecedorEmbutido{RazaoSocial: "S V <Comércio> & Cia", CNPJ: "35088657000137"},
+			CompradorCNPJ: strPtr("03720882000190"),
+			Fornecedores:  &fornecedorEmbutido{RazaoSocial: "S V <Comércio> & Cia", CNPJ: "35088657000137"},
 		},
 		{
 			NomeArquivo: "b.pdf", Numero: strPtr("019702"),
@@ -153,5 +154,19 @@ func TestMontarHTMLDoEnvio(t *testing.T) {
 	}
 	if !strings.Contains(html, "Pedidos_PCO_10-09-2026.zip") {
 		t.Error("o nome do anexo não bate com a data")
+	}
+	// PEDIDO DO DONO (15/09/2026): o CNPJ DE FATURAMENTO (comprador), não só
+	// o do fornecedor, tem que aparecer na tabela do e-mail — o cliente
+	// confere se a nota vai cair no CNPJ certo sem precisar abrir o PDF.
+	if !strings.Contains(html, "CNPJ de faturamento") {
+		t.Error("faltou a coluna \"CNPJ de faturamento\" no cabeçalho da tabela")
+	}
+	if !strings.Contains(html, "03.720.882/0001-90") {
+		t.Error("o CNPJ de faturamento da primeira OC não apareceu formatado na tabela")
+	}
+	// A segunda OC não tem CompradorCNPJ — precisa cair no "Não informado",
+	// nunca num CNPJ vazio ou numa linha quebrada.
+	if !strings.Contains(html, "Não informado") {
+		t.Error("OC sem CNPJ de faturamento deveria mostrar \"Não informado\", não sumir")
 	}
 }

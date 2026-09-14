@@ -134,6 +134,7 @@ type ordemParaEnvio struct {
 	Numero          *string             `json:"numero"`
 	ObraCentroCusto *string             `json:"obra_centro_custo"`
 	Total           *float64            `json:"total"`
+	CompradorCNPJ   *string             `json:"comprador_cnpj"`
 	Fornecedores    *fornecedorEmbutido `json:"fornecedores"`
 	Arquivos        *arquivoEmbutido    `json:"arquivos"`
 }
@@ -173,6 +174,17 @@ func (o ordemParaEnvio) fornecedorCNPJ() string {
 	return formatarCNPJ(o.Fornecedores.CNPJ)
 }
 
+// faturamentoCNPJ é o CNPJ de COBRANÇA (o comprador — Frota Macedo ou a obra
+// que ele representa), não o do fornecedor. Pedido do dono (15/09/2026): o
+// cliente confere no e-mail se a nota vai chegar no CNPJ certo antes mesmo
+// de abrir o PDF da OC.
+func (o ordemParaEnvio) faturamentoCNPJ() string {
+	if o.CompradorCNPJ == nil || strings.TrimSpace(*o.CompradorCNPJ) == "" {
+		return "Não informado"
+	}
+	return formatarCNPJ(*o.CompradorCNPJ)
+}
+
 func (o ordemParaEnvio) chaveArquivo() string {
 	if o.Arquivos == nil {
 		return ""
@@ -187,7 +199,7 @@ func (m *Modulo) buscarPendentes(ctx context.Context, clienteID, filtroExtra str
 	caminho := "ordens_compra?cliente_id=eq." + banco.Escapar(clienteID) +
 		"&status=eq.lido&pco_enviado_em=is.null" + filtroExtra +
 		"&order=obra_centro_custo,criado_em" +
-		"&select=id,nome_arquivo,numero,obra_centro_custo,total," +
+		"&select=id,nome_arquivo,numero,obra_centro_custo,total,comprador_cnpj," +
 		"fornecedores(razao_social,cnpj),arquivos(chave_r2)"
 	var linhas []ordemParaEnvio
 	if err := m.bd.Buscar(ctx, caminho, &linhas); err != nil {
@@ -457,10 +469,11 @@ func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
         <td style="border:1px solid #ccc;">%s</td>
         <td style="border:1px solid #ccc;">%s</td>
         <td style="border:1px solid #ccc;">%s</td>
+        <td style="border:1px solid #ccc;">%s</td>
         <td style="border:1px solid #ccc;text-align:right;">%s</td>
       </tr>
 `, escaparHTML(c), escaparHTML(o.numero()), escaparHTML(o.fornecedorNome()),
-				escaparHTML(o.fornecedorCNPJ()), o.valor().Reais())
+				escaparHTML(o.fornecedorCNPJ()), escaparHTML(o.faturamentoCNPJ()), o.valor().Reais())
 		}
 	}
 
@@ -478,7 +491,8 @@ func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
         <th style="border:1px solid #cccccc;">Centro de custo</th>
         <th style="border:1px solid #cccccc;">OC</th>
         <th style="border:1px solid #cccccc;">Fornecedor</th>
-        <th style="border:1px solid #cccccc;">CNPJ</th>
+        <th style="border:1px solid #cccccc;">CNPJ do fornecedor</th>
+        <th style="border:1px solid #cccccc;">CNPJ de faturamento</th>
         <th style="border:1px solid #cccccc;text-align:right;">Valor (R$)</th>
       </tr>
     </thead>
@@ -487,7 +501,7 @@ func montarHTMLDoEnvio(ordens []ordemParaEnvio, data string) string {
     </tbody>
     <tfoot>
       <tr style="background:#f2f2f2;font-weight:bold;">
-        <td style="border:1px solid #cccccc;" colspan="4">Total (%d ordens)</td>
+        <td style="border:1px solid #cccccc;" colspan="5">Total (%d ordens)</td>
         <td style="border:1px solid #cccccc;text-align:right;">%s</td>
       </tr>
     </tfoot>
