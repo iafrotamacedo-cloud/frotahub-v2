@@ -604,21 +604,47 @@ func TestInserirNaHierarquiaFeliz(t *testing.T) {
 	}
 }
 
-// X (quem está entrando) precisa já se reportar a P especificamente — "ter
-// algum superior em algum lugar" não basta (ver o cabeçalho do arquivo).
+// SEM vínculo nenhum gravado, X já responde ao CEO IMPLICITAMENTE — a
+// pré-condição usa esse default, não só linha gravada (é o bug que o dono
+// achou testando: sem isto, a PRIMEIRA inserção de qualquer cadeia nunca
+// conseguia acontecer, porque ninguém tem linha gravada antes da primeira
+// inserção de todas).
+func TestInserirAceitaPreCondicaoImplicita(t *testing.T) {
+	f := novoFalso()
+	defer f.srv.Close()
+	f.nivelUsuario = "ceo"
+	// idPerfilGerencial não tem vínculo gravado nenhum — o default dele já
+	// é o CEO, sem precisar de linha nenhuma.
+
+	corpo := `{"acima_id":"` + idPerfilCeo + `","novo_superior_id":"` + idPerfilGerencial + `"}`
+	cod, resp := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
+	if cod != 200 {
+		t.Fatalf("esperava 200 (pré-condição implícita satisfeita), veio %d: %v", cod, resp)
+	}
+	if f.vinculos[idPerfilOperacional] != idPerfilGerencial {
+		t.Fatalf("esperava %s passando a responder a %s, ficou %q", idPerfilOperacional, idPerfilGerencial, f.vinculos[idPerfilOperacional])
+	}
+}
+
+// X (quem está entrando) precisa já se reportar a P especificamente — nem
+// "ter algum superior em algum lugar", nem o default implícito quando P NÃO
+// é o CEO (ver o cabeçalho do arquivo).
 func TestInserirRecusaSemPreCondicao(t *testing.T) {
 	f := novoFalso()
 	defer f.srv.Close()
 	f.nivelUsuario = "ceo"
-	// idPerfilGerencial NÃO tem vínculo nenhum ainda.
+	// idPerfilOperacional já responde de verdade ao Gerencial — é o "P" desta
+	// inserção. idPerfilSupervisorio não tem vínculo nenhum, então o default
+	// dele é o CEO, não o Gerencial: não satisfaz a pré-condição.
+	f.vinculos[idPerfilOperacional] = idPerfilGerencial
 
-	corpo := `{"acima_id":"` + idPerfilCeo + `","novo_superior_id":"` + idPerfilGerencial + `"}`
+	corpo := `{"acima_id":"` + idPerfilGerencial + `","novo_superior_id":"` + idPerfilSupervisorio + `"}`
 	cod, _ := f.chamar(t, "PUT", "/perfis/"+idPerfilOperacional+"/hierarquia", corpo, "bom")
 	if cod != 400 {
 		t.Fatalf("esperava 400 (pré-condição não satisfeita), veio %d", cod)
 	}
-	if _, existe := f.vinculos[idPerfilOperacional]; existe {
-		t.Fatalf("não podia ter gravado nada")
+	if f.vinculos[idPerfilOperacional] != idPerfilGerencial {
+		t.Fatalf("não podia ter mudado nada")
 	}
 }
 

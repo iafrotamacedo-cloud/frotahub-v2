@@ -154,6 +154,31 @@ func (m *Modulo) superiorDireto(ctx context.Context, perfilID string) (superiorI
 	return linhas[0].SuperiorID, true, nil
 }
 
+// superiorEfetivo é quem este perfil responde de VERDADE — a linha gravada,
+// ou o CEO do cliente quando não existe linha nenhuma (o default implícito,
+// nunca gravado). É a diferença entre isto e superiorDireto que fecha o
+// bug de "ninguém nunca consegue ser inserido": sem cair no CEO quando falta
+// vínculo, X só "já se reportaria a P" depois de alguém ter gravado uma
+// linha pra X primeiro — o que nunca acontece sozinho, e travava toda
+// primeira inserção de qualquer cadeia.
+func (m *Modulo) superiorEfetivo(ctx context.Context, clienteID, perfilID string) (string, error) {
+	superiorID, temVinculo, err := m.superiorDireto(ctx, perfilID)
+	if err != nil {
+		return "", err
+	}
+	if temVinculo {
+		return superiorID, nil
+	}
+	ceo, err := m.ceoDoCliente(ctx, clienteID)
+	if err != nil {
+		return "", err
+	}
+	if ceo == nil {
+		return "", nil
+	}
+	return ceo.ID, nil
+}
+
 // ceoDoCliente é o topo IMPLÍCITO — o único login de nível ceo do cliente.
 // Dois passos (acha a categoria, depois o perfil) em vez de um embed do
 // PostgREST: mais simples de acertar do que o `!inner` de filtro em
@@ -348,21 +373,10 @@ func (m *Modulo) inserirNaHierarquia(w http.ResponseWriter, r *http.Request) {
 	// A linha clicada na tela ainda precisa ser a de verdade — sem isto,
 	// duas pessoas mexendo ao mesmo tempo poderiam inserir no lugar errado
 	// sem avisar ninguém (P-29: a checagem de verdade é sempre no motor).
-	superiorAtualDeQ, temVinculoQ, err := m.superiorDireto(r.Context(), qID)
+	acimaDeVerdade, err := m.superiorEfetivo(r.Context(), p.ClienteID, qID)
 	if err != nil {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui conferir a cadeia atual.")
 		return
-	}
-	acimaDeVerdade := superiorAtualDeQ
-	if !temVinculoQ {
-		ceo, err := m.ceoDoCliente(r.Context(), p.ClienteID)
-		if err != nil {
-			web.Falhar(w, http.StatusInternalServerError, "Não consegui conferir o topo da cadeia.")
-			return
-		}
-		if ceo != nil {
-			acimaDeVerdade = ceo.ID
-		}
 	}
 	if acimaDeVerdade != pAcimaID {
 		web.Falhar(w, http.StatusConflict, "A cadeia mudou desde que esta tela abriu. Recarregue e tente de novo.")
@@ -370,13 +384,17 @@ func (m *Modulo) inserirNaHierarquia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// X precisa já se reportar a P especificamente — não "ter algum
-	// superior em algum lugar" (ver o cabeçalho do arquivo).
-	superiorDeX, temVinculoX, err := m.superiorDireto(r.Context(), xID)
+	// superior em algum lugar" (ver o cabeçalho do arquivo). "Já se
+	// reportar" inclui o default IMPLÍCITO: se P é o CEO e X nunca teve
+	// vínculo nenhum, X já responde a P — é assim que a PRIMEIRA inserção
+	// de qualquer cadeia consegue acontecer (antes de qualquer linha
+	// existir, todo mundo já reporta ao CEO implicitamente).
+	superiorEfetivoDeX, err := m.superiorEfetivo(r.Context(), p.ClienteID, xID)
 	if err != nil {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui conferir o vínculo de quem está entrando.")
 		return
 	}
-	if !temVinculoX || superiorDeX != pAcimaID {
+	if superiorEfetivoDeX != pAcimaID {
 		web.Falhar(w, http.StatusBadRequest,
 			"Esta pessoa precisa já se reportar a quem está logo acima antes de poder ser inserida nesta cadeia.")
 		return
