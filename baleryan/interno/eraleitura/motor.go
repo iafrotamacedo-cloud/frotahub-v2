@@ -103,7 +103,7 @@ func Novo(cfg config.ERARead) *Motor {
 		}
 	}
 	if m.motivo != "" {
-		log.Printf("[baleryan] aviso: ERA READ desligado — %s. O recebimento de NF continua manual.", m.motivo)
+		log.Printf("aviso: ERA READ desligado — %s. O recebimento de NF continua manual.", m.motivo)
 		return m
 	}
 	m.ligado = true

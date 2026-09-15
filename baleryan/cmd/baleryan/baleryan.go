@@ -57,12 +57,16 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "13"
+const Revisao = "14"
 
 type motor struct {
 	cfg  *config.Config
 	seg  *seguranca.Servico
 	perm *permissao.Servico
+	// O ERA READ vive aqui (e não só dentro de administrativo) para que o
+	// /saude diga o estado VERIFICADO — arquivos existem? — e não o que a
+	// configuração declara. Placeholder no ambiente declarava "ligado".
+	era *eraleitura.Motor
 }
 
 func main() {
@@ -78,7 +82,7 @@ func main() {
 
 	bd := banco.Novo(cfg)
 	seg := seguranca.Novo(cfg, bd)
-	m := &motor{cfg: cfg, seg: seg, perm: permissao.Novo(bd)}
+	m := &motor{cfg: cfg, seg: seg, perm: permissao.Novo(bd), era: eraleitura.Novo(cfg.ERARead)}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /saude", m.saude)
@@ -129,7 +133,7 @@ func main() {
 	// Administrativo > Compras: inserir, ler e enviar a OC por e-mail (PCO).
 	// Mesmo armazém dos outros módulos, pelo mesmo motivo; `cfg` entra porque
 	// o envio precisa da chave do Brevo.
-	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist, eraleitura.Novo(cfg.ERARead)).Montar(mux)
+	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist, m.era).Montar(mux)
 	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
 	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
 	// escrever nas tabelas deles.
@@ -171,11 +175,18 @@ func main() {
 // GET /saude — o motor está vivo? Não pede login: é o que o Render e o front
 // consultam para saber se o serviço respondeu. Não revela nenhuma chave.
 func (m *motor) saude(w http.ResponseWriter, r *http.Request) {
+	ligado := m.cfg.Resumo()
+	// O verificado vence o declarado: com placeholder nas ERA_* o
+	// `Resumo()` diria "ligado" e o motor de leitura, não.
+	ligado["era_read"] = m.era.Ligado()
+	if motivo := m.era.Motivo(); motivo != "" {
+		ligado["era_read_motivo"] = motivo
+	}
 	web.Responder(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"motor":   "baleryan",
 		"revisao": Revisao,
-		"ligado":  m.cfg.Resumo(),
+		"ligado":  ligado,
 	})
 }
 
