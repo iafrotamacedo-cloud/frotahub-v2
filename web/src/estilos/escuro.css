@@ -472,12 +472,12 @@
    Administrativo.
    ----------------------------------------------------------------------- */
 .cm-cartao{
-  width:100%;aspect-ratio:1/0.4;position:relative;overflow:hidden;
+  width:100%;min-height:150px;position:relative;overflow:hidden;
   display:flex;flex-direction:column;align-items:flex-start;
   border-radius:var(--r-l);border:1px solid var(--d-line);
   background:linear-gradient(180deg,var(--d-card2) 0%,var(--d-card) 46%,#1A1617 100%);
   box-shadow:var(--sh-escura-2);cursor:pointer;font:inherit;text-align:left;
-  padding:16px 18px 14px;
+  padding:18px 18px 14px;
   transition:border-color var(--transicao),box-shadow var(--transicao),transform var(--transicao);
 }
 /* A faixa de cima é o mesmo sinal do PC (`.pn-col::before`) — viva puxa pro
@@ -493,7 +493,7 @@
 
 /* O selo do ícone — mesmo desenho do `.pn-selo` do PC, um tico menor. */
 .cm-icone{
-  width:38px;height:38px;border-radius:10px;flex:0 0 auto;
+  width:38px;height:38px;border-radius:10px;flex:0 0 auto;margin-bottom:12px;
   display:grid;place-items:center;
   border:1px solid var(--d-line2);background:var(--d-card3);color:var(--d-txt2);
 }

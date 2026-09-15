@@ -249,7 +249,23 @@
 
 /* ---------- CartaoLinha — Padrão 3 do mobile: tabela vira cartão (rev 1, 14/09/2026)
    Tema claro (listagem, não menu) — mesma família de .cartao/.mx-linha. */
-.cl-lista{display:flex;flex-direction:column;gap:10px}
+/* A LISTA PRECISA ROLAR SOZINHA, DO MESMO JEITO QUE `.orc-rolagem` JÁ ROLAVA
+ *
+ *   Nas telas escuras (Orçamentos, Trílogo, PCO, NF, Serviços, Financeiro)
+ *   a casca trava `.lay.escura{overflow:hidden}` e cada tela rola por
+ *   dentro — era `.orc-rolagem` (flex:1;min-height:0;overflow:auto) quem
+ *   fazia esse papel por trás da tabela. `.cl-lista` tomou o lugar dela no
+ *   mobile sem herdar o mesmo comportamento, e a lista comprida ficava
+ *   cortada em vez de rolar — a barra de rolagem "não funcionava" porque
+ *   não existia.
+ *
+ *   Nas telas claras (sem `.lay.escura`) estas três regras não atrapalham:
+ *   sem um ancestral flex encolhendo a caixa, `min-height:0`/`flex:1` não
+ *   fazem nada, e a página continua rolando pela `body` como sempre rolou. */
+.cl-lista{
+  display:flex;flex-direction:column;gap:10px;
+  flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
 .cl-cartao{
   background:var(--card);border:1px solid var(--line);border-radius:var(--r-l);
   padding:14px 16px;box-shadow:var(--sh-1);

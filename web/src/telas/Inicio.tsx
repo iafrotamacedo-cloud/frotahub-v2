@@ -7,11 +7,15 @@
 // O que ainda não existe aparece apagado, para dar a medida do que falta
 // (CORE-23).
 //
-// NO MOBILE, 3 CARTÕES A MAIS (14/09/2026)
+// NO MOBILE, "SAIR" VIRA CARTÃO (14/09/2026)
 //
-//	Sem gaveta lateral, Rogue Worker e Minha conta/Sair não têm mais onde
-//	morar — viravam ícones fixos, e o dono preferiu cartões na própria
-//	Início, junto dos módulos, em vez de chrome permanente ocupando tela.
+//	Sem gaveta lateral, "Sair" não tem mais onde morar — virava ícone fixo,
+//	e o dono preferiu cartão na própria Início, junto dos módulos, em vez de
+//	chrome permanente ocupando tela. "Minha conta" já é um item dentro de
+//	Configurações (`menu/arvore.ts`) — não precisa de cartão duplicado aqui.
+//	Rogue Worker saiu do menu principal por pedido do dono em 15/09/2026,
+//	"por enquanto" — o `ChatRogue`/`chatAberto` continuam em `App.tsx`,
+//	prontos para ganhar uma porta de entrada nova quando ele voltar.
 import { type ItemMenu } from '../menu/arvore'
 import { etapasDoMenu } from '../menu/etapas'
 import { Painel } from '../componentes/Painel'
@@ -24,12 +28,10 @@ interface Props {
   /** A árvore que ESTE login enxerga — a mesma da barra lateral, nunca outra. */
   arvore: ItemMenu[]
   abrir: (caminho: ItemMenu[]) => void
-  abrirChat: () => void
-  irParaMinhaConta: () => void
   sair: () => void
 }
 
-export function Inicio({ nome, arvore, abrir, abrirChat, irParaMinhaConta, sair }: Props) {
+export function Inicio({ nome, arvore, abrir, sair }: Props) {
   const ehMobile = useEhMobile()
   const primeiroNome = nome.split(' ')[0]
 
@@ -51,8 +53,6 @@ export function Inicio({ nome, arvore, abrir, abrirChat, irParaMinhaConta, sair 
               onClick={() => abrir([item])}
             />
           ))}
-          <CartaoMobile titulo="Rogue Worker" icone={<Icone nome="balao" />} onClick={abrirChat} />
-          <CartaoMobile titulo="Minha conta" icone={<Icone nome="pessoa" />} onClick={irParaMinhaConta} />
           <CartaoMobile titulo="Sair" icone={<Icone nome="saida" />} onClick={sair} />
         </div>
       ) : (

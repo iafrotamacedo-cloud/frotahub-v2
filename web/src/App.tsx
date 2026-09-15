@@ -294,23 +294,6 @@ function Casca() {
             </nav>
             )}
 
-            {!chatAberto && (
-              <div className="sd-rogue-wrap">
-                <button
-                  className="sd-rogue"
-                  type="button"
-                  onClick={() => {
-                    if (recolhida) setRecolhida(false)
-                    setChatAberto(true)
-                  }}
-                >
-                  <Icone nome="balao" />
-                  <span className="lb">Rogue Worker</span>
-                  <span className="hint">perguntar</span>
-                </button>
-              </div>
-            )}
-
             <div className="sd-user">
               {/* Duas portas para a MESMA tela: o item em Configurações e este clique.
                   Quem pensa "minhas configurações" acha no menu; quem pensa "minha
@@ -419,8 +402,6 @@ function Casca() {
               nome={perfil.nome}
               arvore={arvore}
               abrir={navegar}
-              abrirChat={() => setChatAberto(true)}
-              irParaMinhaConta={irParaMinhaConta}
               sair={sair}
             />
           ) : atual?.tela?.startsWith('est-') ? (
