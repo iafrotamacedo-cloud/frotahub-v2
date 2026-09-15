@@ -461,8 +461,21 @@ func nomeExtensao(nome string) string {
 // GET /administrativo/nf/recebidas · /entregues · /enviadas
 // ---------------------------------------------------------------------------
 
+// RECEBIDAS E ENTREGUES SE LEEM COM QUALQUER UMA DAS DUAS ROTINAS
+//
+//	Pedido do dono (15/09/2026): o almoxarife (COMPRAS_NF_RECEBER) acompanha
+//	o caminho da nota que ele mesmo escaneou até sair do escritório — mas
+//	não confirma a entrega física nem o envio (isso é `avancarNF`/
+//	`cancelarNF`, que continuam travados em `quemPodeEntregarNF`, sem
+//	mudança nenhuma aqui). "Enviadas" fica de fora: é o fim do ciclo, e só
+//	interessa a quem entrega.
 func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) {
-	p := m.quemPodeEntregarNF(w, r)
+	var p *seguranca.Principal
+	if vista == "enviadas" {
+		p = m.quemPodeEntregarNF(w, r)
+	} else {
+		p = m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
+	}
 	if p == nil {
 		return
 	}

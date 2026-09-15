@@ -43,6 +43,17 @@ export const administrativoMenu: ItemMenu = {
       icone: 'dinheiro',
       desc: 'O que se compra e o que se cobra do cliente',
       tela: 'compras',
+      // SEM ISTO, "COMPRAS" APARECIA PRO ALMOXARIFE SEM NADA POR TRÁS
+      //
+      //	Achado 15/09/2026: o card em si nunca teve `rotina` própria — só os
+      //	filhos tinham (COMPRAS_ORDENS_GERENCIAR em Inserir OC/OCs Inseridas).
+      //	"Equalizar Propostas" não tem `rotina` nem `niveis` (é `breve`, sem
+      //	tela ainda), então `arvoreVisivel` sempre achava PELO MENOS um filho
+      //	visível e deixava o card inteiro passar — quem só tem
+      //	COMPRAS_NF_RECEBER via "Compras" no menu, clicava, e a tela dizia
+      //	"sem acesso" (o filtro de verdade mora no motor, não aqui). Mesmo
+      //	remédio que "PCO" já usa uma linha abaixo.
+      rotina: 'COMPRAS_ORDENS_GERENCIAR',
       sub: [
         {
           t: 'Inserir OC',

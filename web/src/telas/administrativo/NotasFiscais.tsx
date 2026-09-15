@@ -53,9 +53,11 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
 
   useEffect(() => { void carregar() }, [carregar, onde])
 
+  const podeEntregar = temRotina(perfil, RotinaNFEntregar)
+
   if (onde === 'aguardando') return <AguardandoNF />
-  if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" />
-  if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" />
+  if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" somenteLeitura={!podeEntregar} />
+  if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" somenteLeitura={!podeEntregar} />
   if (onde === 'enviadas') return <ListaDeNF vista="enviadas" titulo="Enviadas ao cliente" />
 
   if (erro) return <p className="erro">{erro}</p>
@@ -90,7 +92,15 @@ function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
       rodape: 'aguardando o recebimento',
     })
   }
-  if (podeEntregar) {
+  // RECEBIDAS E ENTREGUES SÃO VISÍVEIS A QUEM RECEBE, NÃO SÓ A QUEM ENTREGA
+  //
+  //	Pedido do dono (15/09/2026): o almoxarife acompanha o caminho da nota
+  //	que ele mesmo escaneou até sair do escritório, mas não confirma a
+  //	entrega física nem o envio — isso continua exclusivo de quem tem
+  //	COMPRAS_NF_ENTREGAR (`ListaDeNF` recebe `somenteLeitura` pra isso, ver
+  //	o comentário lá). "Enviadas" fica de fora: é o fim do ciclo, sem mais
+  //	nada que o almoxarife precise acompanhar.
+  if (podeReceber || podeEntregar) {
     etapas.push(
       {
         chave: 'recebidas',
@@ -108,15 +118,17 @@ function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
         numero: d.entregues,
         rotulo: 'notas',
       },
-      {
-        chave: 'enviadas',
-        titulo: 'Enviadas ao cliente',
-        descricao: 'Notas já despachadas em malote — fim do ciclo.',
-        icone: <IconeMalote />,
-        numero: d.enviadas,
-        rotulo: 'notas',
-      },
     )
+  }
+  if (podeEntregar) {
+    etapas.push({
+      chave: 'enviadas',
+      titulo: 'Enviadas ao cliente',
+      descricao: 'Notas já despachadas em malote — fim do ciclo.',
+      icone: <IconeMalote />,
+      numero: d.enviadas,
+      rotulo: 'notas',
+    })
   }
   return etapas
 }

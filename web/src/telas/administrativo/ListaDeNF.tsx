@@ -1,4 +1,4 @@
-// rev 1 — Notas Fiscais > Recebidas / Entregues no escritório / Enviadas
+// rev 2 — Notas Fiscais > Recebidas / Entregues no escritório / Enviadas
 //
 // TRÊS TELAS, UMA SÓ — MESMO MOTIVO DE `ListaDeOrdens.tsx`
 //
@@ -6,6 +6,16 @@
 //	notas desta etapa, com ver, avançar e cancelar") feita três vezes. Só o
 //	botão de avançar muda de rótulo e de rota — "Enviadas" nem tem um
 //	próximo passo, então fica só com ver/cancelar.
+//
+// `somenteLeitura` — O ALMOXARIFE VÊ, NÃO PROTOCOLA (15/09/2026)
+//
+//	Pedido do dono: o almoxarife acompanha Recebidas/Entregues (as notas que
+//	ele mesmo escaneou, seguindo o caminho até o cliente), mas quem confirma
+//	a entrega física no escritório e quem cancela é outra rotina
+//	(COMPRAS_NF_ENTREGAR — ver `notas_fiscais.go`, `listarNF`, que já aceita
+//	as duas rotinas pra leitura e continua travando `avancarNF`/`cancelarNF`
+//	só pra quem entrega). Aqui, `somenteLeitura` tira os dois botões de
+//	escrita e deixa só "ver" — nunca mostra um botão que o motor recusaria.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
@@ -35,7 +45,7 @@ const VAZIA_DA_VISTA: Record<VistaDeNF, string> = {
   enviadas: 'Nenhuma nota fiscal enviada ao cliente ainda.',
 }
 
-export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string }) {
+export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF; titulo: string; somenteLeitura?: boolean }) {
   const ehMobile = useEhMobile()
   const [notas, setNotas] = useState<NotaFiscal[] | null>(null)
   const [erro, setErro] = useState('')
@@ -83,7 +93,7 @@ export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string 
     return <VisorDeDocumento endereco={vendo.endereco} nomeSugerido={vendo.nome} titulo={vendo.nome} voltar={() => setVendo(null)} />
   }
 
-  const avanco = AVANCO_DA_VISTA[vista]
+  const avanco = somenteLeitura ? null : AVANCO_DA_VISTA[vista]
 
   return (
     <>
@@ -111,19 +121,21 @@ export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string 
                 { rotulo: 'Recebida em', valor: emDataHora(nf.recebida_em) },
               ]}
               acoes={
-                <>
-                  {avanco && (
-                    <button
-                      type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
-                      onClick={() => void avancar(nf)}
-                    >
-                      {avancando === nf.id ? '...' : avanco.rotulo}
+                somenteLeitura ? undefined : (
+                  <>
+                    {avanco && (
+                      <button
+                        type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
+                        onClick={() => void avancar(nf)}
+                      >
+                        {avancando === nf.id ? '...' : avanco.rotulo}
+                      </button>
+                    )}
+                    <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
+                      cancelar
                     </button>
-                  )}
-                  <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
-                    cancelar
-                  </button>
-                </>
+                  </>
+                )
               }
             />
           ))}
@@ -154,9 +166,11 @@ export function ListaDeNF({ vista, titulo }: { vista: VistaDeNF; titulo: string 
                         {avancando === nf.id ? '...' : avanco.rotulo}
                       </button>
                     )}
-                    <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
-                      cancelar
-                    </button>
+                    {!somenteLeitura && (
+                      <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
+                        cancelar
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
