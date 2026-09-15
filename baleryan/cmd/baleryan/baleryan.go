@@ -1,4 +1,4 @@
-// rev 11 — baleryan, o motor do FrotaHub
+// rev 12 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -57,7 +57,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "11"
+const Revisao = "12"
 
 type motor struct {
 	cfg  *config.Config

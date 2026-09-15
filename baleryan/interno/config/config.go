@@ -625,7 +625,10 @@ func Carregar() (*Config, error) {
 	}
 	if caminhoFiltro := l.texto("ERA_FILTRO_READ", "", false, ""); caminhoFiltro != "" {
 		if b, err := os.ReadFile(caminhoFiltro); err != nil {
-			l.problema("ERA_FILTRO_READ — não consegui ler %q: %v", caminhoFiltro, err)
+			// Opcional: caminho errado ou placeholder no Render nao derruba o motor.
+			fmt.Fprintf(os.Stderr,
+				"[baleryan] aviso: ERA_FILTRO_READ ignorado (nao consegui ler %q: %v)\n",
+				caminhoFiltro, err)
 		} else {
 			era.FiltroJSON = string(b)
 		}
