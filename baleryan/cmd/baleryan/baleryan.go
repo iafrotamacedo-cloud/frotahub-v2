@@ -57,7 +57,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "12"
+const Revisao = "13"
 
 type motor struct {
 	cfg  *config.Config

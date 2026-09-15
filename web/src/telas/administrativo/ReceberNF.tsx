@@ -1,10 +1,23 @@
-// rev 3 — receber NF com ERA READ, pagina a pagina
+// rev 4 — receber NF: escaneia TODAS as páginas, salva uma vez (15/09/2026)
 //
-// Cada pagina e escaneada e SALVA de uma vez. A primeira cria a nota (numero,
-// valor, pagina 1); as seguintes vao em POST /notas/{id}/paginas. O ERA READ
-// le cada pagina no servidor (Melhorador + OCR) quando configurado.
+// O FLUXO NO CELULAR
+//
+//	1. A janela abre já com o scanner (ScannerDeDocumento) em tela cheia:
+//	   requadro automático, uma página atrás da outra, "Concluir".
+//	2. As páginas aparecem como miniaturas; a primeira vai ao motor em
+//	   /escanear, que sugere número e valor (IA) — o almoxarife confere.
+//	3. Fotos do material, opcionais, pela câmera do sistema.
+//	4. "Salvar nota" manda tudo num POST só: página 1 em `arquivo`, as
+//	   seguintes em `paginas`, fotos em `fotos_material`.
+//
+// POR QUE NÃO É MAIS "SALVAR PÁGINA 1", "SALVAR PÁGINA 2"
+//
+//	A rev 3 salvava página a página, e a nota nascia na primeira. Fechar a
+//	janela e abrir de novo pra página 2 criava uma SEGUNDA nota na mesma
+//	OC. Agora a nota só existe quando todas as páginas estão na mão.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Janela } from '../../componentes/Janela'
+import { ScannerDeDocumento } from '../../componentes/scanner/ScannerDeDocumento'
 import { enviarFormulario, ErroMotor } from '../../motor/cliente'
 import type { OrdemAguardandoNF } from './tipos'
 
@@ -14,200 +27,193 @@ interface Props {
   aoSalvar: () => void
 }
 
-interface RespostaPagina {
+interface RespostaReceber {
   id: string
-  pagina: number
-  numero?: string
-  valor?: number
+  paginas: number
+  fotos_material: number
   era_read?: boolean
 }
 
 interface RespostaEscanear {
+  fonte: 'ia' | 'nenhuma'
   numero?: string
   valor?: number
-  era_read?: boolean
+  tipo?: string
+  emitente?: string
+  aviso?: string
 }
 
 export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
   const [numero, setNumero] = useState('')
-  const [valor, setValor] = useState(ordem.restante > 0 ? String(ordem.restante) : '')
-  const [preview, setPreview] = useState<File | null>(null)
+  const [valor, setValor] = useState('')
+  const [paginas, setPaginas] = useState<File[]>([])
   const [materialFotos, setMaterialFotos] = useState<File[]>([])
-  const [nfId, setNfId] = useState<string | null>(null)
-  const [paginasSalvas, setPaginasSalvas] = useState<number[]>([])
+  const [scannerAberto, setScannerAberto] = useState(true)
   const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
   const [lendo, setLendo] = useState(false)
   const [salvando, setSalvando] = useState(false)
 
-  const campoNota = useRef<HTMLInputElement>(null)
   const campoMaterial = useRef<HTMLInputElement>(null)
+  const jaSugeriu = useRef(false)
 
-  const primeiraPagina = nfId === null
-  const proximaPagina = paginasSalvas.length + 1
-
-  async function aoCapturarNota(foto: File) {
-    setPreview(foto)
-    setErro('')
-    if (!primeiraPagina) return
+  // A sugestão de número/valor sai da primeira página, uma vez só.
+  useEffect(() => {
+    const primeira = paginas[0]
+    if (!primeira || jaSugeriu.current) return
+    jaSugeriu.current = true
+    let cancelado = false
     setLendo(true)
-    try {
-      const forma = new FormData()
-      forma.append('arquivo', foto, foto.name)
-      const r = await enviarFormulario<RespostaEscanear>(
-        `/administrativo/nf/ordens/${ordem.ordem_compra_id}/escanear`, forma)
-      if (r.numero && !numero.trim()) setNumero(r.numero)
-      if (r.valor && r.valor > 0 && !valor.trim()) setValor(formatarValor(r.valor))
-    } catch {
-      // ERA READ opcional — sem ele o almoxarife preenche manualmente
-    } finally {
-      setLendo(false)
-    }
+    const forma = new FormData()
+    forma.append('arquivo', primeira, primeira.name)
+    enviarFormulario<RespostaEscanear>(`/administrativo/nf/ordens/${ordem.ordem_compra_id}/escanear`, forma)
+      .then(r => {
+        if (cancelado) return
+        if (r.numero) setNumero(n => n.trim() ? n : r.numero!)
+        if (r.valor && r.valor > 0) setValor(v => v.trim() ? v : formatarValor(r.valor!))
+        else setValor(v => v.trim() || ordem.restante <= 0 ? v : formatarValor(ordem.restante))
+        if (r.fonte === 'nenhuma') {
+          setAviso(r.aviso ?? 'Leitura automática indisponível — confira número e valor.')
+        }
+      })
+      .catch(() => {
+        if (cancelado) return
+        // Sem leitura, o valor que falta na OC é o palpite mais útil.
+        setValor(v => v.trim() || ordem.restante <= 0 ? v : formatarValor(ordem.restante))
+        setAviso('Não consegui ler a nota automaticamente — confira número e valor.')
+      })
+      .finally(() => { if (!cancelado) setLendo(false) })
+    return () => { cancelado = true }
+  }, [paginas, ordem.ordem_compra_id, ordem.restante])
+
+  function receberPaginas(novas: File[]) {
+    setScannerAberto(false)
+    if (novas.length === 0) return
+    setPaginas(ps => [...ps, ...novas])
+    setErro('')
   }
 
-  async function salvarPagina(e?: FormEvent) {
+  function removerPagina(i: number) {
+    setPaginas(ps => ps.filter((_, j) => j !== i).map((f, j) => new File([f], `nf-p${j + 1}.jpg`, { type: f.type })))
+  }
+
+  async function salvar(e?: FormEvent) {
     e?.preventDefault()
-    if (!preview) {
-      setErro('Escaneie a página antes de salvar.')
+    if (paginas.length === 0) {
+      setErro('Escaneie a nota antes de salvar.')
       return
     }
-    if (primeiraPagina && (!numero.trim() || !valor.trim())) {
-      setErro('Preencha o número e o valor da nota na primeira página.')
+    if (!numero.trim() || !valor.trim()) {
+      setErro('Preencha o número e o valor da nota.')
       return
     }
     setErro('')
     setSalvando(true)
     try {
       const forma = new FormData()
-      forma.append('arquivo', preview, preview.name)
-      let r: RespostaPagina
-      if (primeiraPagina) {
-        forma.append('numero', numero.trim())
-        forma.append('valor', valor.trim())
-        for (const foto of materialFotos) forma.append('fotos_material', foto, foto.name)
-        r = await enviarFormulario<RespostaPagina>(
-          `/administrativo/nf/ordens/${ordem.ordem_compra_id}/receber`, forma)
-        setNfId(r.id)
-        if (r.numero) setNumero(r.numero)
-        if (r.valor && r.valor > 0) setValor(formatarValor(r.valor))
-      } else {
-        r = await enviarFormulario<RespostaPagina>(
-          `/administrativo/nf/notas/${nfId}/paginas`, forma)
-      }
-      setPaginasSalvas(ps => [...ps, r.pagina])
-      setPreview(null)
+      forma.append('numero', numero.trim())
+      forma.append('valor', valor.trim())
+      forma.append('arquivo', paginas[0], paginas[0].name)
+      for (const pg of paginas.slice(1)) forma.append('paginas', pg, pg.name)
+      for (const foto of materialFotos) forma.append('fotos_material', foto, foto.name)
+      await enviarFormulario<RespostaReceber>(`/administrativo/nf/ordens/${ordem.ordem_compra_id}/receber`, forma)
+      aoSalvar()
     } catch (e) {
-      setErro(e instanceof ErroMotor ? e.message : 'Não consegui salvar esta página.')
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui salvar a nota.')
     } finally {
       setSalvando(false)
     }
   }
 
-  function concluir() {
-    if (paginasSalvas.length > 0) aoSalvar()
-    else aoFechar()
-  }
-
   return (
-    <Janela
-      titulo={`Receber NF · O.C. ${ordem.numero ?? '—'}`}
-      descricao={`${ordem.obra_centro_custo ?? 'obra não identificada'} — falta ${formatarReais(ordem.restante)}`}
-      aoFechar={concluir}
-    >
-      <form className="jn-corpo" onSubmit={salvarPagina}>
-        {paginasSalvas.length > 0 && (
-          <p className="nf-paginas-salvas">
-            {paginasSalvas.length} página{paginasSalvas.length > 1 ? 's' : ''} salva{paginasSalvas.length > 1 ? 's' : ''}
-            {' '}(páginas {paginasSalvas.join(', ')})
-          </p>
-        )}
+    <>
+      <Janela
+        titulo={`Receber NF · O.C. ${ordem.numero ?? '—'}`}
+        descricao={`${ordem.obra_centro_custo ?? 'obra não identificada'} — falta ${formatarReais(ordem.restante)}`}
+        aoFechar={aoFechar}
+      >
+        <form className="jn-corpo" onSubmit={salvar}>
+          <label>Páginas da nota</label>
+          <div className="nf-fotos-grade">
+            {paginas.map((pg, i) => (
+              <PaginaMini key={`${pg.name}-${pg.size}-${i}`} arquivo={pg} numero={i + 1} onRemover={() => removerPagina(i)} />
+            ))}
+            <button
+              type="button"
+              className={`nf-foto-add${paginas.length === 0 ? ' nf-foto-add-larga' : ''}`}
+              onClick={() => setScannerAberto(true)}
+              disabled={salvando}
+            >
+              <IconeScanner />
+              <span>{paginas.length === 0 ? 'Escanear a nota' : 'Mais uma página'}</span>
+            </button>
+          </div>
 
-        <label htmlFor="nf-numero">Número da nota fiscal</label>
-        <input
-          id="nf-numero" value={numero} onChange={e => setNumero(e.target.value)}
-          readOnly={!primeiraPagina} autoFocus={primeiraPagina}
+          <label htmlFor="nf-numero">Número da nota fiscal</label>
+          <input
+            id="nf-numero" value={numero} onChange={e => setNumero(e.target.value)}
+            placeholder={lendo ? 'Lendo a nota…' : ''} inputMode="numeric"
+          />
+
+          <label htmlFor="nf-valor">Valor</label>
+          <input
+            id="nf-valor" inputMode="decimal" value={valor}
+            onChange={e => setValor(e.target.value.replace(/[^\d,.]/g, ''))}
+            placeholder={lendo ? 'Lendo a nota…' : '0,00'}
+          />
+          {lendo && <p className="dica">Lendo o número e o valor da nota…</p>}
+          {!lendo && aviso && <p className="dica">{aviso}</p>}
+
+          <label style={{ marginTop: 14 }}>Fotos do material</label>
+          <div className="nf-fotos-grade">
+            {materialFotos.map((foto, i) => (
+              <FotoMini key={i} foto={foto} onRemover={() => setMaterialFotos(fs => fs.filter((_, j) => j !== i))} />
+            ))}
+            <button type="button" className="nf-foto-add" onClick={() => campoMaterial.current?.click()} disabled={salvando}>
+              <IconeCamera />
+              <span>Tirar foto</span>
+            </button>
+          </div>
+          <input
+            ref={campoMaterial} type="file" accept="image/*" capture="environment"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const foto = e.target.files?.[0]
+              if (foto) setMaterialFotos(fs => [...fs, foto])
+              e.target.value = ''
+            }}
+          />
+
+          {erro && <div className="erro-caixa">{erro}</div>}
+
+          <div className="jn-pe">
+            <button type="button" className="bt bt-neutro" onClick={aoFechar} disabled={salvando}>Cancelar</button>
+            <button type="submit" className="bt bt-forte" disabled={salvando || lendo || paginas.length === 0}>
+              {salvando ? 'Salvando...' : paginas.length > 1 ? `Salvar nota (${paginas.length} páginas)` : 'Salvar nota'}
+            </button>
+          </div>
+        </form>
+      </Janela>
+
+      {scannerAberto && (
+        <ScannerDeDocumento
+          titulo={`NF · O.C. ${ordem.numero ?? '—'}`}
+          paginaInicial={paginas.length + 1}
+          aoConcluir={receberPaginas}
+          aoCancelar={() => setScannerAberto(false)}
         />
-
-        <label htmlFor="nf-valor">Valor</label>
-        <input
-          id="nf-valor" inputMode="decimal" value={valor}
-          onChange={e => setValor(e.target.value.replace(/[^\d,.]/g, ''))}
-          placeholder="0,00" readOnly={!primeiraPagina}
-        />
-
-        <label>Página {proximaPagina} da nota</label>
-        <FotoUnica
-          foto={preview}
-          rotulo={lendo ? 'Lendo nota...' : `Escanear página ${proximaPagina}`}
-          desabilitado={lendo || salvando}
-          onAbrir={() => campoNota.current?.click()}
-        />
-        <input
-          ref={campoNota} id="nf-arquivo" type="file" accept="image/*" capture="environment"
-          style={{ display: 'none' }}
-          onChange={e => {
-            const foto = e.target.files?.[0]
-            if (foto) void aoCapturarNota(foto)
-            e.target.value = ''
-          }}
-        />
-
-        {primeiraPagina && (
-          <>
-            <label style={{ marginTop: 14 }}>Fotos do material</label>
-            <div className="nf-fotos-grade">
-              {materialFotos.map((foto, i) => (
-                <FotoMini key={i} foto={foto} onRemover={() => setMaterialFotos(fs => fs.filter((_, j) => j !== i))} />
-              ))}
-              <button type="button" className="nf-foto-add" onClick={() => campoMaterial.current?.click()}>
-                <IconeCamera />
-                <span>Tirar foto</span>
-              </button>
-            </div>
-            <input
-              ref={campoMaterial} type="file" accept="image/*" capture="environment"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const foto = e.target.files?.[0]
-                if (foto) setMaterialFotos(fs => [...fs, foto])
-                e.target.value = ''
-              }}
-            />
-          </>
-        )}
-
-        {erro && <div className="erro-caixa">{erro}</div>}
-
-        <div className="jn-pe">
-          <button type="button" className="bt bt-neutro" onClick={concluir}>
-            {paginasSalvas.length > 0 ? 'Concluir' : 'Cancelar'}
-          </button>
-          <button type="submit" className="bt bt-forte" disabled={salvando || lendo || !preview}>
-            {salvando ? 'Salvando...' : `Salvar página ${proximaPagina}`}
-          </button>
-        </div>
-      </form>
-    </Janela>
+      )}
+    </>
   )
 }
 
-function FotoUnica({
-  foto, rotulo, onAbrir, desabilitado,
-}: { foto: File | null; rotulo: string; onAbrir: () => void; desabilitado?: boolean }) {
-  const url = useUrlDoArquivo(foto)
-  if (!foto || !url) {
-    return (
-      <button type="button" className="nf-foto-add nf-foto-add-larga" onClick={onAbrir} disabled={desabilitado}>
-        <IconeCamera />
-        <span>{rotulo}</span>
-      </button>
-    )
-  }
+function PaginaMini({ arquivo, numero, onRemover }: { arquivo: File; numero: number; onRemover: () => void }) {
+  const url = useUrlDoArquivo(arquivo)
   return (
-    <div className="nf-foto-preview">
-      <img src={url} alt="Página escaneada" />
-      <button type="button" className="bt bt-mini bt-neutro" onClick={onAbrir} disabled={desabilitado}>
-        Escanear de novo
-      </button>
+    <div className="nf-foto-mini nf-pagina-mini">
+      {url && <img src={url} alt={`Página ${numero}`} />}
+      <span className="nf-pagina-num">{numero}</span>
+      <button type="button" className="nf-foto-x" onClick={onRemover} aria-label={`Remover a página ${numero}`}>×</button>
     </div>
   )
 }
@@ -238,6 +244,15 @@ function IconeCamera() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 8h3l2-2.5h6L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
       <circle cx="12" cy="13.5" r="3.4" />
+    </svg>
+  )
+}
+
+function IconeScanner() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
+      <path d="M7 12h10" />
     </svg>
   )
 }

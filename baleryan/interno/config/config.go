@@ -450,7 +450,16 @@ type ERARead struct {
 	RecONNX    string
 	Dict       string
 	FiltroJSON string
+	// LadoMaximo é o maior lado, em pixels, que uma página tem ao entrar
+	// no ERA READ. O detector trabalha em 960; acima de ~1600 o que
+	// cresce é só memória e tempo (medido em 15/09/2026: 4400 px = 1,5 GB
+	// e 6 min no PC do dono). No plano gratuito do Render (512 MB) este
+	// número é o que separa "leu" de "o motor reiniciou".
+	LadoMaximo int
 }
+
+// ERALadoMaximoPadrao vale quando ERA_LADO_MAXIMO não é definido.
+const ERALadoMaximoPadrao = 1600
 
 func (e ERARead) Ligado() bool {
 	return e.DetONNX != "" && e.RecONNX != "" && e.Dict != ""
@@ -619,9 +628,10 @@ func Carregar() (*Config, error) {
 	}
 
 	era := ERARead{
-		DetONNX: l.texto("ERA_DET_ONNX", "", false, ""),
-		RecONNX: l.texto("ERA_REC_ONNX", "", false, ""),
-		Dict:    l.texto("ERA_DICT", "", false, ""),
+		DetONNX:    l.texto("ERA_DET_ONNX", "", false, ""),
+		RecONNX:    l.texto("ERA_REC_ONNX", "", false, ""),
+		Dict:       l.texto("ERA_DICT", "", false, ""),
+		LadoMaximo: l.inteiro("ERA_LADO_MAXIMO", ERALadoMaximoPadrao, 640, 4000),
 	}
 	if caminhoFiltro := l.texto("ERA_FILTRO_READ", "", false, ""); caminhoFiltro != "" {
 		if b, err := os.ReadFile(caminhoFiltro); err != nil {

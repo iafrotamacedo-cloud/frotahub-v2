@@ -29,6 +29,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/eraleitura"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/leitor"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/web"
@@ -74,14 +75,27 @@ type Modulo struct {
 	hist  *historico.Servico
 	brevo *brevo.Cliente
 	era   *eraleitura.Motor
+	// A IA (Gemini) que sugere número e valor da NF na hora do escaneamento
+	// — ver o cabeçalho de nf_era.go. Sem chave, `Ligada()` é falso e a
+	// sugestão simplesmente não vem.
+	ia *leitor.IA
+	// A fila do ERA READ: uma goroutine só lê as páginas, uma por vez, e
+	// grava `leitura_era`. Nula quando o ERA está desligado.
+	filaERA chan trabalhoERA
 }
 
 func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
 	arm *armazem.Cliente, hist *historico.Servico, era *eraleitura.Motor) *Modulo {
-	return &Modulo{
+	m := &Modulo{
 		cfg: cfg, bd: bd, seg: seg, perm: perm, arm: arm, hist: hist, era: era,
 		brevo: brevo.Novo(cfg.Brevo),
+		ia:    novaIA(cfg.IA.Chave, cfg.IA.Modelo, cfg.IA.IntervaloSegundos),
 	}
+	if era != nil && era.Ligado() {
+		m.filaERA = make(chan trabalhoERA, TetoDaFilaERA)
+		go m.trabalharERA()
+	}
+	return m
 }
 
 func (m *Modulo) Montar(mux *http.ServeMux) {
@@ -121,6 +135,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/escanear", m.escanearNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/receber", m.receberNF)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/paginas", m.paginaNF)
+	mux.HandleFunc("GET /administrativo/nf/notas/{id}/paginas", m.paginasDaNF)
 	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
 	mux.HandleFunc("GET /administrativo/nf/entregues", m.listarNFEntregues)
 	mux.HandleFunc("GET /administrativo/nf/enviadas", m.listarNFEnviadas)

@@ -34,7 +34,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -291,6 +290,22 @@ func (m *Modulo) notasDaOrdem(w http.ResponseWriter, r *http.Request) {
 // POST /administrativo/nf/ordens/{id}/receber — o almoxarife escaneia a NF
 // ---------------------------------------------------------------------------
 
+// UMA NOTA, TODAS AS PÁGINAS, UM RECEBIMENTO SÓ (15/09/2026)
+//
+//	A rev 1 salvava página a página: a primeira criava a nota, as
+//	seguintes iam para /notas/{id}/paginas. Na prática o almoxarife
+//	fechava a janela depois da página 1 e abria de novo para a página 2 —
+//	e a OC ganhava DOIS recebimentos da mesma nota. Agora o celular
+//	escaneia todas as páginas primeiro (scanner com "próxima página") e
+//	manda tudo de uma vez: `arquivo` é a página 1, `paginas` são as
+//	seguintes, em ordem. Um POST, uma nota.
+//
+//	Os arquivos sobem TODOS antes de a nota existir no banco: se uma
+//	página falhar no armazém, a resposta é erro e nada foi criado — sem
+//	nota pela metade.
+//
+//	O ERA READ não participa desta rota (ver o cabeçalho de nf_era.go):
+//	depois de gravar, cada página entra na fila de leitura.
 func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 	p := m.quemPodeReceberNF(w, r)
 	if p == nil {
@@ -316,33 +331,44 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	numero := strings.TrimSpace(r.FormValue("numero"))
-	var valor float64
-	if v := strings.TrimSpace(r.FormValue("valor")); v != "" {
-		var verr error
-		valor, verr = parseValorNF(v)
-		if verr != nil {
-			web.Falhar(w, http.StatusBadRequest, verr.Error())
-			return
-		}
-	}
-	raw, err := m.bytesDoArquivo(r, "arquivo")
-	if err != nil {
-		web.Falhar(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	res, err := m.lerPaginaNF(r.Context(), p, id, "", 1, raw)
-	if err != nil {
-		web.Falhar(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	numero, valor = aplicarSugestao(numero, valor, res.Sugestao)
 	if numero == "" {
 		web.Falhar(w, http.StatusBadRequest, "Informe o número da nota fiscal.")
 		return
 	}
-	if valor <= 0 {
-		web.Falhar(w, http.StatusBadRequest, "Informe o valor da nota fiscal.")
+	valor, err := parseValorNF(r.FormValue("valor"))
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	// As páginas, na ordem: a 1 em `arquivo`, as seguintes em `paginas`.
+	primeira := r.MultipartForm.File["arquivo"]
+	if len(primeira) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Escaneie a nota fiscal.")
+		return
+	}
+	cabecalhos := append([]*multipart.FileHeader{primeira[0]}, r.MultipartForm.File["paginas"]...)
+	if len(cabecalhos) > PaginasPorNota {
+		web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Uma nota pode ter no máximo %d páginas.", PaginasPorNota))
+		return
+	}
+	type paginaLida struct {
+		raw []byte
+		sha string
+	}
+	paginas := make([]paginaLida, 0, len(cabecalhos))
+	for i, cab := range cabecalhos {
+		raw, err := lerCabecalhoMultipart(cab)
+		if err != nil {
+			web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Página %d: %s.", i+1, err.Error()))
+			return
+		}
+		sha, err := m.guardarArquivoNF(r.Context(), p, raw, fmt.Sprintf("nf-p%d.jpg", i+1))
+		if err != nil {
+			m.erro(w, fmt.Sprintf("não consegui guardar a página %d da nota", i+1), err)
+			return
+		}
+		paginas = append(paginas, paginaLida{raw: raw, sha: sha})
 	}
 
 	linha := map[string]any{
@@ -350,12 +376,9 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		"ordem_compra_id": id,
 		"numero":          numero,
 		"valor":           valor,
-		"arquivo_sha256":  res.SHA,
+		"arquivo_sha256":  paginas[0].sha,
 		"status":          "recebida",
 		"recebida_por":    p.UserID,
-	}
-	if res.Leitura != nil {
-		linha["leitura_era"] = res.Leitura
 	}
 	var criadas []map[string]any
 	if err := m.bd.Inserir(r.Context(), "notas_fiscais", []map[string]any{linha}, &criadas); err != nil {
@@ -370,7 +393,35 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 	_ = m.hist.Registrar(r.Context(), p, "administrativo", nfID, "receber_nota_fiscal", map[string]historico.Mudanca{
 		"ordem_compra_id": {De: nil, Para: id},
 		"numero":          {De: nil, Para: numero},
+		"paginas":         {De: nil, Para: len(paginas)},
 	})
+
+	if len(paginas) > 1 {
+		linhas := make([]map[string]any, 0, len(paginas)-1)
+		for i := 1; i < len(paginas); i++ {
+			linhas = append(linhas, map[string]any{
+				"cliente_id":     p.ClienteID,
+				"nota_fiscal_id": nfID,
+				"pagina":         i + 1,
+				"arquivo_sha256": paginas[i].sha,
+			})
+		}
+		if err := m.bd.Inserir(r.Context(), "notas_fiscais_paginas", linhas, nil); err != nil {
+			// A nota já existe com a página 1; as outras ficaram no armazém
+			// mas sem linha. Melhor avisar do que fingir que deu certo.
+			m.erro(w, "gravei a nota mas não consegui registrar as páginas seguintes", err)
+			return
+		}
+	}
+
+	enfileiradas := 0
+	for i, pg := range paginas {
+		if m.agendarLeituraERA(trabalhoERA{
+			clienteID: p.ClienteID, userID: p.UserID, nfID: nfID, pagina: i + 1, sha: pg.sha, raw: pg.raw,
+		}) {
+			enfileiradas++
+		}
+	}
 
 	// FOTOS DO MATERIAL — ZERO OU VÁRIAS, NUNCA TRAVAM O RECEBIMENTO DA NOTA
 	//
@@ -401,29 +452,21 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 
 	web.Responder(w, http.StatusOK, map[string]any{
 		"id":             nfID,
-		"pagina":         1,
+		"paginas":        len(paginas),
 		"fotos_material": salvas,
-		"era_read":       res.ERAAtivo,
+		"era_read":       enfileiradas > 0,
 		"numero":         numero,
 		"valor":          valor,
 	})
 }
 
-// lerEGuardarArquivoNF lê um cabeçalho de multipart (nota ou foto de
-// material — mesmo teto de tamanho, mesmo armazém) e devolve o sha256 já
-// gravado. Erros viram frase pronta pra `web.Falhar`.
+// lerEGuardarArquivoNF lê um cabeçalho de multipart (foto de material —
+// mesmo teto de tamanho, mesmo armazém das páginas) e devolve o sha256 já
+// gravado.
 func (m *Modulo) lerEGuardarArquivoNF(ctx context.Context, p *seguranca.Principal, cab *multipart.FileHeader) (string, error) {
-	f, ferr := cab.Open()
-	if ferr != nil {
-		return "", fmt.Errorf("não consegui abrir o arquivo enviado")
-	}
-	defer f.Close()
-	conteudo, rerr := io.ReadAll(io.LimitReader(f, TamanhoMaximo+1))
-	if rerr != nil || len(conteudo) == 0 {
-		return "", fmt.Errorf("não consegui ler o arquivo enviado")
-	}
-	if len(conteudo) > TamanhoMaximo {
-		return "", fmt.Errorf("o arquivo passa de %d MB", TamanhoMaximo>>20)
+	conteudo, err := lerCabecalhoMultipart(cab)
+	if err != nil {
+		return "", err
 	}
 	return m.guardarArquivoNF(ctx, p, conteudo, cab.Filename)
 }
