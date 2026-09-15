@@ -27,6 +27,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/brevo"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/eraleitura"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/permissao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/seguranca"
@@ -72,12 +73,13 @@ type Modulo struct {
 	arm   *armazem.Cliente
 	hist  *historico.Servico
 	brevo *brevo.Cliente
+	era   *eraleitura.Motor
 }
 
 func Novo(cfg *config.Config, bd *banco.Cliente, seg *seguranca.Servico, perm *permissao.Servico,
-	arm *armazem.Cliente, hist *historico.Servico) *Modulo {
+	arm *armazem.Cliente, hist *historico.Servico, era *eraleitura.Motor) *Modulo {
 	return &Modulo{
-		cfg: cfg, bd: bd, seg: seg, perm: perm, arm: arm, hist: hist,
+		cfg: cfg, bd: bd, seg: seg, perm: perm, arm: arm, hist: hist, era: era,
 		brevo: brevo.Novo(cfg.Brevo),
 	}
 }
@@ -116,7 +118,9 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/nf/painel", m.painelDeNF)
 	mux.HandleFunc("GET /administrativo/nf/aguardando", m.ordensAguardandoNF)
 	mux.HandleFunc("GET /administrativo/nf/ordens/{id}", m.notasDaOrdem)
+	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/escanear", m.escanearNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/receber", m.receberNF)
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/paginas", m.paginaNF)
 	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
 	mux.HandleFunc("GET /administrativo/nf/entregues", m.listarNFEntregues)
 	mux.HandleFunc("GET /administrativo/nf/enviadas", m.listarNFEnviadas)

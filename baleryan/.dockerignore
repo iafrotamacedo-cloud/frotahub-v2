@@ -1,0 +1,7 @@
+# Segredo e lixo local nunca entram na imagem. O motor lê o ambiente em
+# runtime (/etc/baleryan.env na Oracle), não um arquivo copiado no build.
+.env
+.env.local
+*.exe
+baleryan
+baleryan.exe

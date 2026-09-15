@@ -1,4 +1,4 @@
-// rev 10 — baleryan, o motor do FrotaHub
+// rev 11 — baleryan, o motor do FrotaHub
 //
 // Este arquivo faz três coisas e só:
 //
@@ -38,6 +38,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/armazem"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/config"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/eraleitura"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/historico"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/acesso"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/administrativo"
@@ -56,7 +57,7 @@ import (
 )
 
 // Revisao aparece em /saude, para conferir o que está no ar sem abrir o servidor.
-const Revisao = "10"
+const Revisao = "11"
 
 type motor struct {
 	cfg  *config.Config
@@ -128,7 +129,7 @@ func main() {
 	// Administrativo > Compras: inserir, ler e enviar a OC por e-mail (PCO).
 	// Mesmo armazém dos outros módulos, pelo mesmo motivo; `cfg` entra porque
 	// o envio precisa da chave do Brevo.
-	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist).Montar(mux)
+	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist, eraleitura.Novo(cfg.ERARead)).Montar(mux)
 	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
 	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
 	// escrever nas tabelas deles.

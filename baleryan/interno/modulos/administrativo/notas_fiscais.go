@@ -37,7 +37,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -307,24 +306,8 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 			"O armazenamento de arquivos não está configurado. Sem ele, receber a nota seria perdê-la.")
 		return
 	}
-	ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+id+
-		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
-		"&select=id,status,numero,obra_centro_custo,pco_enviado_em&limit=1")
-	if err != nil {
-		m.erro(w, "não achei esta ordem de compra", err)
-		return
-	}
-	if fmtStatus(ordem["status"]) != "lido" || !temPCOEnviado(ordem["pco_enviado_em"]) {
-		web.Falhar(w, http.StatusConflict, "Esta ordem de compra ainda não foi enviada ao cliente — não há o que receber.")
-		return
-	}
-	acesso, err := m.temAcessoAObra(r.Context(), p, strCampo(ordem["obra_centro_custo"]))
-	if err != nil {
-		m.erro(w, "não consegui conferir o acesso a esta obra", err)
-		return
-	}
-	if !acesso {
-		web.Falhar(w, http.StatusForbidden, "Você não tem acesso liberado para receber notas fiscais desta obra.")
+	if _, err := m.ordemProntaParaReceber(r, p, id); err != nil {
+		web.Falhar(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -333,36 +316,49 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	numero := strings.TrimSpace(r.FormValue("numero"))
-	if numero == "" {
-		web.Falhar(w, http.StatusBadRequest, "Informe o número da nota fiscal.")
-		return
+	var valor float64
+	if v := strings.TrimSpace(r.FormValue("valor")); v != "" {
+		var verr error
+		valor, verr = parseValorNF(v)
+		if verr != nil {
+			web.Falhar(w, http.StatusBadRequest, verr.Error())
+			return
+		}
 	}
-	valor, verr := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(r.FormValue("valor")), ",", "."), 64)
-	if verr != nil || valor <= 0 {
-		web.Falhar(w, http.StatusBadRequest, "Informe o valor da nota fiscal.")
-		return
-	}
-	cabecalhos := r.MultipartForm.File["arquivo"]
-	if len(cabecalhos) == 0 {
-		web.Falhar(w, http.StatusBadRequest, "Escaneie a nota fiscal.")
-		return
-	}
-	sha, err := m.lerEGuardarArquivoNF(r.Context(), p, cabecalhos[0])
+	raw, err := m.bytesDoArquivo(r, "arquivo")
 	if err != nil {
 		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	res, err := m.lerPaginaNF(r.Context(), p, id, "", 1, raw)
+	if err != nil {
+		web.Falhar(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	numero, valor = aplicarSugestao(numero, valor, res.Sugestao)
+	if numero == "" {
+		web.Falhar(w, http.StatusBadRequest, "Informe o número da nota fiscal.")
+		return
+	}
+	if valor <= 0 {
+		web.Falhar(w, http.StatusBadRequest, "Informe o valor da nota fiscal.")
+		return
+	}
 
-	var criadas []map[string]any
-	if err := m.bd.Inserir(r.Context(), "notas_fiscais", []map[string]any{{
+	linha := map[string]any{
 		"cliente_id":      p.ClienteID,
 		"ordem_compra_id": id,
 		"numero":          numero,
 		"valor":           valor,
-		"arquivo_sha256":  sha,
+		"arquivo_sha256":  res.SHA,
 		"status":          "recebida",
 		"recebida_por":    p.UserID,
-	}}, &criadas); err != nil {
+	}
+	if res.Leitura != nil {
+		linha["leitura_era"] = res.Leitura
+	}
+	var criadas []map[string]any
+	if err := m.bd.Inserir(r.Context(), "notas_fiscais", []map[string]any{linha}, &criadas); err != nil {
 		m.erro(w, "não consegui gravar a nota fiscal", err)
 		return
 	}
@@ -403,7 +399,14 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	web.Responder(w, http.StatusOK, map[string]any{"id": nfID, "fotos_material": salvas})
+	web.Responder(w, http.StatusOK, map[string]any{
+		"id":             nfID,
+		"pagina":         1,
+		"fotos_material": salvas,
+		"era_read":       res.ERAAtivo,
+		"numero":         numero,
+		"valor":          valor,
+	})
 }
 
 // lerEGuardarArquivoNF lê um cabeçalho de multipart (nota ou foto de

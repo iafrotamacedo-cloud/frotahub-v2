@@ -443,6 +443,19 @@ type SMTP struct {
 
 func (s SMTP) Ligado() bool { return s.Servidor != "" && s.Usuario != "" && s.Senha != "" }
 
+// ERARead liga o escaneamento de NF ao Melhorador + ERA READ (era-regen).
+// Sem os tres caminhos, o recebimento continua manual — so guarda a foto.
+type ERARead struct {
+	DetONNX    string
+	RecONNX    string
+	Dict       string
+	FiltroJSON string
+}
+
+func (e ERARead) Ligado() bool {
+	return e.DetONNX != "" && e.RecONNX != "" && e.Dict != ""
+}
+
 // Runtime é como o processo roda.
 type Runtime struct {
 	Porta       int
@@ -462,6 +475,7 @@ type Config struct {
 	Groq     Groq
 	Brevo    Brevo
 	SMTP     SMTP
+	ERARead  ERARead
 	Runtime  Runtime
 	// 'motor' ou 'robo'. Muda o que é obrigatório, e nada mais.
 	Papel     string
@@ -484,6 +498,7 @@ func (c Config) Resumo() map[string]any {
 		"brevo":    c.Brevo.Ligado(),
 		"smtp":     c.SMTP.Ligado(),
 		"trilogo":  c.Trilogo.Ligado(),
+		"era_read": c.ERARead.Ligado(),
 		"robos":    c.ChaveRobo != "",
 	}
 }
@@ -603,8 +618,22 @@ func Carregar() (*Config, error) {
 		OrigensCORS: l.lista("CORS_ORIGENS", []string{"*"}),
 	}
 
+	era := ERARead{
+		DetONNX: l.texto("ERA_DET_ONNX", "", false, ""),
+		RecONNX: l.texto("ERA_REC_ONNX", "", false, ""),
+		Dict:    l.texto("ERA_DICT", "", false, ""),
+	}
+	if caminhoFiltro := l.texto("ERA_FILTRO_READ", "", false, ""); caminhoFiltro != "" {
+		if b, err := os.ReadFile(caminhoFiltro); err != nil {
+			l.problema("ERA_FILTRO_READ — não consegui ler %q: %v", caminhoFiltro, err)
+		} else {
+			era.FiltroJSON = string(b)
+		}
+	}
+
 	cfg := &Config{
-		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Brevo: brevo, SMTP: smtpCfg, Runtime: rt,
+		Supabase: sb, R2: r2, Trilogo: tri, IA: ia, Groq: groq, Brevo: brevo, SMTP: smtpCfg,
+		ERARead: era, Runtime: rt,
 		Papel: papel,
 		PinPepper: l.segredo("PIN_PEPPER", !ehRobo, 16,
 			"Tempero do hash do PIN. Se mudar, todos os PINs param de valer."),

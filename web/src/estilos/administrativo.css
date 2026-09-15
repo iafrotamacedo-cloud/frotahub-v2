@@ -341,3 +341,9 @@
   font-size:14px;line-height:1;cursor:pointer;display:grid;place-items:center;
 }
 .nf-foto-x:hover{border-color:var(--red);color:var(--red)}
+
+.nf-paginas-salvas{
+  margin:0 0 14px;padding:10px 12px;border-radius:var(--r-m);
+  background:var(--bg);border:1px solid var(--line);font-size:13px;color:var(--gray);
+}
+.nf-foto-add:disabled{opacity:.55;cursor:not-allowed}

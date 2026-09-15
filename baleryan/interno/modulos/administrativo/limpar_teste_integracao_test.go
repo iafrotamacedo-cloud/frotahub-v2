@@ -79,8 +79,9 @@ func TestLimparDadosTestePCO(t *testing.T) {
 }
 
 // limparDadosTestePCO remove rastros do teste das 30 OCs (números 20001–20030).
-// Histórico: a tabela `historico` é imutável por design (migração 005) — o
-// motor não consegue apagar essas linhas; ficam órfãs, só consulta de auditoria.
+// Histórico: a tabela `historico` é imutável (migração 005) — o PostgREST não
+// apaga. Use `OCs_Teste/_limpar_historico.sql` no Supabase (desliga gatilhos,
+// DELETE modulo administrativo/pco_destinatarios, religa gatilhos).
 func limparDadosTestePCO(ctx context.Context, bd *banco.Cliente, arm *armazem.Cliente, clienteID string) (int, error) {
 	// Por número (OCs que fecharam leitura) e por nome de arquivo (OCs que
 	// ficaram presas em "lendo" quando o UPDATE falhou antes de gravar numero).
