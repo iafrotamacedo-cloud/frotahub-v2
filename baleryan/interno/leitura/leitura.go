@@ -284,6 +284,7 @@ type candidata struct {
 	Nome     string  `json:"nome_arquivo"`
 	Numero   *string `json:"numero"`
 	Chave    *string `json:"chave_acesso"`
+	CNPJ     *string `json:"emitente_cnpj"`
 	Valor    float64 `json:"valor_total"`
 	Inserido string  `json:"inserido_em"`
 }
@@ -326,7 +327,7 @@ func (s *Servico) conferirRepetida(ctx context.Context, doc *documento, lida *le
 
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(doc.Cliente) +
 		"&id=neq." + doc.ID + "&oculto_em=is.null&duplicada_de=is.null" +
-		"&select=id,nome_arquivo,numero,chave_acesso,valor_total,inserido_em" +
+		"&select=id,nome_arquivo,numero,chave_acesso,emitente_cnpj,valor_total,inserido_em" +
 		"&" + ouEntao(chave, numero)
 
 	var achadas []candidata
@@ -336,8 +337,8 @@ func (s *Servico) conferirRepetida(ctx context.Context, doc *documento, lida *le
 
 	valor := regras.DinheiroDe(lida.ValorTotal)
 	for _, c := range achadas {
-		if !regras.MesmaNota(chave, numero, valor,
-			texto(c.Chave), texto(c.Numero), regras.DinheiroDe(c.Valor)) {
+		if !regras.MesmaNota(chave, numero, valor, lida.EmitenteCNPJ,
+			texto(c.Chave), texto(c.Numero), regras.DinheiroDe(c.Valor), texto(c.CNPJ)) {
 			continue
 		}
 		copia, original := doc.ID, c.ID

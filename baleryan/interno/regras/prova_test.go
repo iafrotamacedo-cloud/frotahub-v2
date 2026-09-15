@@ -190,19 +190,46 @@ func TestEncaixarQuandoJaFechaNaoMexe(t *testing.T) {
 func TestMesmaNota(t *testing.T) {
 	chave := "23260814248351000120550010000197021394632944"
 
-	if !MesmaNota(chave, "19702", DinheiroDe(950), chave, "outro", DinheiroDe(1)) {
+	if !MesmaNota(chave, "19702", DinheiroDe(950), "", chave, "outro", DinheiroDe(1), "") {
 		t.Fatal("a chave de acesso manda sozinha")
 	}
-	if MesmaNota(chave, "19702", DinheiroDe(950), "23260814248351000120550010000197021394632945", "19702", DinheiroDe(950)) {
+	if MesmaNota(chave, "19702", DinheiroDe(950), "", "23260814248351000120550010000197021394632945", "19702", DinheiroDe(950), "") {
 		t.Fatal("chaves diferentes são notas diferentes, ainda que o número coincida")
 	}
-	if !MesmaNota("", "9921", DinheiroDe(300), "", "9921", DinheiroDe(999)) {
+	if !MesmaNota("", "9921", DinheiroDe(300), "", "", "9921", DinheiroDe(999), "") {
 		t.Fatal("sem chave, o número decide")
 	}
-	if !MesmaNota("", "", DinheiroDe(300), "", "", DinheiroDe(300)) {
+	if !MesmaNota("", "", DinheiroDe(300), "", "", "", DinheiroDe(300), "") {
 		t.Fatal("sem chave e sem número, o valor decide")
 	}
-	if MesmaNota("", "", 0, "", "", 0) {
+	if MesmaNota("", "", 0, "", "", "", 0, "") {
 		t.Fatal("duas notas sem nada não podem ser declaradas iguais")
+	}
+
+	// O DEFEITO DE 15/09/2026: DAV 19974 (Rodrigues, R$497) x NF 19974 (CNIP,
+	// R$278). Mesmo número, fornecedores diferentes, valor diferente — as
+	// duas provas discordando é que encerra a comparação, não o CNPJ sozinho.
+	if MesmaNota("", "19974", DinheiroDe(497), "14788633000110",
+		"", "19974", DinheiroDe(278), "14248351000120") {
+		t.Fatal("números iguais de emitentes e valores diferentes não são a mesma nota")
+	}
+	// O mesmo CNPJ dos dois lados não muda nada: o número ainda decide.
+	if !MesmaNota("", "19974", DinheiroDe(497), "14788633000110",
+		"", "19974", DinheiroDe(497), "14788633000110") {
+		t.Fatal("mesmo CNPJ e mesmo número continuam sendo a mesma nota")
+	}
+	// CNPJ desconhecido de um dos lados não bloqueia a comparação por número —
+	// só quando os DOIS são conhecidos, diferentes, E o valor também diverge.
+	if !MesmaNota("", "9921", DinheiroDe(300), "14788633000110",
+		"", "9921", DinheiroDe(999), "") {
+		t.Fatal("CNPJ que falta de um lado não pode travar a comparação por número")
+	}
+	// O CASO REAL DE 26/08/2026 (NF 17936): o CNPJ do emitente saiu errado —
+	// leu o CNPJ do DESTINATÁRIO (Frota Macedo) — mas o valor bate. CNPJ
+	// divergente sozinho, sem o valor discordando junto, não pode desfazer
+	// aquele conserto.
+	if !MesmaNota("", "17936", DinheiroDe(500), "40579455000128",
+		"", "17936", DinheiroDe(500), "27363223000170") {
+		t.Fatal("CNPJ mal lido não pode esconder a mesma nota quando o valor bate")
 	}
 }

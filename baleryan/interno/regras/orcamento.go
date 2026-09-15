@@ -241,12 +241,38 @@ func Encaixar(itens []Item, alvo Dinheiro) ([]Item, error) {
 //	ticket.
 //
 //	Onde existe chave de acesso (44 dígitos, única no Brasil), a comparação é
-//	ela e acabou. Sem chave — DAV, nota sem número —, o par número+valor.
-func MesmaNota(chaveA, numeroA string, valorA Dinheiro, chaveB, numeroB string, valorB Dinheiro) bool {
+//	ela e acabou. Sem chave — DAV, nota sem número —, o número sozinho decide;
+//	sem chave e sem número, o par que sobra é valor.
+//
+// O DEFEITO DE 15/09/2026 — DUAS NOTAS DE FORNECEDORES DIFERENTES, MESMO NÚMERO
+//
+//	A DAV 19974 da Rodrigues (R$ 497,00) foi marcada cópia de uma NF 19974 da
+//	CNIP (R$ 278,00) — dois fornecedores sem nenhuma relação, tickets
+//	diferentes (131407 e 82478), cujo número bateu por coincidência: a
+//	numeração do SysPDV de um fornecedor não tem nada a ver com a sequência de
+//	NF-e de outro. A DAV ficou presa com `duplicada_de` preenchido e nunca
+//	virou orçamento.
+//
+//	O número sozinho só é prova de identidade DENTRO do mesmo emitente. Mas o
+//	CNPJ que o OCR extrai do DAV não é confiável sozinho: o caso da NF 17936
+//	(26/08/2026, o defeito que fez esta trava nascer) tinha o emitente lido
+//	como o CNPJ do PRÓPRIO destinatário — Frota Macedo, não o fornecedor —
+//	porque o documento imprime os dois CNPJs perto um do outro. Vetar pela
+//	simples diferença de CNPJ teria desfeito aquele conserto.
+//
+//	Por isso o CNPJ só veta o número quando o VALOR TAMBÉM diverge — duas
+//	provas independentes discordando é o que distingue coincidência de
+//	extração ruim. Nota genuinamente repetida tem o mesmo valor mesmo quando
+//	o CNPJ sai torto; duas notas de fornecedores diferentes que só coincidem
+//	no número não têm motivo nenhum para ter o mesmo valor também.
+func MesmaNota(chaveA, numeroA string, valorA Dinheiro, cnpjA string, chaveB, numeroB string, valorB Dinheiro, cnpjB string) bool {
 	if chaveA != "" && chaveB != "" {
 		return chaveA == chaveB
 	}
 	if numeroA != "" && numeroA == numeroB {
+		if valorA != valorB && cnpjA != "" && cnpjB != "" && cnpjA != cnpjB {
+			return false
+		}
 		return true
 	}
 	return numeroA == "" && numeroB == "" && valorA == valorB && valorA > 0

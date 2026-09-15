@@ -217,6 +217,7 @@ type documentoPronto struct {
 	Numero     *string `json:"numero"`
 	DAV        *string `json:"dav_numero"`
 	Chave      *string `json:"chave_acesso"`
+	CNPJ       *string `json:"emitente_cnpj"`
 	Emissao    *string `json:"emissao"`
 	Observacao *string `json:"observacao"`
 	Valor      float64 `json:"valor_total"`
@@ -242,7 +243,7 @@ func (m *Modulo) documentosProntos(ctx context.Context, clienteID string, apenas
 	//	duas lado a lado, e desfazer a marca com conhecimento de causa.
 	filtro := "documentos?cliente_id=eq." + banco.Escapar(clienteID) +
 		"&oculto_em=is.null&status=eq.lido&duplicada_de=is.null" +
-		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emissao,observacao,valor_total,desconto_bp,aprovacao_pedida" +
+		"&select=id,nome_arquivo,fila,numero,dav_numero,chave_acesso,emitente_cnpj,emissao,observacao,valor_total,desconto_bp,aprovacao_pedida" +
 		"&order=inserido_em"
 
 	if fila == "orcamento" || fila == "rateio" {
@@ -748,20 +749,22 @@ func (m *Modulo) mesmaNotaJaOrcou(ctx context.Context, clienteID string,
 		Nome   string  `json:"nome_arquivo"`
 		Numero *string `json:"numero"`
 		Chave  *string `json:"chave_acesso"`
+		CNPJ   *string `json:"emitente_cnpj"`
 		Valor  float64 `json:"valor_total"`
 	}
 	if err := m.bd.Buscar(ctx, "documentos?cliente_id=eq."+banco.Escapar(clienteID)+
 		"&id=neq."+d.ID+"&oculto_em=is.null&or=("+strings.Join(condicoes, ",")+")"+
-		"&select=id,nome_arquivo,numero,chave_acesso,valor_total", &iguais); err != nil {
+		"&select=id,nome_arquivo,numero,chave_acesso,emitente_cnpj,valor_total", &iguais); err != nil {
 		return "", err
 	}
 
 	valor := regras.DinheiroDe(d.Valor)
+	cnpj := texto(d.CNPJ)
 	gemeas := make([]string, 0, len(iguais))
 	nomes := map[string]string{}
 	for _, o := range iguais {
-		if regras.MesmaNota(chave, numero, valor, texto(o.Chave), texto(o.Numero),
-			regras.DinheiroDe(o.Valor)) {
+		if regras.MesmaNota(chave, numero, valor, cnpj, texto(o.Chave), texto(o.Numero),
+			regras.DinheiroDe(o.Valor), texto(o.CNPJ)) {
 			gemeas = append(gemeas, o.ID)
 			nomes[o.ID] = o.Nome
 		}
