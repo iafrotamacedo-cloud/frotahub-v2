@@ -371,6 +371,27 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		paginas = append(paginas, paginaLida{raw: raw, sha: sha})
 	}
 
+	// FOTOS DO MATERIAL — PELO MENOS UMA, E SOBEM ANTES DA NOTA EXISTIR
+	//
+	//	Pedido do dono (15/09/2026): a nota só é aceita com a foto do que
+	//	chegou. Por isso as fotos saem da posição de "extra que não trava"
+	//	e passam a subir junto com as páginas, antes do INSERT — falhou uma,
+	//	não existe nota pela metade.
+	fotos := r.MultipartForm.File["fotos_material"]
+	if len(fotos) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Tire pelo menos uma foto do material recebido.")
+		return
+	}
+	shasFotos := make([]string, 0, len(fotos))
+	for i, cab := range fotos {
+		sha, err := m.lerEGuardarArquivoNF(r.Context(), p, cab)
+		if err != nil {
+			web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Foto do material %d: %s.", i+1, err.Error()))
+			return
+		}
+		shasFotos = append(shasFotos, sha)
+	}
+
 	linha := map[string]any{
 		"cliente_id":      p.ClienteID,
 		"ordem_compra_id": id,
@@ -423,37 +444,23 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// FOTOS DO MATERIAL — ZERO OU VÁRIAS, NUNCA TRAVAM O RECEBIMENTO DA NOTA
-	//
-	//	A nota já está gravada quando chegamos aqui. Uma foto de material que
-	//	falhar ao subir vira aviso no retorno, não um 400 que faria o
-	//	almoxarife escanear a nota de novo — ela já está salva.
-	fotos := r.MultipartForm.File["fotos_material"]
-	salvas := 0
-	var linhas []map[string]any
-	for _, cab := range fotos {
-		sha, err := m.lerEGuardarArquivoNF(r.Context(), p, cab)
-		if err != nil {
-			continue
-		}
-		linhas = append(linhas, map[string]any{
+	linhasFotos := make([]map[string]any, 0, len(shasFotos))
+	for _, sha := range shasFotos {
+		linhasFotos = append(linhasFotos, map[string]any{
 			"cliente_id":     p.ClienteID,
 			"nota_fiscal_id": nfID,
 			"arquivo_sha256": sha,
 		})
-		salvas++
 	}
-	if len(linhas) > 0 {
-		if err := m.bd.Inserir(r.Context(), "notas_fiscais_fotos_material", linhas, nil); err != nil {
-			m.erro(w, "guardei a nota mas não consegui gravar as fotos do material", err)
-			return
-		}
+	if err := m.bd.Inserir(r.Context(), "notas_fiscais_fotos_material", linhasFotos, nil); err != nil {
+		m.erro(w, "guardei a nota mas não consegui gravar as fotos do material", err)
+		return
 	}
 
 	web.Responder(w, http.StatusOK, map[string]any{
 		"id":             nfID,
 		"paginas":        len(paginas),
-		"fotos_material": salvas,
+		"fotos_material": len(shasFotos),
 		"era_read":       enfileiradas > 0,
 		"numero":         numero,
 		"valor":          valor,

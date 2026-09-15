@@ -4,9 +4,11 @@
 //
 //	1. A janela abre já com o scanner (ScannerDeDocumento) em tela cheia:
 //	   requadro automático, uma página atrás da outra, "Concluir".
-//	2. As páginas aparecem como miniaturas; a primeira vai ao motor em
-//	   /escanear, que sugere número e valor (IA) — o almoxarife confere.
-//	3. Fotos do material, opcionais, pela câmera do sistema.
+//	2. As páginas aparecem como miniaturas. Número e valor são digitados —
+//	   a sugestão pela IA (/escanear) existe, mas está DESLIGADA por decisão
+//	   do dono (15/09/2026); ver SUGERIR_PELA_IA.
+//	3. Fotos do material, pela câmera do sistema — pelo menos UMA, senão
+//	   não salva (o motor recusa também).
 //	4. "Salvar nota" manda tudo num POST só: página 1 em `arquivo`, as
 //	   seguintes em `paginas`, fotos em `fotos_material`.
 //
@@ -20,6 +22,13 @@ import { Janela } from '../../componentes/Janela'
 import { ScannerDeDocumento } from '../../componentes/scanner/ScannerDeDocumento'
 import { enviarFormulario, ErroMotor } from '../../motor/cliente'
 import type { OrdemAguardandoNF } from './tipos'
+
+/**
+ * Liga a sugestão de número/valor pela IA (rota /escanear do motor).
+ * Desligada em 15/09/2026 a pedido do dono — "por enquanto, manual". Para
+ * religar basta trocar para true: a rota continua no motor.
+ */
+const SUGERIR_PELA_IA = false
 
 interface Props {
   ordem: OrdemAguardandoNF
@@ -62,6 +71,12 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
     const primeira = paginas[0]
     if (!primeira || jaSugeriu.current) return
     jaSugeriu.current = true
+    if (!SUGERIR_PELA_IA) {
+      // Manual, por decisão do dono (15/09/2026): o valor que falta na OC
+      // entra como palpite, o número o almoxarife digita.
+      setValor(v => v.trim() || ordem.restante <= 0 ? v : formatarValor(ordem.restante))
+      return
+    }
     let cancelado = false
     setLendo(true)
     const forma = new FormData()
@@ -105,6 +120,10 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
     }
     if (!numero.trim() || !valor.trim()) {
       setErro('Preencha o número e o valor da nota.')
+      return
+    }
+    if (materialFotos.length === 0) {
+      setErro('Tire pelo menos uma foto do material recebido.')
       return
     }
     setErro('')
@@ -164,7 +183,7 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
           {lendo && <p className="dica">Lendo o número e o valor da nota…</p>}
           {!lendo && aviso && <p className="dica">{aviso}</p>}
 
-          <label style={{ marginTop: 14 }}>Fotos do material</label>
+          <label style={{ marginTop: 14 }}>Fotos do material (pelo menos uma)</label>
           <div className="nf-fotos-grade">
             {materialFotos.map((foto, i) => (
               <FotoMini key={i} foto={foto} onRemover={() => setMaterialFotos(fs => fs.filter((_, j) => j !== i))} />
