@@ -35,6 +35,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -343,27 +344,12 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 	}
 	cabecalhos := r.MultipartForm.File["arquivo"]
 	if len(cabecalhos) == 0 {
-		web.Falhar(w, http.StatusBadRequest, "Escolha a foto ou o PDF da nota fiscal.")
+		web.Falhar(w, http.StatusBadRequest, "Escaneie a nota fiscal.")
 		return
 	}
-	f, ferr := cabecalhos[0].Open()
-	if ferr != nil {
-		web.Falhar(w, http.StatusBadRequest, "Não consegui abrir o arquivo enviado.")
-		return
-	}
-	conteudo, rerr := io.ReadAll(io.LimitReader(f, TamanhoMaximo+1))
-	f.Close()
-	if rerr != nil || len(conteudo) == 0 {
-		web.Falhar(w, http.StatusBadRequest, "Não consegui ler o arquivo enviado.")
-		return
-	}
-	if len(conteudo) > TamanhoMaximo {
-		web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("O arquivo passa de %d MB.", TamanhoMaximo>>20))
-		return
-	}
-	sha, err := m.guardarArquivoNF(r.Context(), p, conteudo, cabecalhos[0].Filename)
+	sha, err := m.lerEGuardarArquivoNF(r.Context(), p, cabecalhos[0])
 	if err != nil {
-		m.erro(w, "não consegui guardar o arquivo da nota fiscal", err)
+		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -389,7 +375,54 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		"ordem_compra_id": {De: nil, Para: id},
 		"numero":          {De: nil, Para: numero},
 	})
-	web.Responder(w, http.StatusOK, map[string]any{"id": nfID})
+
+	// FOTOS DO MATERIAL — ZERO OU VÁRIAS, NUNCA TRAVAM O RECEBIMENTO DA NOTA
+	//
+	//	A nota já está gravada quando chegamos aqui. Uma foto de material que
+	//	falhar ao subir vira aviso no retorno, não um 400 que faria o
+	//	almoxarife escanear a nota de novo — ela já está salva.
+	fotos := r.MultipartForm.File["fotos_material"]
+	salvas := 0
+	var linhas []map[string]any
+	for _, cab := range fotos {
+		sha, err := m.lerEGuardarArquivoNF(r.Context(), p, cab)
+		if err != nil {
+			continue
+		}
+		linhas = append(linhas, map[string]any{
+			"cliente_id":     p.ClienteID,
+			"nota_fiscal_id": nfID,
+			"arquivo_sha256": sha,
+		})
+		salvas++
+	}
+	if len(linhas) > 0 {
+		if err := m.bd.Inserir(r.Context(), "notas_fiscais_fotos_material", linhas, nil); err != nil {
+			m.erro(w, "guardei a nota mas não consegui gravar as fotos do material", err)
+			return
+		}
+	}
+
+	web.Responder(w, http.StatusOK, map[string]any{"id": nfID, "fotos_material": salvas})
+}
+
+// lerEGuardarArquivoNF lê um cabeçalho de multipart (nota ou foto de
+// material — mesmo teto de tamanho, mesmo armazém) e devolve o sha256 já
+// gravado. Erros viram frase pronta pra `web.Falhar`.
+func (m *Modulo) lerEGuardarArquivoNF(ctx context.Context, p *seguranca.Principal, cab *multipart.FileHeader) (string, error) {
+	f, ferr := cab.Open()
+	if ferr != nil {
+		return "", fmt.Errorf("não consegui abrir o arquivo enviado")
+	}
+	defer f.Close()
+	conteudo, rerr := io.ReadAll(io.LimitReader(f, TamanhoMaximo+1))
+	if rerr != nil || len(conteudo) == 0 {
+		return "", fmt.Errorf("não consegui ler o arquivo enviado")
+	}
+	if len(conteudo) > TamanhoMaximo {
+		return "", fmt.Errorf("o arquivo passa de %d MB", TamanhoMaximo>>20)
+	}
+	return m.guardarArquivoNF(ctx, p, conteudo, cab.Filename)
 }
 
 // guardarArquivoNF sobe a foto/PDF da nota — mesma receita de `guardarUma`
