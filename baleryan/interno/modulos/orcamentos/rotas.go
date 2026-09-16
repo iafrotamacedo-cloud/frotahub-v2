@@ -44,6 +44,13 @@ const (
 	RotinaCorrecoes = "CONTRATO_ORCAMENTOS_CORRECOES"
 	RotinaPlanilhas = "CONTRATO_ORCAMENTOS_PLANILHAS"
 	RotinaFaturar   = "CONTRATO_ORCAMENTOS_FATURAR"
+	// RotinaNotasFornecedor é do portal do fornecedor (074_portal_fornecedor.sql) —
+	// ESTREITA DE PROPÓSITO, só entra em `inserirDocumentos` (POST), nunca em
+	// listarDocumentos/verDocumento/arquivoDoDocumento/marcarOculto. Dar a mesma
+	// rotina que RotinaNotas deixaria o fornecedor listar e ver os DAVs de
+	// QUALQUER outro fornecedor — o motor não sabe "de quem" é um documento, só
+	// "quem alcança a rotina". Ver `quemInsereDocumento`, em documentos.go.
+	RotinaNotasFornecedor = "CONTRATO_ORCAMENTOS_NOTAS_FORNECEDOR"
 )
 
 // Quanto tempo vale o endereço temporário de um arquivo. Curto de propósito: o

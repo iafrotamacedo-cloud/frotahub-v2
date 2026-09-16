@@ -1,4 +1,4 @@
-// rev 4 — o que o sistema sabe sobre quem está logado
+// rev 5 — o que o sistema sabe sobre quem está logado
 //
 // CINCO NÍVEIS, NÃO MAIS QUATRO (14/09/2026)
 //
@@ -9,7 +9,15 @@
 //	dois: controlado pelo Gerencial, controla o Operacional — sempre por
 //	VÍNCULO HIERÁRQUICO (tabela `vinculos_hierarquicos`), nunca pela
 //	categoria inteira de uma vez.
-export type Nivel = 'builder' | 'ceo' | 'gerencial' | 'supervisorio' | 'operacional'
+//
+// `FORNECEDOR` É UM SEXTO, MAS FORA DA HIERARQUIA (074_portal_fornecedor.sql)
+//
+//	Os cinco de cima são todos gente da casa, numa cadeia de controle. O
+//	fornecedor não responde a ninguém dali nem ninguém responde por ele — por
+//	isso fica fora da cadeia, não vira um sexto degrau dela. `App.tsx` desvia
+//	este nível pro `PortalFornecedor` ANTES de montar a casca normal: sem
+//	menu, sem barra lateral, só a tela de enviar nota/DAV e a própria senha.
+export type Nivel = 'builder' | 'ceo' | 'gerencial' | 'supervisorio' | 'operacional' | 'fornecedor'
 
 export interface Perfil {
   id: string

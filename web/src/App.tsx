@@ -49,6 +49,7 @@ import { etapasDoMenu } from './menu/etapas'
 import { DadosTrilogo } from './telas/trilogo/DadosTrilogo'
 import { Estatisticas, type TelaEstatistica } from './telas/estatisticas/Estatisticas'
 import { ChatRogue } from './telas/rogueworker/ChatRogue'
+import { PortalFornecedor } from './telas/fornecedor/PortalFornecedor'
 
 // A CASCA MORA DENTRO DO PROVEDOR
 //   `useFocado` só funciona abaixo de `ProvedorDeFoco`. Envolver aqui, e não em
@@ -114,6 +115,14 @@ function Casca() {
 
   if (carregando) return <div className="auth" />
   if (!perfil) return <Login entrar={entrar} />
+
+  // O FORNECEDOR NUNCA CHEGA NA CASCA (074_portal_fornecedor.sql)
+  //
+  //	Nível fora da hierarquia interna, de propósito (ver `sessao/tipos.ts`).
+  //	O desvio é ANTES de `arvore`/`caminho` importarem — ele não tem menu
+  //	para montar nem endereço para navegar, só a tela de enviar e a própria
+  //	senha, as duas dentro do próprio `PortalFornecedor`.
+  if (perfil.nivel === 'fornecedor') return <PortalFornecedor perfil={perfil} sair={sair} />
 
   const atual = caminho[caminho.length - 1]
 

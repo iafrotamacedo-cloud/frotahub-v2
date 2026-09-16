@@ -1,0 +1,17 @@
+/* rev 1 — o portal do fornecedor
+ *
+ * Página cheia, sem a casca normal (sem barra lateral, sem cabeçalho de
+ * navegação) — ver o comentário em `telas/fornecedor/PortalFornecedor.tsx`.
+ * `.content`/`.hero`/`.cartao`/`.bt` são os mesmos de sempre (base.css/
+ * telas.css); só a moldura em volta é nova.
+ */
+.pf-pagina{min-height:100%;display:flex;flex-direction:column;background:var(--bg)}
+
+.pf-topo{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px 24px;background:var(--card);border-bottom:1px solid var(--line);
+}
+.pf-topo-dir{display:flex;align-items:center;gap:10px}
+.pf-quem{font-size:13px;font-weight:600;color:var(--txt)}
+
+.pf-corpo{flex:1;width:100%}

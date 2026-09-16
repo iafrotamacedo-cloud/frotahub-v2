@@ -231,6 +231,41 @@ func rotinaDaFila(fila string) string {
 	return RotinaNotas
 }
 
+// quemInsereDocumento é `m.quem` alargado SÓ PARA INSERIR: além da rotina
+// normal da fila (RotinaNotas/RotinaRateio), aceita também
+// RotinaNotasFornecedor — mas só na fila "orcamento". É a porta do portal do
+// fornecedor (074_portal_fornecedor.sql): ele nunca ganha RotinaNotas, então
+// continua sem conseguir listar, ver ou apagar documento nenhum — só inserir
+// o próprio.
+func (m *Modulo) quemInsereDocumento(w http.ResponseWriter, r *http.Request, fila string) *seguranca.Principal {
+	p, err := m.seg.DaRequisicao(r)
+	if err != nil {
+		web.Falhar(w, seguranca.StatusDoErro(err), err.Error())
+		return nil
+	}
+	ok, err := m.perm.Pode(r.Context(), p, rotinaDaFila(fila))
+	if err != nil {
+		web.Falhar(w, http.StatusInternalServerError, "Não consegui conferir o acesso.")
+		return nil
+	}
+	if !ok && fila == "orcamento" {
+		ok, err = m.perm.Pode(r.Context(), p, RotinaNotasFornecedor)
+		if err != nil {
+			web.Falhar(w, http.StatusInternalServerError, "Não consegui conferir o acesso.")
+			return nil
+		}
+	}
+	if !ok {
+		web.Falhar(w, http.StatusForbidden, "você não tem acesso a esta rotina")
+		return nil
+	}
+	if p.ClienteID == "" {
+		web.Falhar(w, http.StatusForbidden, "Este login não está ligado a nenhum cliente.")
+		return nil
+	}
+	return p
+}
+
 // ---------------------------------------------------------------------------
 // POST /orcamentos/documentos — inserir arquivos
 // ---------------------------------------------------------------------------
@@ -264,7 +299,7 @@ type resultadoDaInsercao struct {
 //	usuário nunca sabia quais tinham passado.
 func (m *Modulo) inserirDocumentos(w http.ResponseWriter, r *http.Request) {
 	fila := filaPedida(r)
-	p := m.quem(w, r, rotinaDaFila(fila))
+	p := m.quemInsereDocumento(w, r, fila)
 	if p == nil {
 		return
 	}

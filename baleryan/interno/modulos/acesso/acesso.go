@@ -47,7 +47,11 @@ const porPaginaMaximo = 100
 // pela migração e é a trava anti-tranca do sistema inteiro. Se ela virasse opção
 // de formulário, um clique distraído criaria um segundo dono — e o segundo dono
 // pode desativar o primeiro.
-var niveisPermitidos = map[string]bool{"ceo": true, "gerencial": true, "supervisorio": true, "operacional": true}
+// "fornecedor" entrou em 074_portal_fornecedor.sql — nível à parte, de gente de
+// fora, sem lugar na cadeia builder→ceo→gerencial→supervisorio→operacional
+// (`nivelEncaixaAbaixoDe`, em hierarquia.go, não conhece este nível de
+// propósito: fornecedor nunca entra em vínculo hierárquico).
+var niveisPermitidos = map[string]bool{"ceo": true, "gerencial": true, "supervisorio": true, "operacional": true, "fornecedor": true}
 
 type Modulo struct {
 	bd   *banco.Cliente
@@ -273,7 +277,7 @@ func validar(p pedidoCategoria) string {
 	case p.Nome == "":
 		return "Informe o nome que aparece na tela."
 	case !niveisPermitidos[p.Nivel]:
-		return "Escolha um nível: operacional, supervisório, gerencial ou ceo."
+		return "Escolha um nível: operacional, supervisório, gerencial, ceo ou fornecedor."
 	}
 	return ""
 }
@@ -334,7 +338,7 @@ func (m *Modulo) editar(w http.ResponseWriter, r *http.Request) {
 	if pedido.Nivel != nil {
 		nivel := strings.ToLower(strings.TrimSpace(*pedido.Nivel))
 		if !niveisPermitidos[nivel] {
-			web.Falhar(w, http.StatusBadRequest, "Escolha um nível: operacional, supervisório, gerencial ou ceo.")
+			web.Falhar(w, http.StatusBadRequest, "Escolha um nível: operacional, supervisório, gerencial, ceo ou fornecedor.")
 			return
 		}
 		if !p.Builder() && nivel == "ceo" {

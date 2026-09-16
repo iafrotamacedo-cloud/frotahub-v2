@@ -35,12 +35,17 @@ export interface Matriz {
   modulos_liberados?: string[]
 }
 
-/** Os níveis que a tela oferece. `builder` fica de fora — ver o comentário no motor. */
+/**
+ * Os níveis que a tela oferece. `builder` fica de fora — ver o comentário no
+ * motor. `fornecedor` (074_portal_fornecedor.sql) vem por último: é o único
+ * que não entra na cadeia de hierarquia dos outros quatro.
+ */
 export const NIVEIS: { valor: Nivel; rotulo: string }[] = [
   { valor: 'operacional', rotulo: 'Operacional' },
   { valor: 'supervisorio', rotulo: 'Supervisório' },
   { valor: 'gerencial', rotulo: 'Gerencial' },
   { valor: 'ceo', rotulo: 'CEO' },
+  { valor: 'fornecedor', rotulo: 'Fornecedor' },
 ]
 
 /**

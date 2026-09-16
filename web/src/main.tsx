@@ -13,9 +13,11 @@ import './estilos/orcamentos.css'
 import './estilos/estatisticas.css'
 import './estilos/funcionarios.css'
 import './estilos/administrativo.css'
+import './estilos/locacoes.css'
 import './estilos/engenharia.css'
 import './estilos/servicos.css'
 import './estilos/rogueworker.css'
+import './estilos/portal-fornecedor.css'
 import App from './App'
 
 const raiz = document.getElementById('raiz')
