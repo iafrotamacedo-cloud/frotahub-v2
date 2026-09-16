@@ -1,0 +1,67 @@
+/* rev 2 — Locações (Fase 1: recebimento · Fase 2: monitoramento) */
+
+.loc-itens{display:flex;flex-direction:column;gap:14px;margin-bottom:4px}
+
+.loc-item{
+  border:1px solid var(--line);
+  border-radius:var(--r-m);
+  padding:12px 14px;
+  background:var(--bg);
+}
+
+.loc-item-cabecalho{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:10px;
+  margin-bottom:8px;
+}
+
+.loc-item-descricao{font-weight:600}
+.loc-item-valor{color:var(--gray);font-size:13px;white-space:nowrap}
+
+/* As quatro faixas de vencimento — verde/amarelo reaproveitam os tokens de
+   estado (--ok/--warn) já usados no resto do sistema; laranja é próprio
+   deste módulo (não existe um terceiro estado genérico ainda); vermelho
+   reaproveita --err. "Descoberto" (vencido sem decisão) ganha negrito e um
+   contorno — é o que deve saltar aos olhos antes de qualquer outra coisa. */
+.loc-selo{
+  display:inline-block;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:12.5px;
+  font-weight:600;
+  white-space:nowrap;
+}
+.loc-selo-verde{color:var(--ok);background:var(--ok-bg)}
+.loc-selo-amarelo{color:var(--warn);background:var(--warn-bg)}
+.loc-selo-laranja{color:#9A3B12;background:#FDEBDD}
+.loc-selo-vermelho{color:var(--err);background:var(--err-bg)}
+.loc-selo-descoberto{outline:1.5px solid var(--err);font-weight:700}
+
+.loc-check{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color:var(--gray);
+  white-space:nowrap;
+}
+
+/* A barra fixa que aparece quando 1+ equipamentos estão marcados pra
+   devolução — mesmo espírito de qualquer barra de ação em lote do sistema,
+   só que este módulo ainda não tinha uma. */
+.loc-barra-selecao{
+  position:sticky;
+  bottom:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 16px;
+  margin-top:14px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r-m);
+  box-shadow:var(--sh-2);
+}

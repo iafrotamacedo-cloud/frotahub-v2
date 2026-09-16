@@ -91,7 +91,7 @@ func TestFluxoCompleto30OCs(t *testing.T) {
 			t.Fatalf("%s: %v", c.Arquivo, err)
 		}
 		hdr := cabecalhoMultipart(t, c.Arquivo, pdf)
-		id, _, err := mod.guardarUma(ctx, p, hdr)
+		id, _, err := mod.guardarUma(ctx, p, hdr, "")
 		if err != nil {
 			t.Fatalf("inserir %s: %v", c.Arquivo, err)
 		}

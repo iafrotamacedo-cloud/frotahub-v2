@@ -1,23 +1,44 @@
-// rev 1 — Notas Fiscais > Aguardando (o almoxarife recebe aqui)
+// rev 2 — Notas Fiscais > Aguardando (o almoxarife recebe aqui)
 //
 // SÓ AS OBRAS QUE ESTE LOGIN TEM LIBERADAS
 //
 //	O motor já filtra por `centro_custo_acessos` (ver `temAcessoAObra` em
 //	notas_fiscais.go) — esta tela nunca precisa saber a regra, só mostrar o
 //	que veio.
+//
+// A BIFURCAÇÃO PARA LOCAÇÃO (16/09/2026, Fase 1 do módulo Locações)
+//
+//	Nem toda OC que chega aqui é uma compra — algumas são locação, e locação
+//	não tem nota fiscal (é aluguel, a prova de entrada é o romaneio). Em vez
+//	de escanear a NF, o almoxarife escolhe "Locação" e abre
+//	`ReceberLocacao`, de `telas/locacoes`. É a ÚNICA importação cruzando
+//	módulos deste jeito no sistema (P-13 normalmente proíbe) — documentada
+//	aqui de propósito, porque é exatamente este ponto que o plano do módulo
+//	desenhou como a bifurcação: a OC entra e anda 100% igual até aqui, e só
+//	aqui os dois caminhos se separam. Quem não tem `LOCACOES_RECEBER` nem
+//	vê o botão — o motor recusaria de qualquer forma (P-29).
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { CartaoLinha } from '../../componentes/CartaoLinha'
 import { useEhMobile } from '../../componentes/useEhMobile'
+import type { Perfil } from '../../sessao/tipos'
 import { ReceberNF } from './ReceberNF'
 import { emReais, type OrdemAguardandoNF } from './tipos'
+import { ReceberLocacao } from '../locacoes/ReceberLocacao'
+import { RotinaLocacoesReceber, temRotina as temRotinaLocacoes } from '../locacoes/rotinas'
 
-export function AguardandoNF() {
+interface Props {
+  perfil?: Perfil | null
+}
+
+export function AguardandoNF({ perfil = null }: Props) {
   const ehMobile = useEhMobile()
   const [ordens, setOrdens] = useState<OrdemAguardandoNF[] | null>(null)
   const [erro, setErro] = useState('')
   const [recebendo, setRecebendo] = useState<OrdemAguardandoNF | null>(null)
+  const [recebendoLocacao, setRecebendoLocacao] = useState<OrdemAguardandoNF | null>(null)
+  const podeReceberLocacao = temRotinaLocacoes(perfil, RotinaLocacoesReceber)
 
   const carregar = useCallback(async () => {
     try {
@@ -56,7 +77,6 @@ export function AguardandoNF() {
             <CartaoLinha
               key={o.ordem_compra_id}
               titulo={o.numero || '—'}
-              onClick={() => setRecebendo(o)}
               linhas={[
                 { rotulo: 'Obra/centro', valor: o.obra_centro_custo || '—' },
                 { rotulo: 'Fornecedor', valor: o.fornecedor_nome || '—' },
@@ -64,6 +84,14 @@ export function AguardandoNF() {
                 { rotulo: 'Recebido', valor: emReais(o.recebido) },
                 { rotulo: 'Falta', valor: emReais(o.restante) },
               ]}
+              acoes={
+                <>
+                  <button type="button" className="bt bt-mini" onClick={() => setRecebendo(o)}>receber NF</button>
+                  {podeReceberLocacao && (
+                    <button type="button" className="bt bt-mini bt-neutro" onClick={() => setRecebendoLocacao(o)}>locação</button>
+                  )}
+                </>
+              }
             />
           ))}
         </div>
@@ -85,10 +113,15 @@ export function AguardandoNF() {
                   <td>{emReais(o.total)}</td>
                   <td>{emReais(o.recebido)}</td>
                   <td>{emReais(o.restante)}</td>
-                  <td>
+                  <td style={{ display: 'flex', gap: 8 }}>
                     <button type="button" className="bt bt-mini" onClick={() => setRecebendo(o)}>
                       receber NF
                     </button>
+                    {podeReceberLocacao && (
+                      <button type="button" className="bt bt-mini bt-neutro" onClick={() => setRecebendoLocacao(o)}>
+                        locação
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -102,6 +135,14 @@ export function AguardandoNF() {
           ordem={recebendo}
           aoFechar={() => setRecebendo(null)}
           aoSalvar={() => { setRecebendo(null); void carregar() }}
+        />
+      )}
+
+      {recebendoLocacao && (
+        <ReceberLocacao
+          ordemCompraId={recebendoLocacao.ordem_compra_id}
+          aoFechar={() => setRecebendoLocacao(null)}
+          aoSalvar={() => { setRecebendoLocacao(null); void carregar() }}
         />
       )}
     </>

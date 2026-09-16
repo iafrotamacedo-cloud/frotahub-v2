@@ -35,6 +35,7 @@ import { sesmtDpMenu } from './modulos/sesmt-dp'
 import { servicosMenu } from './modulos/servicos'
 import { engenhariaMenu } from './modulos/engenharia'
 import { administrativoMenu } from './modulos/administrativo'
+import { locacoesMenu } from './modulos/locacoes'
 import type { Nivel } from '../sessao/tipos'
 
 export interface ItemMenu {
@@ -89,7 +90,7 @@ export type Icone =
 export type Tela =
   | 'usuarios' | 'categorias' | 'categorias-ceo' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
-  | 'pco-destinatarios' | 'nf' | 'nf-acessos'
+  | 'pco-destinatarios' | 'nf' | 'nf-acessos' | 'locacoes'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,
@@ -102,6 +103,7 @@ export type Tela =
 
 const ARVORE_COMPLETA: ItemMenu[] = [
   administrativoMenu,
+  locacoesMenu,
   {
     t: 'Manutenção',
     rota: 'manutencao',

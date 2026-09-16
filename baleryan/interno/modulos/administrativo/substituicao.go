@@ -185,7 +185,7 @@ func (m *Modulo) substituirOrdem(w http.ResponseWriter, r *http.Request) {
 	//
 	//	Se o envio falhar no meio, a OC antiga continua lá — errada, mas
 	//	visível — em vez de sumir sem nada no lugar.
-	novoID, _, err := m.guardarUma(r.Context(), p, cabecalho)
+	novoID, _, err := m.guardarUma(r.Context(), p, cabecalho, "")
 	if err != nil {
 		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return
@@ -274,7 +274,7 @@ func (m *Modulo) substituirOrdemPCO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	novoID, _, err := m.guardarUma(r.Context(), p, cabecalho)
+	novoID, _, err := m.guardarUma(r.Context(), p, cabecalho, "")
 	if err != nil {
 		web.Falhar(w, http.StatusBadRequest, err.Error())
 		return

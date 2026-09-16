@@ -55,7 +55,7 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
 
   const podeEntregar = temRotina(perfil, RotinaNFEntregar)
 
-  if (onde === 'aguardando') return <AguardandoNF />
+  if (onde === 'aguardando') return <AguardandoNF perfil={perfil} />
   if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" somenteLeitura={!podeEntregar} />
   if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" somenteLeitura={!podeEntregar} />
   if (onde === 'enviadas') return <ListaDeNF vista="enviadas" titulo="Enviadas ao cliente" />

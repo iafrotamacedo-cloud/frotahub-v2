@@ -40,6 +40,7 @@ import { Pco } from './telas/administrativo/Pco'
 import { DestinatariosPCO } from './telas/administrativo/DestinatariosPCO'
 import { NotasFiscais } from './telas/administrativo/NotasFiscais'
 import { AcessosObraNF } from './telas/administrativo/AcessosObraNF'
+import { Locacoes } from './telas/locacoes/Locacoes'
 import { Consolidacao } from './telas/financeiro/Consolidacao'
 import { Hub as ServicosHub } from './telas/servicos/Hub'
 import { Funcionarios } from './telas/funcionarios/Funcionarios'
@@ -157,6 +158,9 @@ function Casca() {
     // fim da tela (ver `.lay.escura .content` em escuro.css) — ficam do
     // tamanho do próprio conteúdo, bem mais baixos que os de PCO/Compras.
     || atual?.tela === 'nf'
+    // "locacoes" é o mesmo caso de "nf": item de 1º nível sem `sub`, hub de
+    // cartões desenhado pelo próprio Locacoes.tsx (Fase 2, 16/09/2026).
+    || atual?.tela === 'locacoes'
   const iniciais = perfil.nome.trim().slice(0, 2).toUpperCase()
 
   function navegar(novo: ItemMenu[], sobra: string[] = []) {
@@ -550,6 +554,12 @@ function Casca() {
             />
           ) : atual?.tela === 'nf-acessos' ? (
             <AcessosObraNF />
+          ) : atual?.tela === 'locacoes' ? (
+            <Locacoes
+              onde={extra[0]}
+              perfil={perfil}
+              abrir={onde => navegar(caminho, [onde])}
+            />
           ) : atual?.tela === 'consolidacao' ? (
             <Consolidacao />
           ) : atual?.tela === 'servicos-hub' ? (

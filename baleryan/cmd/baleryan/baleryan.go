@@ -45,6 +45,7 @@ import (
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/consolidacao"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/estatisticas"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/funcionarios"
+	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/locacoes"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/orcamentos"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/planejamento"
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/modulos/rogueworker"
@@ -134,6 +135,11 @@ func main() {
 	// Mesmo armazém dos outros módulos, pelo mesmo motivo; `cfg` entra porque
 	// o envio precisa da chave do Brevo.
 	administrativo.Novo(cfg, bd, seg, m.perm, arm, hist, m.era).Montar(mux)
+	// Locações (Fase 1, 16/09/2026): a bifurcação no recebimento de OC — a OC
+	// e o PCO continuam 100% em administrativo, este módulo só existe a
+	// partir do momento em que o almoxarife escolhe "Locação" em vez de
+	// escanear a NF. Mesmo armazém, mesmo motivo dos outros.
+	locacoes.Novo(bd, seg, m.perm, arm, hist).Montar(mux)
 	// Rogue Worker recebe o mux já com as rotas dos outros módulos: ação
 	// dela é chamar o mesmo handler que o clique do usuário já chama, nunca
 	// escrever nas tabelas deles.

@@ -224,10 +224,24 @@ func (m *Modulo) inserirOrdens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// DESTINO_RECEBIMENTO — SÓ O MÓDULO LOCAÇÕES USA ISTO (16/09/2026)
+	//
+	//	Campo opcional, vazio para toda inserção normal de Compras. Quando a
+	//	tela "Concluir renovação" de Locações insere a OC de renovação, ela
+	//	manda "locacao" aqui — a OC nasce já marcada, e a view
+	//	`nf_progresso_ordens` (migração 072) nunca a mostra em "Aguardando
+	//	NF". Fora "" e "locacao", o valor é ignorado (o check da coluna
+	//	recusaria no banco de qualquer forma).
+	destino := strings.TrimSpace(r.FormValue("destino_recebimento"))
+	if destino != "" && destino != "locacao" {
+		web.Falhar(w, http.StatusBadRequest, "Destino de recebimento inválido.")
+		return
+	}
+
 	saida := make([]resultadoDaInsercao, 0, len(arquivos))
 	for _, cabecalho := range arquivos {
 		res := resultadoDaInsercao{Nome: cabecalho.Filename}
-		id, igualA, err := m.guardarUma(r.Context(), p, cabecalho)
+		id, igualA, err := m.guardarUma(r.Context(), p, cabecalho, destino)
 		switch {
 		case err != nil:
 			res.Erro = err.Error()
@@ -254,7 +268,7 @@ func ouOutroNome(antigo, meu string) string {
 // o resto (número, fornecedor, itens, totais) fica nulo até a leitura
 // existir (ver cabeçalho do arquivo).
 func (m *Modulo) guardarUma(ctx context.Context, p *seguranca.Principal,
-	cabecalho *multipart.FileHeader) (string, string, error) {
+	cabecalho *multipart.FileHeader, destinoRecebimento string) (string, string, error) {
 	f, err := cabecalho.Open()
 	if err != nil {
 		return "", "", fmt.Errorf("não consegui abrir: %w", err)
@@ -313,6 +327,9 @@ func (m *Modulo) guardarUma(ctx context.Context, p *seguranca.Principal,
 		"arquivo_sha256": sha,
 		"criado_por":     p.UserID,
 		"status":         "inserido",
+	}
+	if destinoRecebimento != "" {
+		linha["destino_recebimento"] = destinoRecebimento
 	}
 	var criados []map[string]any
 	if err := m.bd.Inserir(ctx, "ordens_compra", []map[string]any{linha}, &criados); err != nil {
