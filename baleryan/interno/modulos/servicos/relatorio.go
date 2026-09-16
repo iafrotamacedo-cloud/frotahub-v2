@@ -154,7 +154,7 @@ func (m *Modulo) extrairListaXLSX(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar a planilha.")
 		return
 	}
-	entregarArquivoDeServico(w, bytes, "xlsx",
+	entregarArquivoDeServico(w, bytes, "servicos", "xlsx",
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 }
 
@@ -173,11 +173,14 @@ func (m *Modulo) extrairListaPDF(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui montar o PDF.")
 		return
 	}
-	entregarArquivoDeServico(w, bytes, "pdf", "application/pdf")
+	entregarArquivoDeServico(w, bytes, "servicos", "pdf", "application/pdf")
 }
 
-func entregarArquivoDeServico(w http.ResponseWriter, corpo []byte, extensao, tipo string) {
-	nome := fmt.Sprintf("servicos-%s.%s", time.Now().Format("2006-01-02"), extensao)
+// entregarArquivoDeServico entrega um arquivo baixável — `base` é o começo do
+// nome (ex.: "servicos", "servicos-relatorio-mensal"), sempre seguido pela
+// data de hoje, para as duas extrações desta tela nunca colidirem de nome.
+func entregarArquivoDeServico(w http.ResponseWriter, corpo []byte, base, extensao, tipo string) {
+	nome := fmt.Sprintf("%s-%s.%s", base, time.Now().Format("2006-01-02"), extensao)
 	w.Header().Set("Content-Type", tipo)
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+nome+"\"; filename*=UTF-8''"+url.PathEscape(nome))
 	w.Header().Set("Content-Length", strconv.Itoa(len(corpo)))

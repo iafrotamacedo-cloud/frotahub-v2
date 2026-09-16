@@ -75,6 +75,11 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /servicos/lista.xlsx", m.extrairListaXLSX)
 	mux.HandleFunc("GET /servicos/lista.pdf", m.extrairListaPDF)
 
+	// O relatório mensal — mesmo modelo do de materiais, filas diferentes
+	// (migração 073, ver relatorio_mensal.go).
+	mux.HandleFunc("GET /servicos/relatorio-mensal", m.relatorioMensal)
+	mux.HandleFunc("GET /servicos/relatorio-mensal.xlsx", m.relatorioMensalExcel)
+
 	// O orçamento em duas etapas: anexar (rascunho local) e lançar (Trílogo).
 	mux.HandleFunc("POST /servicos/kanban/{id}/arquivo-orcamento", m.inserirArquivoDeOrcamento)
 	mux.HandleFunc("DELETE /servicos/kanban/{id}/arquivo-orcamento", m.excluirArquivoDeOrcamento)
