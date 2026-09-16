@@ -129,16 +129,17 @@ func (c *Consulta) filtros(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var chamados []struct {
-		Status     string `json:"status"`
-		Prioridade string `json:"prioridade"`
-		Conta      string `json:"conta"`
+		Status      string  `json:"status"`
+		Prioridade  string  `json:"prioridade"`
+		Conta       string  `json:"conta"`
+		Responsavel *string `json:"responsavel"`
 	}
 	if err := c.bd.Buscar(r.Context(),
-		"chamados?cliente_id=eq."+cli+"&select=status,prioridade,conta", &chamados); err != nil {
+		"chamados?cliente_id=eq."+cli+"&select=status,prioridade,conta,responsavel", &chamados); err != nil {
 		web.Falhar(w, http.StatusInternalServerError, "Não consegui carregar os filtros.")
 		return
 	}
-	status, prioridades, contas := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	status, prioridades, contas, responsaveis := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, l := range chamados {
 		if l.Status != "" {
 			status[l.Status] = true
@@ -149,14 +150,18 @@ func (c *Consulta) filtros(w http.ResponseWriter, r *http.Request) {
 		if l.Conta != "" {
 			contas[l.Conta] = true
 		}
+		if l.Responsavel != nil && *l.Responsavel != "" {
+			responsaveis[*l.Responsavel] = true
+		}
 	}
 
 	web.Responder(w, http.StatusOK, map[string]any{
-		"lojas":       lojas,
-		"status":      ordenado(status),
-		"prioridades": ordenado(prioridades),
-		"contas":      ordenado(contas),
-		"por_pagina":  PorPagina,
+		"lojas":        lojas,
+		"status":       ordenado(status),
+		"prioridades":  ordenado(prioridades),
+		"contas":       ordenado(contas),
+		"responsaveis": ordenado(responsaveis),
+		"por_pagina":   PorPagina,
 	})
 }
 
@@ -284,6 +289,13 @@ func (c *Consulta) montarFiltro(clienteID string, q map[string][]string) (string
 			partes = append(partes, "prioridade=eq.")
 		} else {
 			partes = append(partes, "prioridade=eq."+banco.Escapar(v))
+		}
+	}
+	if v := pega("responsavel"); v != "" {
+		if strings.EqualFold(v, "sem") {
+			partes = append(partes, "responsavel=is.null")
+		} else {
+			partes = append(partes, "responsavel=eq."+banco.Escapar(v))
 		}
 	}
 
@@ -676,6 +688,13 @@ func descreverFiltro(q url.Values, linhas []linhaExtracao) string {
 			partes = append(partes, "Sem prioridade")
 		} else {
 			partes = append(partes, "Prioridade: "+v)
+		}
+	}
+	if v := q.Get("responsavel"); v != "" {
+		if strings.EqualFold(v, "sem") {
+			partes = append(partes, "Sem responsável")
+		} else {
+			partes = append(partes, "Responsável: "+v)
 		}
 	}
 	de, ate := q.Get("de"), q.Get("ate")

@@ -50,6 +50,7 @@ export interface Filtros {
   status: string[]
   prioridades: string[]
   contas: string[]
+  responsaveis: string[]
   por_pagina: number[]
 }
 
@@ -73,6 +74,7 @@ export interface Escolhas {
   status: string
   conta: string
   prioridade: string
+  responsavel: string
   de: string
   ate: string
   /** '' = só os que estão no Trílogo (o padrão) · 'todos' · 'sim' = só os que saíram. */
@@ -80,7 +82,7 @@ export interface Escolhas {
 }
 
 export const SEM_FILTRO: Escolhas = {
-  ticket: '', loja: '', status: '', conta: '', prioridade: '', de: '', ate: '', saidos: '',
+  ticket: '', loja: '', status: '', conta: '', prioridade: '', responsavel: '', de: '', ate: '', saidos: '',
 }
 
 export function contaPorExtenso(c: string): string {

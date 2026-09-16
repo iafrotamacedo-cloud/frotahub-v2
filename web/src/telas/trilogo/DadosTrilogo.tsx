@@ -383,6 +383,15 @@ export function DadosTrilogo({ ticket, perfil, abrir, voltar, inicial, lojaTrilo
           </select>
         </label>
 
+        <label className="tri-campo">
+          <span>Responsável</span>
+          <select value={escolhas.responsavel} onChange={e => mudar('responsavel', e.target.value)}>
+            <option value="">Todos</option>
+            {filtros?.responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
+            <option value="sem">Sem responsável</option>
+          </select>
+        </label>
+
         {/* O chamado que os Mercadinhos tiraram da nossa prestadora some da
             lista sozinho — era o defeito a consertar. Este seletor é a porta
             para ele: nada no sistema desaparece sem ter onde ser encontrado. */}
