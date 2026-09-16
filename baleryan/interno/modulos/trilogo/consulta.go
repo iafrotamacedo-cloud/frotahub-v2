@@ -598,7 +598,7 @@ type linhaExtracao struct {
 	CriadoEm    string  `json:"criado_em"`
 	Prazo       *string `json:"prazo"`
 	Responsavel *string `json:"responsavel"`
-	CustoTotal  string  `json:"custo_total"`
+	CustoTotal  float64 `json:"custo_total"`
 	Anexos      int     `json:"anexos"`
 }
 
