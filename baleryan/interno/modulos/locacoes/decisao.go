@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/iafrotamacedo-cloud/frotahub-v2/baleryan/interno/banco"
@@ -166,6 +167,27 @@ func (m *Modulo) devolver(w http.ResponseWriter, r *http.Request) {
 		fotosPorItem[it.EquipamentoID] = shas
 	}
 
+	// A OC DE DESMOBILIZAÇÃO (FRETE DE VOLTA) — OPCIONAL, UMA SÓ PRO LOTE
+	//
+	//	Decisão do dono (17/09/2026): quando existe uma OC de frete pra
+	//	trazer o equipamento de volta, ela é vinculada aqui — já precisa
+	//	estar inserida (a tela resolve o id pelo número, ver
+	//	`buscarOrdemPorNumero`). Sem vínculo automático de "qual frete é de
+	//	qual locação": quem devolve escolhe, porque o sistema não tem como
+	//	adivinhar isso a partir de um PDF solto do Obra Prima.
+	ordemFreteID := strings.TrimSpace(r.FormValue("ordem_compra_frete_id"))
+	if ordemFreteID != "" {
+		if _, ok := umUUID(ordemFreteID); !ok {
+			web.Falhar(w, http.StatusBadRequest, "OC de frete inválida.")
+			return
+		}
+		if _, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+ordemFreteID+
+			"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&select=id&limit=1"); err != nil {
+			web.Falhar(w, http.StatusBadRequest, "Não achei a OC de frete informada.")
+			return
+		}
+	}
+
 	hoje := time.Now().UTC().Truncate(24 * time.Hour).Format("2006-01-02")
 	encerrados := 0
 	for _, it := range itens {
@@ -176,6 +198,9 @@ func (m *Modulo) devolver(w http.ResponseWriter, r *http.Request) {
 			"qtd":             it.Qtd,
 			"romaneio_sha256": paginasRomaneio[0].sha,
 			"registrado_por":  p.UserID,
+		}
+		if ordemFreteID != "" {
+			linha["ordem_compra_frete_id"] = ordemFreteID
 		}
 		var criados []map[string]any
 		if err := m.bd.Inserir(r.Context(), "locacoes_devolucoes", []map[string]any{linha}, &criados); err != nil {
@@ -243,6 +268,36 @@ func (m *Modulo) devolver(w http.ResponseWriter, r *http.Request) {
 	web.Responder(w, http.StatusOK, map[string]any{
 		"devolvidos": len(itens),
 		"encerrados": encerrados,
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GET /locacoes/ordens/buscar?numero=X — acha uma OC já inserida pelo
+// número, pra vincular como frete de desmobilização na devolução. Não exige
+// que a OC seja de locação — frete é uma OC de compra comum.
+// ---------------------------------------------------------------------------
+
+func (m *Modulo) buscarOrdemPorNumero(w http.ResponseWriter, r *http.Request) {
+	p := m.quemComRotina(w, r, RotinaDecidir)
+	if p == nil {
+		return
+	}
+	numero := strings.TrimSpace(r.URL.Query().Get("numero"))
+	if numero == "" {
+		web.Falhar(w, http.StatusBadRequest, "Informe o número da OC.")
+		return
+	}
+	oc, err := m.contarUm(r.Context(), "ordens_compra?cliente_id=eq."+banco.Escapar(p.ClienteID)+
+		"&numero=eq."+banco.Escapar(numero)+"&select=id,numero,fornecedor_id,total,fornecedores(razao_social)&limit=1")
+	if err != nil {
+		web.Falhar(w, http.StatusNotFound, "Não achei nenhuma OC com este número.")
+		return
+	}
+	web.Responder(w, http.StatusOK, map[string]any{
+		"id":              oc["id"],
+		"numero":          oc["numero"],
+		"total":           oc["total"],
+		"fornecedor_nome": nestedStr(oc["fornecedores"], "razao_social"),
 	})
 }
 

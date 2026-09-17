@@ -13,7 +13,13 @@ import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { motor, ErroMotor } from '../../motor/cliente'
 import type { Perfil } from '../../sessao/tipos'
-import { emData, emReais, rotuloDaFaixa, rotuloDaPeriodicidade, type DetalheDoEquipamento } from './tipos'
+import { emData, emReais, rotuloDaFaixa, rotuloDaPeriodicidade, type DetalheDoEquipamento, type RegraFaturamento } from './tipos'
+
+function rotuloDaRegra(r: RegraFaturamento): string {
+  if (r === 'sempre_mes_cheio') return 'sempre mês cheio'
+  if (r === 'sempre_proporcional') return 'sempre proporcional'
+  return 'padrão (mês cheio no 1º período, proporcional depois)'
+}
 
 interface Props {
   id: string
@@ -92,6 +98,9 @@ export function DetalheEquipamento({ id, perfil = null, aoFechar, aoMudar }: Pro
                   Vencimento atual: {emData(dados.equipamento.vencimento_atual)} ({rotuloDaFaixa(dados.equipamento.dias_para_vencer, dados.equipamento.descoberto)})
                 </p>
                 <p style={{ margin: '4px 0' }}>Estado: {dados.equipamento.estado === 'ativo' ? 'ativo' : 'encerrado'}</p>
+                <p style={{ margin: '4px 0' }}>
+                  Regra de faturamento: {rotuloDaRegra(dados.equipamento.regra_faturamento)} — total calculado até hoje: <b>{emReais(dados.equipamento.total_calculado)}</b>
+                </p>
               </div>
             </div>
 
@@ -117,7 +126,7 @@ export function DetalheEquipamento({ id, perfil = null, aoFechar, aoMudar }: Pro
             <div className="tabela-rolo">
               <table className="tabela">
                 <thead>
-                  <tr><th>#</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Qtd.</th><th>O.C.</th></tr>
+                  <tr><th>#</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Qtd.</th><th>O.C.</th><th>Calculado</th></tr>
                 </thead>
                 <tbody>
                   {dados.periodos.map(p => (
@@ -128,6 +137,7 @@ export function DetalheEquipamento({ id, perfil = null, aoFechar, aoMudar }: Pro
                       <td>{emData(p.fim)}</td>
                       <td>{p.qtd}</td>
                       <td>{p.ordens_compra?.numero ?? '—'}</td>
+                      <td>{emReais(p.valor_calculado)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -140,13 +150,14 @@ export function DetalheEquipamento({ id, perfil = null, aoFechar, aoMudar }: Pro
                 <div className="tabela-rolo">
                   <table className="tabela">
                     <thead>
-                      <tr><th>Data</th><th>Qtd.</th><th></th></tr>
+                      <tr><th>Data</th><th>Qtd.</th><th>Frete</th><th></th></tr>
                     </thead>
                     <tbody>
                       {dados.devolucoes.map(d => (
                         <tr key={d.id}>
                           <td>{emData(d.data_devolucao)}</td>
                           <td>{d.qtd}</td>
+                          <td>{d.frete_ordem_numero ? `O.C. ${d.frete_ordem_numero}` : '—'}</td>
                           <td>
                             <button type="button" className="bt bt-mini bt-neutro" onClick={() => void abrir(d.romaneio_sha256, 'Romaneio de devolução')}>
                               ver romaneio

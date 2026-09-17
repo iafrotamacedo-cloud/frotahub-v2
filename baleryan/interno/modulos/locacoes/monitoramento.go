@@ -193,7 +193,8 @@ func (m *Modulo) equipamento(w http.ResponseWriter, r *http.Request) {
 	equip, err := m.contarUm(r.Context(), "locacoes_equipamentos?id=eq."+id+
 		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
 		"&select=id,descricao,unidade,qtd_recebida,qtd_ativa,valor_unit,periodicidade,data_inicio,"+
-		"vencimento_atual,estado,obra_centro_custo,recebimento_id,fornecedores(razao_social),ordens_compra(numero)&limit=1")
+		"vencimento_atual,estado,obra_centro_custo,recebimento_id,regra_faturamento,"+
+		"fornecedores(razao_social,regra_faturamento),ordens_compra(numero)&limit=1")
 	if err != nil {
 		m.erro(w, "não achei este equipamento", err)
 		return
@@ -202,12 +203,41 @@ func (m *Modulo) equipamento(w http.ResponseWriter, r *http.Request) {
 		web.Falhar(w, http.StatusForbidden, "Você não tem acesso a esta obra.")
 		return
 	}
+	fornecedor, _ := equip["fornecedores"].(map[string]any)
+	regraFornecedor := ""
+	if fornecedor != nil {
+		regraFornecedor = strCampo(fornecedor["regra_faturamento"])
+	}
+	regra := regraResolvida(strCampo(equip["regra_faturamento"]), regraFornecedor)
 
-	var periodos []map[string]any
+	var periodosBrutos []map[string]any
 	if err := m.bd.Buscar(r.Context(), "locacoes_periodos?equipamento_id=eq."+id+
-		"&order=numero&select=id,numero,tipo,inicio,fim,qtd,valor_unit,ordens_compra(numero)", &periodos); err != nil {
+		"&order=numero&select=id,numero,tipo,inicio,fim,qtd,valor_unit,ordens_compra(numero)", &periodosBrutos); err != nil {
 		m.erro(w, "não consegui listar os períodos deste equipamento", err)
 		return
+	}
+	periodos := make([]map[string]any, 0, len(periodosBrutos))
+	totalCalculado := 0.0
+	for _, per := range periodosBrutos {
+		valor := 0.0
+		if inicio, err1 := parseData(strCampo(per["inicio"])); err1 == nil {
+			if fim, err2 := parseData(strCampo(per["fim"])); err2 == nil {
+				valor = calcularValorPeriodo(int(numCampo(per["numero"])), inicio, fim,
+					numCampo(per["qtd"]), numCampo(per["valor_unit"]), regra)
+			}
+		}
+		totalCalculado += valor
+		periodos = append(periodos, map[string]any{
+			"id":              per["id"],
+			"numero":          per["numero"],
+			"tipo":            per["tipo"],
+			"inicio":          per["inicio"],
+			"fim":             per["fim"],
+			"qtd":             per["qtd"],
+			"valor_unit":      per["valor_unit"],
+			"ordens_compra":   per["ordens_compra"],
+			"valor_calculado": valor,
+		})
 	}
 
 	var fotos []map[string]any
@@ -224,11 +254,22 @@ func (m *Modulo) equipamento(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var devolucoes []map[string]any
+	var devolucoesBrutas []map[string]any
 	if err := m.bd.Buscar(r.Context(), "locacoes_devolucoes?equipamento_id=eq."+id+
-		"&order=criado_em.desc&select=id,data_devolucao,qtd,romaneio_sha256", &devolucoes); err != nil {
+		"&order=criado_em.desc&select=id,data_devolucao,qtd,romaneio_sha256,frete:ordens_compra!ordem_compra_frete_id(numero)",
+		&devolucoesBrutas); err != nil {
 		m.erro(w, "não consegui listar as devoluções deste equipamento", err)
 		return
+	}
+	devolucoes := make([]map[string]any, 0, len(devolucoesBrutas))
+	for _, d := range devolucoesBrutas {
+		devolucoes = append(devolucoes, map[string]any{
+			"id":                 d["id"],
+			"data_devolucao":     d["data_devolucao"],
+			"qtd":                d["qtd"],
+			"romaneio_sha256":    d["romaneio_sha256"],
+			"frete_ordem_numero": nestedStr(d["frete"], "numero"),
+		})
 	}
 
 	web.Responder(w, http.StatusOK, map[string]any{
@@ -246,6 +287,8 @@ func (m *Modulo) equipamento(w http.ResponseWriter, r *http.Request) {
 			"obra_centro_custo": equip["obra_centro_custo"],
 			"fornecedor_nome":   nestedStr(equip["fornecedores"], "razao_social"),
 			"ordem_numero":      nestedStr(equip["ordens_compra"], "numero"),
+			"regra_faturamento": regra,
+			"total_calculado":   totalCalculado,
 		},
 		"periodos":    ouVazio(periodos),
 		"fotos":       ouVazio(fotos),

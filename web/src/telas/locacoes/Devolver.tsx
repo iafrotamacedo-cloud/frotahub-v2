@@ -1,15 +1,22 @@
-// rev 1 — Locações: devolver (Fase 3, 16/09/2026)
+// rev 2 — Locações: devolver (Fase 3, 16/09/2026 · frete Fase 5, 17/09/2026)
 //
 // LOTE E PARCIAL NASCEM DO MESMO FORMULÁRIO
 //
 //	"Total" é aceitar a quantidade sugerida (= tudo o que está ativo) em
 //	todos os itens selecionados; "parcial" é editar a quantidade de um item
 //	pra menos. Não são dois fluxos — é o mesmo, com o número editável.
+//
+// A OC DE FRETE É OPCIONAL E BUSCADA PELO NÚMERO
+//
+//	Sem vínculo automático (o sistema não tem como adivinhar qual PDF solto
+//	do Obra Prima é o frete desta locação) — quem devolve busca a OC já
+//	inserida pelo número e confirma. Uma OC só vale pro lote inteiro, do
+//	mesmo jeito que o romaneio.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Janela } from '../../componentes/Janela'
 import { ScannerDeDocumento } from '../../componentes/scanner/ScannerDeDocumento'
-import { enviarFormulario, ErroMotor } from '../../motor/cliente'
-import type { EquipamentoLocado, ResultadoDaDevolucao } from './tipos'
+import { enviarFormulario, motor, ErroMotor } from '../../motor/cliente'
+import type { EquipamentoLocado, OrdemEncontrada, ResultadoDaDevolucao } from './tipos'
 
 interface Props {
   equipamentos: EquipamentoLocado[]
@@ -29,8 +36,26 @@ export function Devolver({ equipamentos, aoFechar, aoSalvar }: Props) {
   )
   const [romaneio, setRomaneio] = useState<File[]>([])
   const [scannerAberto, setScannerAberto] = useState(false)
+  const [freteNumero, setFreteNumero] = useState('')
+  const [frete, setFrete] = useState<OrdemEncontrada | null>(null)
+  const [buscandoFrete, setBuscandoFrete] = useState(false)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  async function buscarFrete() {
+    if (!freteNumero.trim()) return
+    setBuscandoFrete(true)
+    setErro('')
+    try {
+      const r = await motor<OrdemEncontrada>(`/locacoes/ordens/buscar?numero=${encodeURIComponent(freteNumero.trim())}`)
+      setFrete(r)
+    } catch (e) {
+      setFrete(null)
+      setErro(e instanceof ErroMotor ? e.message : 'Não achei nenhuma OC com este número.')
+    } finally {
+      setBuscandoFrete(false)
+    }
+  }
 
   function receberRomaneio(paginas: File[]) {
     setScannerAberto(false)
@@ -78,6 +103,7 @@ export function Devolver({ equipamentos, aoFechar, aoSalvar }: Props) {
       }))))
       forma.append('romaneio', romaneio[0], romaneio[0].name)
       for (const pg of romaneio.slice(1)) forma.append('romaneio_paginas', pg, pg.name)
+      if (frete) forma.append('ordem_compra_frete_id', frete.id)
       for (const it of itens) {
         for (const foto of it.fotos) forma.append(`fotos_${it.equipamento.id}`, foto, foto.name)
       }
@@ -140,6 +166,31 @@ export function Devolver({ equipamentos, aoFechar, aoSalvar }: Props) {
               <span>{romaneio.length === 0 ? 'Escanear o romaneio' : 'Escanear de novo'}</span>
             </button>
           </div>
+
+          <label style={{ marginTop: 14 }}>OC de frete (desmobilização) — opcional</label>
+          {frete ? (
+            <div className="loc-item">
+              <div className="loc-item-cabecalho">
+                <span className="loc-item-descricao">O.C. {frete.numero}</span>
+                <span className="loc-item-valor">{frete.fornecedor_nome || 'fornecedor não identificado'}</span>
+              </div>
+              <button type="button" className="bt bt-mini bt-neutro" onClick={() => { setFrete(null); setFreteNumero('') }} disabled={salvando}>
+                remover vínculo
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={freteNumero}
+                onChange={e => setFreteNumero(e.target.value)}
+                placeholder="Número da OC de frete, se já inserida"
+                disabled={salvando || buscandoFrete}
+              />
+              <button type="button" className="bt bt-mini" onClick={() => void buscarFrete()} disabled={salvando || buscandoFrete || !freteNumero.trim()}>
+                {buscandoFrete ? 'Buscando...' : 'Buscar'}
+              </button>
+            </div>
+          )}
 
           {erro && <div className="erro-caixa">{erro}</div>}
 

@@ -80,6 +80,10 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /locacoes/renovacoes/{id}/cancelar", m.cancelarRenovacao)
 	mux.HandleFunc("GET /locacoes/renovacoes", m.renovacoes)
 	mux.HandleFunc("POST /locacoes/renovacoes/concluir", m.concluirRenovacao)
+	// O cálculo do faturamento (Fase 5, 17/09/2026) — ver o cabeçalho de faturamento.go.
+	mux.HandleFunc("GET /locacoes/faturamento", m.faturamento)
+	// A busca de OC pra vincular como frete de desmobilização — ver decisao.go.
+	mux.HandleFunc("GET /locacoes/ordens/buscar", m.buscarOrdemPorNumero)
 }
 
 // ---------------------------------------------------------------------------

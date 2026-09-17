@@ -77,6 +77,7 @@ export interface PeriodoDeLocacao {
   qtd: number
   valor_unit: number
   ordens_compra: { numero: string | null } | null
+  valor_calculado: number
 }
 
 export interface FotoDeLocacao {
@@ -96,10 +97,13 @@ export interface DevolucaoDeLocacao {
   data_devolucao: string
   qtd: number
   romaneio_sha256: string
+  frete_ordem_numero: string | null
 }
 
+export type RegraFaturamento = 'padrao' | 'sempre_proporcional' | 'sempre_mes_cheio'
+
 export interface DetalheDoEquipamento {
-  equipamento: EquipamentoLocado & { qtd_recebida: number }
+  equipamento: EquipamentoLocado & { qtd_recebida: number; regra_faturamento: RegraFaturamento; total_calculado: number }
   periodos: PeriodoDeLocacao[]
   fotos: FotoDeLocacao[]
   recebimento: RecebimentoDeLocacao
@@ -157,6 +161,24 @@ export interface ResultadoDaLeituraDeOC {
 /** O que `POST /locacoes/renovacoes/concluir` devolve. */
 export interface ResultadoDaConclusao {
   concluidas: number
+}
+
+// ---------------------------------------------------------------------------
+// Faturamento (Fase 5) — só cálculo por período, sem ciclo/cliente ainda
+// ---------------------------------------------------------------------------
+
+/** O que `GET /locacoes/faturamento` devolve. */
+export interface ResumoDeFaturamento {
+  total: number
+  por_obra: { obra_centro_custo: string; total_calculado: number }[]
+}
+
+/** O que `GET /locacoes/ordens/buscar?numero=X` devolve. */
+export interface OrdemEncontrada {
+  id: string
+  numero: string | null
+  total: number | null
+  fornecedor_nome: string | null
 }
 
 export function emReais(v: number | null | undefined): string {

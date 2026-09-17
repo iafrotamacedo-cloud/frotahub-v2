@@ -1,4 +1,4 @@
-// rev 2 — Locações: o hub (Fase 2: monitoramento · Fase 4: renovações)
+// rev 3 — Locações: o hub (Fase 2: monitoramento · Fase 4: renovações · Fase 5: faturamento)
 //
 // MESMO DESENHO DE `administrativo/NotasFiscais.tsx`
 //
@@ -13,6 +13,7 @@ import { PainelDadosMobile } from '../../componentes/PainelDadosMobile'
 import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
+import { Faturamento } from './Faturamento'
 import { Monitoramento } from './Monitoramento'
 import { RenovacoesPendentes } from './RenovacoesPendentes'
 import { RotinaLocacoesMonitorar, RotinaLocacoesRenovarOC, temRotina } from './rotinas'
@@ -45,6 +46,7 @@ export function Locacoes({ onde, perfil, abrir }: Props) {
   if (onde === 'ativos') return <Monitoramento vista="ativos" titulo="Ativos" perfil={perfil} />
   if (onde === 'encerrados') return <Monitoramento vista="encerrados" titulo="Encerrados" perfil={perfil} />
   if (onde === 'renovacoes') return <RenovacoesPendentes />
+  if (onde === 'faturamento') return <Faturamento />
 
   if (!temRotina(perfil, RotinaLocacoesMonitorar)) {
     return <p className="dica" style={{ padding: 20 }}>Você não tem acesso ao monitoramento de Locações.</p>
@@ -99,6 +101,12 @@ function montarEtapas(d: PainelDeLocacoes, perfil: Perfil | null): Etapa[] {
       numero: d.ativos,
       rotulo: 'equipamentos',
     },
+    {
+      chave: 'faturamento',
+      titulo: 'Faturamento calculado',
+      descricao: 'Mês cheio × proporcional, somado por obra — um raio-X, não uma cobrança fechada.',
+      icone: <IconeDinheiro />,
+    },
   ]
   // "Renovações pendentes" só pro RC (LOCACOES_RENOVAR_OC) — pra quem só
   // monitora ou só recebe, essa fila não é dele.
@@ -148,6 +156,15 @@ function IconeCaixa() {
       <path d="M4 8 12 4l8 4-8 4-8-4Z" />
       <path d="M4 8v9l8 4 8-4V8" />
       <path d="M12 12v9" />
+    </svg>
+  )
+}
+
+function IconeDinheiro() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.4" />
+      <path d="M12 7.5v9M14.6 9.4c0-1.1-1.16-2-2.6-2s-2.6.9-2.6 2c0 1.1 1.16 1.6 2.6 2s2.6.9 2.6 2c0 1.1-1.16 2-2.6 2s-2.6-.9-2.6-2" />
     </svg>
   )
 }
