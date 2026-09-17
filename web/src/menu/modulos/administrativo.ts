@@ -75,6 +75,17 @@ export const administrativoMenu: ItemMenu = {
           rotina: 'COMPRAS_ORDENS_GERENCIAR',
         },
         {
+          // Migração 076 (17/09/2026) — NF com valor divergente da OC vira
+          // fila própria, dentro de Compras (é o RC quem corrige, não o
+          // almoxarife). Ver o cabeçalho de `correcao_oc.go`.
+          t: 'Correção de OC',
+          rota: 'correcao-oc',
+          icone: 'lista',
+          desc: 'Notas fiscais com valor divergente da OC',
+          tela: 'correcao-oc',
+          rotina: 'COMPRAS_ORDENS_GERENCIAR',
+        },
+        {
           t: 'Equalizar Propostas',
           rota: 'equalizar-propostas',
           icone: 'balanca',

@@ -17,6 +17,12 @@ export interface OrdemDeCompra {
   fornecedor_id: string | null
   total: number | null
   criado_em: string
+  /** Migração 076 — presentes em toda vista, só têm sentido em "correcao". */
+  aguardando_correcao?: boolean
+  correcao_origem?: 'automatica' | 'manual' | null
+  correcao_marcada_em?: string | null
+  /** Só vem preenchido na vista "correcao" (`GET .../ordens?vista=correcao`). */
+  recebido?: number
 }
 
 /** O erro de faturamento não se corrige editando — a OC precisa ser
@@ -59,6 +65,8 @@ export interface PainelDeOrdens {
   fila: number
   processadas: number
   rejeitadas: number
+  /** Migração 076 — OCs com NF de valor divergente, aguardando o RC corrigir. */
+  correcao: number
   previa?: {
     processadas?: LinhaDaPreviaDeOrdem[]
     rejeitadas?: LinhaDaPreviaDeOrdem[]

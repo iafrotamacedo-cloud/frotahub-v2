@@ -36,6 +36,7 @@ import { PainelMenuMobile } from './telas/PainelMenuMobile'
 import { useEhMobile } from './componentes/useEhMobile'
 import { InserirOC } from './telas/administrativo/InserirOC'
 import { OcsInseridas } from './telas/administrativo/OcsInseridas'
+import { CorrecaoDeOC } from './telas/administrativo/CorrecaoDeOC'
 import { Pco } from './telas/administrativo/Pco'
 import { DestinatariosPCO } from './telas/administrativo/DestinatariosPCO'
 import { NotasFiscais } from './telas/administrativo/NotasFiscais'
@@ -525,6 +526,8 @@ function Casca() {
             <APagar />
           ) : atual?.tela === 'inserir-oc' ? (
             <InserirOC />
+          ) : atual?.tela === 'correcao-oc' ? (
+            <CorrecaoDeOC />
           ) : atual?.tela === 'ocs-inseridas' ? (
             // ESTA TELA SÓ EXISTE COMO PASSAGEM
             //

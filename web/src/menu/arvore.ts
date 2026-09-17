@@ -90,7 +90,7 @@ export type Icone =
 export type Tela =
   | 'usuarios' | 'categorias' | 'categorias-ceo' | 'minha-conta' | 'trilogo-dados' | 'orcamentos' | 'faturar' | 'a-pagar'
   | 'consolidacao' | 'funcionarios' | 'servicos-hub' | 'obras' | 'compras' | 'inserir-oc' | 'ocs-inseridas' | 'pco'
-  | 'pco-destinatarios' | 'nf' | 'nf-acessos' | 'locacoes'
+  | 'pco-destinatarios' | 'nf' | 'nf-acessos' | 'locacoes' | 'correcao-oc'
   // AS DOZE DE ESTATÍSTICAS, TODAS COM O PREFIXO `est-`
   //
   //	O prefixo é o que permite a App.tsx despachar a seção inteira num ramo só,

@@ -546,6 +546,12 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Migração 076 — reavalia se o total recebido nesta OC (com a nota que
+	// acabou de entrar) diverge do total dela. Roda por último, depois de
+	// tudo gravado: se falhar, a nota já existe de qualquer jeito, e só fica
+	// sem a marcação automática por ora (`avaliarDivergenciaOC` só loga).
+	m.avaliarDivergenciaOC(r.Context(), p, id)
+
 	web.Responder(w, http.StatusOK, map[string]any{
 		"id":             nfID,
 		"paginas":        len(paginas),
@@ -752,6 +758,134 @@ func (m *Modulo) cancelarNF(w http.ResponseWriter, r *http.Request) {
 		"cancelada": {De: false, Para: true},
 	})
 	web.Responder(w, http.StatusOK, map[string]any{"cancelada": true})
+}
+
+// ---------------------------------------------------------------------------
+// POST /administrativo/nf/notas/{id}/trocar — troca o arquivo/valor da NOTA
+// ---------------------------------------------------------------------------
+//
+// Migração 076 (17/09/2026) — diferente de "corrigir a OC"
+// (`correcao_oc.go`): aqui não muda a OC, só a nota em si (o fornecedor
+// mandou uma segunda via, corrigida). RC ou RO, a qualquer momento — mesmo
+// depois de já entregue/enviada. A troca sempre manda a nota de volta pra
+// `recebida`, NUNCA à frente disso: a nota nova sempre precisa passar pelas
+// duas etapas do escritório de novo, mesmo que a anterior já tivesse
+// passado.
+func (m *Modulo) trocarNF(w http.ResponseWriter, r *http.Request) {
+	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
+	if p == nil {
+		return
+	}
+	id, ok := umUUID(r.PathValue("id"))
+	if !ok {
+		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
+		return
+	}
+	if !m.arm.Ligado() {
+		web.Falhar(w, http.StatusServiceUnavailable,
+			"O armazenamento de arquivos não está configurado. Sem ele, trocar perderia o arquivo.")
+		return
+	}
+	nf, err := m.contarUm(r.Context(), "notas_fiscais?id=eq."+id+
+		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&cancelada=eq.false"+
+		"&select=id,ordem_compra_id,numero,valor&limit=1")
+	if err != nil {
+		m.erro(w, "não achei esta nota fiscal", err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(TamanhoMaximo); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui ler o que foi enviado.")
+		return
+	}
+	numero := strings.TrimSpace(r.FormValue("numero"))
+	if numero == "" {
+		numero = strCampo(nf["numero"])
+	}
+	valor := numeroDeJSON(nf["valor"])
+	if valorTxt := strings.TrimSpace(r.FormValue("valor")); valorTxt != "" {
+		v, err := parseValorNF(valorTxt)
+		if err != nil {
+			web.Falhar(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		valor = v
+	}
+
+	primeira := r.MultipartForm.File["arquivo"]
+	if len(primeira) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Escaneie ou envie a nota que vai entrar no lugar.")
+		return
+	}
+	cabecalhos := append([]*multipart.FileHeader{primeira[0]}, r.MultipartForm.File["paginas"]...)
+	if len(cabecalhos) > PaginasPorNota {
+		web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Uma nota pode ter no máximo %d páginas.", PaginasPorNota))
+		return
+	}
+	shaPrimeira := ""
+	shasSeguintes := make([]string, 0, len(cabecalhos))
+	for i, cab := range cabecalhos {
+		raw, err := lerCabecalhoMultipart(cab)
+		if err != nil {
+			web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Página %d: %s.", i+1, err.Error()))
+			return
+		}
+		sha, err := m.guardarArquivoNF(r.Context(), p, raw, fmt.Sprintf("nf-p%d.jpg", i+1))
+		if err != nil {
+			m.erro(w, fmt.Sprintf("não consegui guardar a página %d da nota", i+1), err)
+			return
+		}
+		if i == 0 {
+			shaPrimeira = sha
+		} else {
+			shasSeguintes = append(shasSeguintes, sha)
+		}
+	}
+
+	if err := m.bd.Atualizar(r.Context(), "notas_fiscais",
+		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), map[string]any{
+			"numero":                  numero,
+			"valor":                   valor,
+			"arquivo_sha256":          shaPrimeira,
+			"status":                  "recebida",
+			"entregue_escritorio_em":  nil,
+			"entregue_confirmado_por": nil,
+			"enviada_cliente_em":      nil,
+			"enviada_confirmado_por":  nil,
+		}); err != nil {
+		m.erro(w, "não consegui trocar esta nota fiscal", err)
+		return
+	}
+	// As páginas seguintes recomeçam do zero — a nota trocada pode ter um
+	// número de páginas diferente da anterior.
+	if err := m.bd.Apagar(r.Context(), "notas_fiscais_paginas", "nota_fiscal_id=eq."+id); err != nil {
+		m.erro(w, "troquei a página 1 mas não consegui limpar as páginas antigas", err)
+		return
+	}
+	if len(shasSeguintes) > 0 {
+		linhas := make([]map[string]any, 0, len(shasSeguintes))
+		for i, sha := range shasSeguintes {
+			linhas = append(linhas, map[string]any{
+				"cliente_id":     p.ClienteID,
+				"nota_fiscal_id": id,
+				"pagina":         i + 2,
+				"arquivo_sha256": sha,
+			})
+		}
+		if err := m.bd.Inserir(r.Context(), "notas_fiscais_paginas", linhas, nil); err != nil {
+			m.erro(w, "troquei a nota mas não consegui registrar as páginas seguintes", err)
+			return
+		}
+	}
+
+	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, "trocar_nota_fiscal", map[string]historico.Mudanca{
+		"numero": {De: strCampo(nf["numero"]), Para: numero},
+	})
+
+	// A troca pode ter corrigido (ou criado) uma divergência — reavalia.
+	m.avaliarDivergenciaOC(r.Context(), p, strCampo(nf["ordem_compra_id"]))
+
+	web.Responder(w, http.StatusOK, map[string]any{"trocada": true})
 }
 
 // ---------------------------------------------------------------------------

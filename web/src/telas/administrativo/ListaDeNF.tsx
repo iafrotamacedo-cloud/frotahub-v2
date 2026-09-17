@@ -16,6 +16,14 @@
 //	as duas rotinas pra leitura e continua travando `avancarNF`/`cancelarNF`
 //	só pra quem entrega). Aqui, `somenteLeitura` tira os dois botões de
 //	escrita e deixa só "ver" — nunca mostra um botão que o motor recusaria.
+//
+// "TROCAR" NÃO SEGUE `somenteLeitura` (migração 076, 17/09/2026)
+//
+//	RC ou RO, a qualquer momento — pedido do dono. No motor,
+//	`trocarNF` aceita as mesmas três rotinas que já dão acesso de LEITURA a
+//	estas listas (RECEBER/ENTREGAR/ENVIAR_CLIENTE) — quem enxerga a lista já
+//	pode trocar, mesmo sem poder avançar/cancelar. Por isso o botão aparece
+//	sempre, inclusive pro almoxarife (RO) em modo `somenteLeitura`.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
@@ -23,6 +31,7 @@ import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { CartaoLinha } from '../../componentes/CartaoLinha'
 import { useEhMobile } from '../../componentes/useEhMobile'
 import { CancelarNF } from './CancelarNF'
+import { TrocarNF } from './TrocarNF'
 import { emReais, emDataHora, type NotaFiscal } from './tipos'
 
 type VistaDeNF = 'recebidas' | 'entregues' | 'enviadas'
@@ -51,6 +60,7 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
   const [erro, setErro] = useState('')
   const [avancando, setAvancando] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<string | null>(null)
+  const [trocando, setTrocando] = useState<NotaFiscal | null>(null)
   const [vendo, setVendo] = useState<{ endereco: string; nome: string } | null>(null)
 
   const carregar = useCallback(async () => {
@@ -121,21 +131,24 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
                 { rotulo: 'Recebida em', valor: emDataHora(nf.recebida_em) },
               ]}
               acoes={
-                somenteLeitura ? undefined : (
-                  <>
-                    {avanco && (
-                      <button
-                        type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
-                        onClick={() => void avancar(nf)}
-                      >
-                        {avancando === nf.id ? '...' : avanco.rotulo}
-                      </button>
-                    )}
+                <>
+                  {!somenteLeitura && avanco && (
+                    <button
+                      type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
+                      onClick={() => void avancar(nf)}
+                    >
+                      {avancando === nf.id ? '...' : avanco.rotulo}
+                    </button>
+                  )}
+                  <button type="button" className="bt bt-mini bt-neutro" onClick={() => setTrocando(nf)}>
+                    trocar
+                  </button>
+                  {!somenteLeitura && (
                     <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
                       cancelar
                     </button>
-                  </>
-                )
+                  )}
+                </>
               }
             />
           ))}
@@ -158,7 +171,7 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
                   <td className="tri-fraco">{emDataHora(nf.recebida_em)}</td>
                   <td>
                     <button type="button" className="bt bt-mini" onClick={() => void abrirArquivo(nf)}>ver</button>
-                    {avanco && (
+                    {!somenteLeitura && avanco && (
                       <button
                         type="button" className="bt bt-mini bt-forte" disabled={avancando === nf.id}
                         onClick={() => void avancar(nf)}
@@ -166,6 +179,9 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
                         {avancando === nf.id ? '...' : avanco.rotulo}
                       </button>
                     )}
+                    <button type="button" className="bt bt-mini bt-neutro" onClick={() => setTrocando(nf)}>
+                      trocar
+                    </button>
                     {!somenteLeitura && (
                       <button type="button" className="bt bt-mini bt-perigo" onClick={() => setCancelando(nf.id)}>
                         cancelar
@@ -186,6 +202,20 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
           aoSalvar={() => {
             setNotas(atual => (atual ? atual.filter(x => x.id !== cancelando) : atual))
             setCancelando(null)
+          }}
+        />
+      )}
+
+      {trocando && (
+        <TrocarNF
+          nota={trocando}
+          aoFechar={() => setTrocando(null)}
+          aoSalvar={() => {
+            // Recarrega em vez de só tirar da lista: em "recebidas" a nota
+            // trocada CONTINUA aparecendo (só mudou o arquivo/valor); em
+            // "entregues"/"enviadas" ela some, porque voltou pra `recebida`.
+            setTrocando(null)
+            void carregar()
           }}
         />
       )}

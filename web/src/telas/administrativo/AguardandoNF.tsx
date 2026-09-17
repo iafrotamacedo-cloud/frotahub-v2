@@ -26,10 +26,22 @@
 //	COMPRAS_ORDENS_GERENCIAR): esta fica atrás de `COMPRAS_NF_RECEBER` e
 //	peneirada pela obra, senão o link devolveria 403 bem na cara de quem
 //	ele foi feito pra atender.
+//
+// "ENVIAR P/ CORREÇÃO" — SÓ QUANDO O DESVIO É GRANDE DEMAIS PRO AUTOMÁTICO
+// (migração 076)
+//
+//	Uma OC com divergência dentro de 3% já sai sozinha desta lista assim que
+//	a nota é recebida (`avaliarDivergenciaOC`, no motor) — nunca aparece
+//	aqui pra alguém mandar. Este botão é só pro caso de fora da faixa: a
+//	obra (RO) decide, na hora, que aquele desvio grande também é a OC que
+//	está errada, não uma nota parcial de verdade. Só aparece quando já tem
+//	algo recebido — mandar uma OC com zero recebido pra correção não faz
+//	sentido nenhum.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { Confirmar } from '../../componentes/Confirmar'
 import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Perfil } from '../../sessao/tipos'
@@ -49,6 +61,8 @@ export function AguardandoNF({ perfil = null }: Props) {
   const [recebendo, setRecebendo] = useState<OrdemAguardandoNF | null>(null)
   const [recebendoLocacao, setRecebendoLocacao] = useState<OrdemAguardandoNF | null>(null)
   const [vendoOC, setVendoOC] = useState<{ ordem: OrdemAguardandoNF; endereco: string; nome: string } | null>(null)
+  const [mandandoCorrecao, setMandandoCorrecao] = useState<OrdemAguardandoNF | null>(null)
+  const [processando, setProcessando] = useState<string | null>(null)
   const podeReceberLocacao = temRotinaLocacoes(perfil, RotinaLocacoesReceber)
 
   const carregar = useCallback(async () => {
@@ -70,6 +84,20 @@ export function AguardandoNF({ perfil = null }: Props) {
       setVendoOC({ ordem: o, endereco: r.url, nome: r.nome })
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir esta O.C.')
+    }
+  }
+
+  async function confirmarEnviarCorrecao() {
+    if (!mandandoCorrecao) return
+    const o = mandandoCorrecao
+    setProcessando(o.ordem_compra_id)
+    try {
+      await motor(`/administrativo/nf/ordens/${o.ordem_compra_id}/marcar-correcao`, { metodo: 'POST' })
+      setOrdens(atual => (atual ? atual.filter(x => x.ordem_compra_id !== o.ordem_compra_id) : atual))
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui mandar esta OC para a correção.')
+    } finally {
+      setProcessando(null)
     }
   }
 
@@ -122,6 +150,14 @@ export function AguardandoNF({ perfil = null }: Props) {
                   {podeReceberLocacao && (
                     <button type="button" className="bt bt-mini bt-neutro" onClick={() => setRecebendoLocacao(o)}>locação</button>
                   )}
+                  {o.recebido > 0 && (
+                    <button
+                      type="button" className="bt bt-mini bt-neutro" disabled={processando === o.ordem_compra_id}
+                      onClick={() => setMandandoCorrecao(o)}
+                    >
+                      enviar p/ correção
+                    </button>
+                  )}
                 </>
               }
             />
@@ -158,6 +194,14 @@ export function AguardandoNF({ perfil = null }: Props) {
                         locação
                       </button>
                     )}
+                    {o.recebido > 0 && (
+                      <button
+                        type="button" className="bt bt-mini bt-neutro" disabled={processando === o.ordem_compra_id}
+                        onClick={() => setMandandoCorrecao(o)}
+                      >
+                        enviar p/ correção
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -180,6 +224,15 @@ export function AguardandoNF({ perfil = null }: Props) {
           ordemCompraId={recebendoLocacao.ordem_compra_id}
           aoFechar={() => setRecebendoLocacao(null)}
           aoSalvar={() => { setRecebendoLocacao(null); void carregar() }}
+        />
+      )}
+
+      {mandandoCorrecao && (
+        <Confirmar
+          titulo="Enviar para correção de OC?"
+          mensagem={`A OC ${mandandoCorrecao.numero ?? '—'} sai de Aguardando NF e vai pra fila de correção, em Compras — quem corrige é o RC.`}
+          aoConfirmar={() => void confirmarEnviarCorrecao()}
+          aoFechar={() => setMandandoCorrecao(null)}
         />
       )}
     </>

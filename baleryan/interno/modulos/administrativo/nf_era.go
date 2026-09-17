@@ -354,7 +354,7 @@ func (m *Modulo) lerUmaPaginaERA(t trabalhoERA) {
 func (m *Modulo) ordemProntaParaReceber(r *http.Request, p *seguranca.Principal, ocID string) (map[string]any, error) {
 	ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+ocID+
 		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
-		"&select=id,status,numero,obra_centro_custo,pco_enviado_em&limit=1")
+		"&select=id,status,numero,obra_centro_custo,pco_enviado_em,total,aguardando_correcao&limit=1")
 	if err != nil {
 		return nil, fmt.Errorf("não achei esta ordem de compra")
 	}
@@ -363,6 +363,12 @@ func (m *Modulo) ordemProntaParaReceber(r *http.Request, p *seguranca.Principal,
 	}
 	if fmtStatus(ordem["status"]) != "lido" || !temPCOEnviado(ordem["pco_enviado_em"]) {
 		return nil, fmt.Errorf("esta ordem de compra ainda não foi enviada ao cliente")
+	}
+	// Migração 076 — enquanto está na fila de correção, ninguém recebe nota
+	// pra esta OC: o RC precisa corrigi-la (ou voltá-la pra Aguardando NF)
+	// primeiro, senão a nota nova entraria numa OC que já vai ser apagada.
+	if b, _ := ordem["aguardando_correcao"].(bool); b {
+		return nil, fmt.Errorf("esta ordem de compra está na fila de correção — fale com quem corrige OCs antes de receber mais notas")
 	}
 	acesso, err := m.temAcessoAObra(r.Context(), p, strCampo(ordem["obra_centro_custo"]))
 	if err != nil {

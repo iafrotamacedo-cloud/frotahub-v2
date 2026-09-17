@@ -128,6 +128,10 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	// Excluir e substituir (11/09/2026) — ver o cabeçalho de `substituicao.go`.
 	mux.HandleFunc("DELETE /administrativo/compras/ordens/{id}", m.excluirOrdem)
 	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/substituir", m.substituirOrdem)
+	// Correção de OC — NF com valor divergente (migração 076, 17/09/2026) —
+	// ver o cabeçalho de `correcao_oc.go`.
+	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/voltar-aguardando", m.voltarOCParaAguardando)
+	mux.HandleFunc("POST /administrativo/compras/ordens/{id}/corrigir", m.corrigirOrdemComDivergencia)
 	// O hub de PCO (10/09/2026) — ver o cabeçalho de `painelDoPCO` em ordens.go.
 	mux.HandleFunc("GET /administrativo/compras/pco/painel", m.painelDoPCO)
 	// O envio por e-mail (11/09/2026) — ver o cabeçalho de `pco_enviar.go`.
@@ -151,6 +155,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/nf/ordens/{id}/arquivo", m.arquivoDaOrdemNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/escanear", m.escanearNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/receber", m.receberNF)
+	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/marcar-correcao", m.marcarCorrecaoManual)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/paginas", m.paginaNF)
 	mux.HandleFunc("GET /administrativo/nf/notas/{id}/paginas", m.paginasDaNF)
 	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
@@ -162,6 +167,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/entregar", m.entregarNF)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/enviar-cliente", m.enviarNFAoCliente)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/cancelar", m.cancelarNF)
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/trocar", m.trocarNF)
 	mux.HandleFunc("GET /administrativo/nf/notas/{id}/arquivo", m.arquivoDaNF)
 	// A configuração de acesso por obra (12/09/2026) — ver o cabeçalho de `acessos_obra.go`.
 	mux.HandleFunc("GET /administrativo/nf/obras", m.listarObrasNF)

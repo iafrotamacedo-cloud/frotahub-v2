@@ -105,6 +105,16 @@ function montarEtapas(d: PainelDeOrdens): Etapa[] {
       ],
     },
     {
+      // Migração 076 (17/09/2026) — a fila do RC: NF chegou com valor
+      // divergente da OC, dentro ou fora do desvio automático de 3%.
+      chave: 'correcao-oc',
+      titulo: 'Correção de OC',
+      descricao: 'Notas fiscais com valor divergente do total da OC.',
+      icone: <Icone nome="lista" />,
+      numero: d.correcao,
+      rotulo: 'aguardando correção',
+    },
+    {
       chave: 'equalizar-propostas',
       titulo: 'Equalizar Propostas',
       descricao: 'Comparar as propostas dos fornecedores.',

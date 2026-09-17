@@ -46,7 +46,7 @@ func (m *Modulo) ordemParaCancelamento(ctx context.Context, clienteID, id string
 	return m.contarUm(ctx, "ordens_compra?id=eq."+id+
 		"&cliente_id=eq."+banco.Escapar(clienteID)+
 		"&select=id,status,numero,obra_centro_custo,comprador_nome,comprador_cnpj,"+
-		"fornecedor_id,total,nome_arquivo,arquivo_sha256,pco_enviado_em&limit=1")
+		"fornecedor_id,total,nome_arquivo,arquivo_sha256,pco_enviado_em,aguardando_correcao&limit=1")
 }
 
 // registrarCancelamento grava o retrato em `ordens_compra_canceladas`. Só

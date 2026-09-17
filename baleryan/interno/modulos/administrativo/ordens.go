@@ -51,15 +51,37 @@ func (m *Modulo) listarOrdens(w http.ResponseWriter, r *http.Request) {
 	if p == nil {
 		return
 	}
+	vista := r.URL.Query().Get("vista")
 	var linhas []map[string]any
-	caminho := filtroDasOrdens(p.ClienteID, r.URL.Query().Get("vista")) +
-		"&select=id,nome_arquivo,status,erro_leitura,numero,obra_centro_custo,comprador_nome,comprador_cnpj,fornecedor_id,total,criado_em" +
+	caminho := filtroDasOrdens(p.ClienteID, vista) +
+		"&select=id,nome_arquivo,status,erro_leitura,numero,obra_centro_custo,comprador_nome,comprador_cnpj,fornecedor_id,total,criado_em," +
+		"aguardando_correcao,correcao_origem,correcao_marcada_em" +
 		"&limit=" + fmt.Sprint(TetoDaLista)
 	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
 		m.erro(w, "não consegui listar as ordens de compra", err)
 		return
 	}
+	if vista == "correcao" {
+		m.comRecebidoDaOrdem(r.Context(), p.ClienteID, linhas)
+	}
 	web.Responder(w, http.StatusOK, map[string]any{"ordens": ouVazio(linhas)})
+}
+
+// comRecebidoDaOrdem traz, pra cada OC da fila de correção, o quanto já
+// chegou de nota fiscal — vem de `nf_progresso_ordens` (a mesma view de
+// sempre, CORE-06: não recalcula a soma aqui de novo). Falhar numa linha
+// não derruba a lista inteira: essa OC só aparece sem o número de recebido.
+func (m *Modulo) comRecebidoDaOrdem(ctx context.Context, clienteID string, linhas []map[string]any) {
+	for _, l := range linhas {
+		oid := strCampo(l["id"])
+		if oid == "" {
+			continue
+		}
+		if pr, err := m.contarUm(ctx, "nf_progresso_ordens?ordem_compra_id=eq."+banco.Escapar(oid)+
+			"&cliente_id=eq."+banco.Escapar(clienteID)+"&select=recebido&limit=1"); err == nil {
+			l["recebido"] = pr["recebido"]
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -95,10 +117,19 @@ func (m *Modulo) painelDeOrdens(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não consegui contar as ordens rejeitadas", err)
 		return
 	}
+	// Correção de OC (migração 076) — contador falhando não derruba o
+	// painel inteiro: os outros três já responderam, o cartão de correção
+	// fica só sem número por ora.
+	correcao, err := m.bd.BuscarContando(r.Context(),
+		filtroDasOrdens(p.ClienteID, "correcao")+"&select=id&limit=1", nil)
+	if err != nil {
+		correcao = 0
+	}
 	web.Responder(w, http.StatusOK, map[string]any{
 		"fila":        fila,
 		"processadas": processadas,
 		"rejeitadas":  rejeitadas,
+		"correcao":    correcao,
 		"previa": map[string]any{
 			"processadas": m.previaDasOrdens(r.Context(), p.ClienteID, "processadas"),
 			"rejeitadas":  m.previaDasOrdens(r.Context(), p.ClienteID, "rejeitadas"),
@@ -183,6 +214,9 @@ func filtroDasOrdens(clienteID, vista string) string {
 		return base + "&status=eq.lido&pco_enviado_em=is.null&order=criado_em.desc"
 	case "pco-enviados":
 		return base + "&status=eq.lido&pco_enviado_em=not.is.null&order=pco_enviado_em.desc"
+	case "correcao":
+		// Migração 076 — a fila do RC: notas com valor divergente da OC.
+		return base + "&aguardando_correcao=eq.true&order=correcao_marcada_em.desc"
 	default:
 		return base + "&status=in.(inserido,lendo)&order=criado_em.desc"
 	}

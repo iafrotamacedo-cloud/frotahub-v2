@@ -168,11 +168,82 @@ aparecem em `rotinas`, na ordem certa, e a tela de Categorias já lista
 tudo dinamicamente (busca o catálogo do motor, não precisa de código novo
 ali).
 
+## Terceira rodada — NF com valor divergente da OC (item 9, o grande)
+
+Feature nova, não um ajuste — o Igor explicou o problema de negócio com
+calma (item faltando/sobrando, nota parcial já resolvida, produto por peso
+com pequena divergência de balança) e pediu pra alinhar o desenho antes de
+codar. Duas perguntas via `AskUserQuestion` (quem é RC/RO — RC já existia
+no código, ligado a `LOCACOES_RENOVAR_OC`; RO não existia, confirmado como
+"Responsável de Obra" = quem tem `COMPRAS_NF_RECEBER`; e se "corrigir a OC"
+reusa o substituir de PDF que já existe — confirmado que sim) e uma proposta
+escrita antes do primeiro `Write`.
+
+**O achado técnico que mudou o desenho**: o substituir de OC que já existe
+(`substituirOrdemPCO`, pra "nota veio com valor diferente do previsto" —
+frase que já estava no cabeçalho de `substituicao.go` desde 12/09, quase
+prevendo este pedido) APAGA a OC velha. Mas `notas_fiscais.ordem_compra_id`
+tem `on delete restrict` — reusar aquilo tal como está quebraria a chave
+estrangeira em qualquer OC que já tivesse nota recebida, que é exatamente o
+caso de uso aqui. Resolvido migrando as notas fiscais pra OC nova ANTES de
+apagar a velha (`corrigirOrdemComDivergencia`, novo).
+
+**O desenho final:**
+- Limiar de 3% (`LimiarDivergenciaOCPercent`), em centavos
+  (`regras.Dinheiro`), nunca em float — dinheiro não divide em ponto
+  flutuante (P-12 do próprio sistema).
+- `avaliarDivergenciaOC` roda depois de toda NF recebida ou trocada: bate
+  exato → nada muda; dentro de 3% e ainda não marcada → marca sozinha
+  (`correcao_origem = 'automatica'`); fora de 3% → não mexe, fica esperando
+  decisão. NUNCA desmarca uma correção manual sozinha — só um encaixe
+  exato de valor, ou o RC clicando "voltar pra aguardando", desfazem.
+- `nf_progresso_ordens.completa` mudou de `recebido >= total` (deixava
+  sobra grande sumir da fila sozinha, sem ninguém decidir nada) para
+  `recebido = total OR aguardando_correcao` — testado contra os 13 OCs
+  reais de produção depois de aplicar, sem surpresa (só uma, a 019783, com
+  1,38% de desvio — vai marcar sozinha na próxima nota recebida nela).
+- 4 rotas novas: `POST nf/ordens/{id}/marcar-correcao` (RO força
+  manualmente), `POST compras/ordens/{id}/voltar-aguardando` (RC desiste),
+  `POST compras/ordens/{id}/corrigir` (RC sobe a OC certa — migra as notas,
+  reseta status pra `recebida`, apaga a velha, a nova cai sozinha em
+  Pendentes de envio pro reenvio de PCO), `POST nf/notas/{id}/trocar` (RC
+  OU RO trocam só a nota, sem mexer na OC — sempre volta pra `recebida`,
+  "nunca à frente disso" como pedido).
+- Card novo "Correção de OC" em Compras
+  ([CorrecaoDeOC.tsx](../web/src/telas/administrativo/CorrecaoDeOC.tsx)),
+  reusando `VisorDeDocumento`/`Confirmar`/`CartaoLinha` — nada de
+  componente novo de exibição, só a tela de listagem+ações.
+  [AguardandoNF.tsx](../web/src/telas/administrativo/AguardandoNF.tsx) ganha
+  "enviar p/ correção" (só quando já tem algo recebido).
+  [ListaDeNF.tsx](../web/src/telas/administrativo/ListaDeNF.tsx) ganha
+  "trocar" em todo lugar — inclusive pro almoxarife em modo
+  `somenteLeitura`, porque quem já enxerga a lista já tem uma das três
+  rotinas que `trocarNF` aceita.
+
+**Migração 076** — aplicada em produção via MCP do Supabase, mesmo fluxo da
+075. Bateu num detalhe do Postgres na primeira tentativa: `create or
+replace view` recusa MUDAR a posição/nome de uma coluna existente —
+coloquei `aguardando_correcao`/`correcao_origem` no meio do SELECT (antes
+de "completa") e o banco achou que eu estava RENOMEANDO "completa".
+Resolvido movendo as duas colunas novas pro fim do SELECT, depois de
+`pco_enviado_em` — mesma regra que `nf_progresso_ordens` já seguia sem eu
+ter percebido a razão até bater de frente com ela.
+
+Nenhuma rotina nova de permissão pra RC: reusei `COMPRAS_ORDENS_GERENCIAR`
+(já é quem gerencia OC em todo o resto do sistema) — RC não ganhou um
+crachá novo, só mais uma capacidade dentro do que ele já tinha.
+
 ## O que ficou pendente
 
 - Item 2 (scanner torto) segue sem correção — decisão de trade-off do dono.
 - Item 5 (largura no mobile) recebeu uma trava geral (`overflow-x:hidden`),
   não uma causa raiz confirmada — precisa de celular de verdade se voltar.
+- Item 9 (correção de OC): nada testado ao vivo com uma OC real de ponta a
+  ponta (receber divergente → cair na fila → corrigir → conferir que o PCO
+  realmente reenvia). O e-mail de PCO em si eu não toquei — a expectativa é
+  que a OC nova, nascendo sem `pco_enviado_em`, entre no fluxo de envio já
+  existente sem precisar de nada novo, mas isso é inferência de código, não
+  teste de ponta a ponta.
 - Nada desta sessão foi testado ao vivo na obra; só build (`go build`,
   `go vet`, `go test`) e `tsc --noEmit`, todos limpos. O teste que já
   falhava antes (`TestDesenharOC_RoundTripLer`, PDF de OC) continua
