@@ -59,6 +59,10 @@ func (m *Modulo) quemPodeEntregarNF(w http.ResponseWriter, r *http.Request) *seg
 	return m.quemComRotina(w, r, RotinaNFEntregar)
 }
 
+func (m *Modulo) quemPodeEnviarNFAoCliente(w http.ResponseWriter, r *http.Request) *seguranca.Principal {
+	return m.quemComRotina(w, r, RotinaNFEnviarCliente)
+}
+
 func (m *Modulo) quemComRotina(w http.ResponseWriter, r *http.Request, rotina string) *seguranca.Principal {
 	p, err := m.seg.DaRequisicao(r)
 	if err != nil {
@@ -155,7 +159,7 @@ func (m *Modulo) temAcessoAObra(ctx context.Context, p *seguranca.Principal, obr
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) painelDeNF(w http.ResponseWriter, r *http.Request) {
-	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
+	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
 	if p == nil {
 		return
 	}
@@ -241,6 +245,68 @@ func (m *Modulo) comAcessoNaObra(ctx context.Context, p *seguranca.Principal, li
 		}
 	}
 	return saida
+}
+
+// ---------------------------------------------------------------------------
+// GET /administrativo/nf/ordens/{id}/arquivo — abrir a OC (17/09/2026)
+// ---------------------------------------------------------------------------
+//
+// O card de "Aguardando NF" ganhou um link pra ver a OC original — pedido do
+// dono, obra piloto MSL Fátima. Existe `arquivoDaOrdem` em ordens.go fazendo
+// a mesma coisa, mas atrás de `COMPRAS_ORDENS_GERENCIAR` — rotina de
+// Compras, que o almoxarife que recebe nota não tem. Reusar aquela rota
+// devolveria 403 bem na cara de quem o link foi feito pra atender. Esta é a
+// mesma busca, atrás da rotina certa (`RotinaNFReceber`) e peneirada pela
+// MESMA regra de obra que já protege a lista de Aguardando
+// (`temAcessoAObra`): só abre o arquivo de uma OC cuja obra este perfil tem
+// liberada — a permissão de configurar acesso por obra não fica maior só
+// porque ganhou um atalho novo.
+func (m *Modulo) arquivoDaOrdemNF(w http.ResponseWriter, r *http.Request) {
+	p := m.quemPodeReceberNF(w, r)
+	if p == nil {
+		return
+	}
+	id, ok := umUUID(r.PathValue("id"))
+	if !ok {
+		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
+		return
+	}
+	ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+id+
+		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
+		"&select=nome_arquivo,arquivo_sha256,obra_centro_custo&limit=1")
+	if err != nil {
+		m.erro(w, "não achei esta ordem de compra", err)
+		return
+	}
+	liberado, err := m.temAcessoAObra(r.Context(), p, strCampo(ordem["obra_centro_custo"]))
+	if err != nil {
+		m.erro(w, "não consegui conferir o acesso a esta obra", err)
+		return
+	}
+	if !liberado {
+		web.Falhar(w, http.StatusForbidden, "Você não tem esta obra liberada.")
+		return
+	}
+	sha, _ := ordem["arquivo_sha256"].(string)
+	if sha == "" {
+		web.Falhar(w, http.StatusNotFound, "Esta ordem de compra não tem arquivo guardado.")
+		return
+	}
+	arq, err := m.contarUm(r.Context(), "arquivos?sha256=eq."+banco.Escapar(sha)+"&select=chave_r2&limit=1")
+	if err != nil {
+		m.erro(w, "não achei o arquivo", err)
+		return
+	}
+	chave, _ := arq["chave_r2"].(string)
+	link, err := m.arm.LinkTemporario(chave, ValidadeDoLink)
+	if err != nil {
+		m.erro(w, "não consegui montar o endereço do arquivo", err)
+		return
+	}
+	web.Responder(w, http.StatusOK, map[string]any{
+		"url":  link,
+		"nome": ordem["nome_arquivo"],
+	})
 }
 
 func (m *Modulo) comNomeDoFornecedor(ctx context.Context, linhas []map[string]any) {
@@ -351,6 +417,29 @@ func (m *Modulo) receberNF(w http.ResponseWriter, r *http.Request) {
 	if len(cabecalhos) > PaginasPorNota {
 		web.Falhar(w, http.StatusBadRequest, fmt.Sprintf("Uma nota pode ter no máximo %d páginas.", PaginasPorNota))
 		return
+	}
+	// RECEBER POR PDF É UMA CAPACIDADE À PARTE (migração 075, 17/09/2026)
+	//
+	//	`guardarArquivoNF` já sabe guardar qualquer tipo de arquivo — PDF
+	//	incluso, é só olhar `tipoDoNome` — então sem esta trava, quem só tem
+	//	COMPRAS_NF_RECEBER (a câmera, na obra) ganharia PDF de brinde só
+	//	porque o formulário aceita qualquer coisa. A rotina nova é quem
+	//	decide isso, concedida por categoria (o dono escolhe quem — Compras
+	//	e Administrativo, por exemplo).
+	for _, cab := range cabecalhos {
+		if !strings.HasSuffix(strings.ToLower(cab.Filename), ".pdf") {
+			continue
+		}
+		pode, err := m.perm.Pode(r.Context(), p, RotinaNFReceberPDF)
+		if err != nil {
+			m.erro(w, "não consegui conferir sua permissão para receber nota em PDF", err)
+			return
+		}
+		if !pode && !p.Builder() {
+			web.Falhar(w, http.StatusForbidden, "Você não tem permissão para receber nota fiscal em PDF — escaneie pela câmera.")
+			return
+		}
+		break
 	}
 	type paginaLida struct {
 		raw []byte
@@ -525,9 +614,13 @@ func nomeExtensao(nome string) string {
 func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) {
 	var p *seguranca.Principal
 	if vista == "enviadas" {
-		p = m.quemPodeEntregarNF(w, r)
+		// Antes só quem entrega. Com COMPRAS_NF_ENVIAR_CLIENTE separada
+		// (migração 075), quem só tem essa rotina também precisa ver o que
+		// já mandou — senão a própria etapa que ele conclui vira invisível
+		// pra ele.
+		p = m.quemComQualquerRotina(w, r, RotinaNFEntregar, RotinaNFEnviarCliente)
 	} else {
-		p = m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
+		p = m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
 	}
 	if p == nil {
 		return
@@ -569,14 +662,27 @@ func (m *Modulo) comDadosDaOrdem(ctx context.Context, linhas []map[string]any) {
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) entregarNF(w http.ResponseWriter, r *http.Request) {
-	m.avancarNF(w, r, "recebida", "entregue_escritorio", map[string]any{
+	p := m.quemPodeEntregarNF(w, r)
+	if p == nil {
+		return
+	}
+	m.avancarNF(w, r, p, "recebida", "entregue_escritorio", map[string]any{
 		"status":                 "entregue_escritorio",
 		"entregue_escritorio_em": time.Now().UTC().Format(time.RFC3339),
 	}, "entregar_nota_fiscal_escritorio")
 }
 
+// enviarNFAoCliente — atrás de COMPRAS_NF_ENVIAR_CLIENTE, não mais de
+// COMPRAS_NF_ENTREGAR (migração 075, 17/09/2026). Eram a mesma rotina desde
+// a 064; o dono pediu pra "deixar bem definida" a permissão de recebimento
+// no escritório — o que só faz sentido separando-a do passo seguinte
+// (mandar pro cliente), senão as duas continuam empacotadas juntas.
 func (m *Modulo) enviarNFAoCliente(w http.ResponseWriter, r *http.Request) {
-	m.avancarNF(w, r, "entregue_escritorio", "enviada_cliente", map[string]any{
+	p := m.quemPodeEnviarNFAoCliente(w, r)
+	if p == nil {
+		return
+	}
+	m.avancarNF(w, r, p, "entregue_escritorio", "enviada_cliente", map[string]any{
 		"status":             "enviada_cliente",
 		"enviada_cliente_em": time.Now().UTC().Format(time.RFC3339),
 	}, "enviar_nota_fiscal_cliente")
@@ -584,12 +690,11 @@ func (m *Modulo) enviarNFAoCliente(w http.ResponseWriter, r *http.Request) {
 
 // avancarNF é o passo comum das duas etapas do escritório — bloqueio
 // otimista no FILTRO (`status=eq.<deEsperado>`), mesma disciplina de
-// `lerOrdem`: duas confirmações da mesma nota não colidem.
-func (m *Modulo) avancarNF(w http.ResponseWriter, r *http.Request, deEsperado, paraStatus string, campos map[string]any, acao string) {
-	p := m.quemPodeEntregarNF(w, r)
-	if p == nil {
-		return
-	}
+// `lerOrdem`: duas confirmações da mesma nota não colidem. `p` já vem
+// resolvido: cada chamador tem seu próprio porteiro (rotinas diferentes,
+// migração 075), então autenticar aqui de novo escolheria a rotina errada
+// pra uma das duas.
+func (m *Modulo) avancarNF(w http.ResponseWriter, r *http.Request, p *seguranca.Principal, deEsperado, paraStatus string, campos map[string]any, acao string) {
 	id, ok := umUUID(r.PathValue("id"))
 	if !ok {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
@@ -654,7 +759,7 @@ func (m *Modulo) cancelarNF(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func (m *Modulo) arquivoDaNF(w http.ResponseWriter, r *http.Request) {
-	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar)
+	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
 	if p == nil {
 		return
 	}

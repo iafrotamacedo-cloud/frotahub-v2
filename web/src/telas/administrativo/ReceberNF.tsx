@@ -1,4 +1,4 @@
-// rev 5 — receber NF: escaneia TODAS as páginas, salva uma vez (15/09/2026)
+// rev 6 — receber NF: escaneia TODAS as páginas, salva uma vez (15/09/2026)
 //
 // O FLUXO NO CELULAR
 //
@@ -20,10 +20,23 @@
 //	A rev 3 salvava página a página, e a nota nascia na primeira. Fechar a
 //	janela e abrir de novo pra página 2 criava uma SEGUNDA nota na mesma
 //	OC. Agora a nota só existe quando todas as páginas estão na mão.
+//
+// "ENVIAR PDF" — SEGUNDO CAMINHO PRA MESMA CAIXA (17/09/2026)
+//
+//	Nem toda nota chega na obra pra ser fotografada — às vezes já veio em
+//	PDF do fornecedor, por e-mail. O botão só aparece pra quem tem
+//	COMPRAS_NF_RECEBER_PDF (migração 075 — rotina À PARTE de RECEBER, o
+//	dono concede por categoria); o motor confere de novo no servidor
+//	(P-29), então esconder o botão aqui é só não oferecer o que a pessoa
+//	não pode usar, nunca a única trava. O PDF entra na mesma lista de
+//	`paginas` que as fotos escaneadas — pro motor é só mais um arquivo
+//	(`guardarArquivoNF` já sabe guardar qualquer tipo).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Janela } from '../../componentes/Janela'
 import { ScannerDeDocumento } from '../../componentes/scanner/ScannerDeDocumento'
 import { enviarFormulario, ErroMotor } from '../../motor/cliente'
+import type { Perfil } from '../../sessao/tipos'
+import { RotinaNFReceberPDF, temRotina } from './rotinasNF'
 import type { OrdemAguardandoNF } from './tipos'
 
 /**
@@ -35,6 +48,7 @@ const SUGERIR_PELA_IA = false
 
 interface Props {
   ordem: OrdemAguardandoNF
+  perfil?: Perfil | null
   aoFechar: () => void
   aoSalvar: () => void
 }
@@ -55,7 +69,7 @@ interface RespostaEscanear {
   aviso?: string
 }
 
-export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
+export function ReceberNF({ ordem, perfil = null, aoFechar, aoSalvar }: Props) {
   const [numero, setNumero] = useState('')
   const [valor, setValor] = useState('')
   const [paginas, setPaginas] = useState<File[]>([])
@@ -65,8 +79,10 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
   const [aviso, setAviso] = useState('')
   const [lendo, setLendo] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const podeReceberPDF = temRotina(perfil, RotinaNFReceberPDF)
 
   const campoMaterial = useRef<HTMLInputElement>(null)
+  const campoPDF = useRef<HTMLInputElement>(null)
   const jaSugeriu = useRef(false)
 
   // A sugestão de número/valor sai da primeira página, uma vez só.
@@ -111,8 +127,22 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
     setErro('')
   }
 
+  function receberPDF(f: File | undefined) {
+    if (!f) return
+    const arquivo = new File([f], `nf-p${paginas.length + 1}.pdf`, { type: 'application/pdf' })
+    setPaginas(ps => [...ps, arquivo])
+    setErro('')
+  }
+
   function removerPagina(i: number) {
-    setPaginas(ps => ps.filter((_, j) => j !== i).map((f, j) => new File([f], `nf-p${j + 1}.jpg`, { type: f.type })))
+    // A extensão de cada página SEGUE COM ELA — trocar tudo por `.jpg` na
+    // renumeração derrubaria o PDF de "receber por PDF" pra imagem, e o
+    // motor decide o tipo do arquivo pela extensão (`tipoDoNome`).
+    setPaginas(ps => ps.filter((_, j) => j !== i).map((f, j) => {
+      const ponto = f.name.lastIndexOf('.')
+      const ext = ponto >= 0 ? f.name.slice(ponto) : '.jpg'
+      return new File([f], `nf-p${j + 1}${ext}`, { type: f.type })
+    }))
   }
 
   async function salvar(e?: FormEvent) {
@@ -169,7 +199,25 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
               <IconeScanner />
               <span>{paginas.length === 0 ? 'Escanear a nota' : 'Mais uma página'}</span>
             </button>
+            {podeReceberPDF && (
+              <button
+                type="button"
+                className="nf-foto-add"
+                onClick={() => campoPDF.current?.click()}
+                disabled={salvando}
+              >
+                <IconePDF />
+                <span>Enviar PDF</span>
+              </button>
+            )}
           </div>
+          {podeReceberPDF && (
+            <input
+              ref={campoPDF} type="file" accept="application/pdf"
+              style={{ display: 'none' }}
+              onChange={e => { receberPDF(e.target.files?.[0]); e.target.value = '' }}
+            />
+          )}
 
           <label htmlFor="nf-numero">Número da nota fiscal</label>
           <input
@@ -231,9 +279,12 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
 
 function PaginaMini({ arquivo, numero, onRemover }: { arquivo: File; numero: number; onRemover: () => void }) {
   const url = useUrlDoArquivo(arquivo)
+  // Um PDF não renderiza dentro de <img> — a miniatura vira só o rótulo do
+  // arquivo em vez de um quadro quebrado (17/09/2026, "receber por PDF").
+  const ehPDF = arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf')
   return (
     <div className="nf-foto-mini nf-pagina-mini">
-      {url && <img src={url} alt={`Página ${numero}`} />}
+      {ehPDF ? <div className="nf-pagina-pdf"><IconePDF /></div> : url && <img src={url} alt={`Página ${numero}`} />}
       <span className="nf-pagina-num">{numero}</span>
       <button type="button" className="nf-foto-x" onClick={onRemover} aria-label={`Remover a página ${numero}`}>×</button>
     </div>
@@ -275,6 +326,15 @@ function IconeScanner() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
       <path d="M7 12h10" />
+    </svg>
+  )
+}
+
+function IconePDF() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
     </svg>
   )
 }

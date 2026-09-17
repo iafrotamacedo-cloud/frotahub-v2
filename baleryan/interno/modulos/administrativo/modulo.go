@@ -51,9 +51,25 @@ const (
 // entrega/envio (escritório) são responsabilidades diferentes, e conceder
 // acesso por obra é coisa de nível superior — ver o cabeçalho de
 // `notas_fiscais.go` e `acessos_obra.go`.
+//
+// MAIS DUAS, MIGRAÇÃO 075 (17/09/2026, obra piloto MSL Fátima)
+//
+//	COMPRAS_NF_RECEBER_PDF: subir a nota já em PDF (veio por e-mail do
+//	fornecedor) em vez de escanear pela câmera — capacidade À PARTE de
+//	RECEBER, não incluída nela. O dono pediu por categoria (não por login),
+//	sem trava de nível — "compras e adm tb devem poder fazer isso".
+//
+//	COMPRAS_NF_ENVIAR_CLIENTE: ENTREGAR virava sem querer duas
+//	responsabilidades na mesma rotina — confirmar que a nota chegou fisicamente
+//	no escritório, e marcar que ela SAIU no malote pro cliente. O dono pediu
+//	pra "deixar bem definida" a permissão de recebimento no escritório —
+//	ENTREGAR agora é só isso; enviar ao cliente ganha rotina própria, do
+//	mesmo jeito que RECEBER/ENTREGAR já eram separadas uma da outra.
 const (
 	RotinaNFReceber          = "COMPRAS_NF_RECEBER"
+	RotinaNFReceberPDF       = "COMPRAS_NF_RECEBER_PDF"
 	RotinaNFEntregar         = "COMPRAS_NF_ENTREGAR"
+	RotinaNFEnviarCliente    = "COMPRAS_NF_ENVIAR_CLIENTE"
 	RotinaNFConfigurarAcesso = "COMPRAS_NF_CONFIGURAR_ACESSO"
 )
 
@@ -132,6 +148,7 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("GET /administrativo/nf/painel", m.painelDeNF)
 	mux.HandleFunc("GET /administrativo/nf/aguardando", m.ordensAguardandoNF)
 	mux.HandleFunc("GET /administrativo/nf/ordens/{id}", m.notasDaOrdem)
+	mux.HandleFunc("GET /administrativo/nf/ordens/{id}/arquivo", m.arquivoDaOrdemNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/escanear", m.escanearNF)
 	mux.HandleFunc("POST /administrativo/nf/ordens/{id}/receber", m.receberNF)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/paginas", m.paginaNF)

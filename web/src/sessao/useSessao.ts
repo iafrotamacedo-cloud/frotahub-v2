@@ -103,6 +103,13 @@ export function useSessao() {
       await supabase.auth.signOut()
       return 'Este login está desativado.'
     }
+    // Todo login cai na tela inicial, nunca num submenu ou página específica
+    // (17/09/2026, obra piloto MSL Fátima) — mesmo que o endereço da aba
+    // ainda aponte pra uma tela de uma sessão anterior (aba que ficou aberta
+    // depois do token expirar, favorito colado direto numa tela interna). O
+    // endereço SEGUE guiando a navegação normalmente depois de entrar — só
+    // o momento do login em si é que sempre reseta pro início.
+    window.location.hash = ''
     setEstado({ carregando: false, perfil })
     return null
   }, [carregarPerfil])

@@ -17,10 +17,20 @@
 //	desenhou como a bifurcação: a OC entra e anda 100% igual até aqui, e só
 //	aqui os dois caminhos se separam. Quem não tem `LOCACOES_RECEBER` nem
 //	vê o botão — o motor recusaria de qualquer forma (P-29).
+//
+// "VER OC" ABRE O PDF ORIGINAL (17/09/2026, obra piloto MSL Fátima)
+//
+//	O almoxarife recebendo a nota às vezes precisa conferir o que a OC pediu
+//	de verdade. `GET /administrativo/nf/ordens/{id}/arquivo` existe só pra
+//	isto — não é a mesma rota que Compras usa (`arquivoDaOrdem`, atrás de
+//	COMPRAS_ORDENS_GERENCIAR): esta fica atrás de `COMPRAS_NF_RECEBER` e
+//	peneirada pela obra, senão o link devolveria 403 bem na cara de quem
+//	ele foi feito pra atender.
 import { useCallback, useEffect, useState } from 'react'
 import { motor, ErroMotor } from '../../motor/cliente'
 import { Carregando } from '../../componentes/Carregando'
 import { CartaoLinha } from '../../componentes/CartaoLinha'
+import { VisorDeDocumento } from '../../componentes/VisorDeDocumento'
 import { useEhMobile } from '../../componentes/useEhMobile'
 import type { Perfil } from '../../sessao/tipos'
 import { ReceberNF } from './ReceberNF'
@@ -38,6 +48,7 @@ export function AguardandoNF({ perfil = null }: Props) {
   const [erro, setErro] = useState('')
   const [recebendo, setRecebendo] = useState<OrdemAguardandoNF | null>(null)
   const [recebendoLocacao, setRecebendoLocacao] = useState<OrdemAguardandoNF | null>(null)
+  const [vendoOC, setVendoOC] = useState<{ ordem: OrdemAguardandoNF; endereco: string; nome: string } | null>(null)
   const podeReceberLocacao = temRotinaLocacoes(perfil, RotinaLocacoesReceber)
 
   const carregar = useCallback(async () => {
@@ -52,6 +63,26 @@ export function AguardandoNF({ perfil = null }: Props) {
   }, [])
 
   useEffect(() => { void carregar() }, [carregar])
+
+  async function abrirOC(o: OrdemAguardandoNF) {
+    try {
+      const r = await motor<{ url: string; nome: string }>(`/administrativo/nf/ordens/${o.ordem_compra_id}/arquivo`)
+      setVendoOC({ ordem: o, endereco: r.url, nome: r.nome })
+    } catch (e) {
+      setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir esta O.C.')
+    }
+  }
+
+  if (vendoOC) {
+    return (
+      <VisorDeDocumento
+        titulo={`O.C. ${vendoOC.ordem.numero ?? '—'}`}
+        endereco={vendoOC.endereco}
+        nomeSugerido={vendoOC.nome}
+        voltar={() => setVendoOC(null)}
+      />
+    )
+  }
 
   return (
     <>
@@ -77,6 +108,7 @@ export function AguardandoNF({ perfil = null }: Props) {
             <CartaoLinha
               key={o.ordem_compra_id}
               titulo={o.numero || '—'}
+              onClick={() => void abrirOC(o)}
               linhas={[
                 { rotulo: 'Obra/centro', valor: o.obra_centro_custo || '—' },
                 { rotulo: 'Fornecedor', valor: o.fornecedor_nome || '—' },
@@ -107,7 +139,11 @@ export function AguardandoNF({ perfil = null }: Props) {
             <tbody>
               {ordens.map(o => (
                 <tr key={o.ordem_compra_id}>
-                  <td>{o.numero || '—'}</td>
+                  <td>
+                    <button type="button" className="bt-como-link" onClick={() => void abrirOC(o)}>
+                      {o.numero || '—'}
+                    </button>
+                  </td>
                   <td>{o.obra_centro_custo || '—'}</td>
                   <td>{o.fornecedor_nome || '—'}</td>
                   <td>{emReais(o.total)}</td>
@@ -133,6 +169,7 @@ export function AguardandoNF({ perfil = null }: Props) {
       {recebendo && (
         <ReceberNF
           ordem={recebendo}
+          perfil={perfil}
           aoFechar={() => setRecebendo(null)}
           aoSalvar={() => { setRecebendo(null); void carregar() }}
         />

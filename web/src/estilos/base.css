@@ -16,6 +16,16 @@
 :root{--folga:clamp(3px,0.5vh,6px)}
 
 html,body,#raiz{margin:0;height:100%}
+/* NENHUMA TELA DEPENDE DE ROLAGEM HORIZONTAL DO CORPO (17/09/2026, obra
+ * piloto MSL Fátima — "a tela aparece um pouco maior que o aparelho" no
+ * mobile). Tabela larga já rola por dentro de si mesma (`.tabela-rolo`), a
+ * barra lateral não existe no mobile — então qualquer elemento pontual que
+ * escape da largura da tela (uma palavra sem quebra, um cálculo de 100vw
+ * que não bate com a área visível de verdade) empurrava a página inteira
+ * pro lado em vez de só a si mesmo. Trava aqui, na raiz, em vez de caçar
+ * cada tela — sem isto vira sintoma sem culpado fixo, difícil de reproduzir
+ * de novo pra confirmar o conserto. */
+html,body{overflow-x:hidden}
 body{
   font-family:var(--f); background:var(--bg); color:var(--txt);
   font-size:14px; line-height:1.45;

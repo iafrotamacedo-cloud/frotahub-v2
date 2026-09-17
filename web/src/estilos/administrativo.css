@@ -352,6 +352,13 @@
    As miniaturas das páginas usam a mesma grade das fotos de material; o
    número no canto diz a ordem, que é a ordem em que sobem no POST. */
 .nf-pagina-mini img{object-fit:contain;background:#fff;border:1px solid var(--line)}
+/* Página recebida por PDF (migração 075, 17/09/2026) — não tem miniatura
+ * de imagem pra mostrar, então vira um quadro com o ícone só. */
+.nf-pagina-pdf{
+  width:100%;height:100%;border-radius:var(--r-m);background:var(--bg);
+  border:1px solid var(--line);display:grid;place-items:center;color:var(--gray);
+}
+.nf-pagina-pdf svg{width:28px;height:28px}
 .nf-pagina-num{
   position:absolute;left:5px;bottom:5px;min-width:18px;height:18px;padding:0 5px;
   border-radius:9px;background:var(--ink);color:#fff;font-size:11px;font-weight:700;

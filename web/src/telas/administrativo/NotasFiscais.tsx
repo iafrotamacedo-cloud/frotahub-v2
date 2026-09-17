@@ -28,7 +28,7 @@ import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import { AguardandoNF } from './AguardandoNF'
 import { ListaDeNF } from './ListaDeNF'
-import { RotinaNFReceber, RotinaNFEntregar, temRotina } from './rotinasNF'
+import { RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente, temRotina } from './rotinasNF'
 import type { PainelDeNF } from './tipos'
 
 interface Props {
@@ -54,10 +54,15 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
   useEffect(() => { void carregar() }, [carregar, onde])
 
   const podeEntregar = temRotina(perfil, RotinaNFEntregar)
+  // Separada de podeEntregar na migração 075: "confirmar entrega no
+  // escritório" e "marcar enviada ao cliente" são rotinas diferentes agora,
+  // então cada lista fica somente-leitura pra quem não tem a rotina daquele
+  // passo específico — não a mesma flag pras duas.
+  const podeEnviarCliente = temRotina(perfil, RotinaNFEnviarCliente)
 
   if (onde === 'aguardando') return <AguardandoNF perfil={perfil} />
   if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" somenteLeitura={!podeEntregar} />
-  if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" somenteLeitura={!podeEntregar} />
+  if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" somenteLeitura={!podeEnviarCliente} />
   if (onde === 'enviadas') return <ListaDeNF vista="enviadas" titulo="Enviadas ao cliente" />
 
   if (erro) return <p className="erro">{erro}</p>
@@ -80,6 +85,7 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
 function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
   const podeReceber = temRotina(perfil, RotinaNFReceber)
   const podeEntregar = temRotina(perfil, RotinaNFEntregar)
+  const podeEnviarCliente = temRotina(perfil, RotinaNFEnviarCliente)
   const etapas: Etapa[] = []
   if (podeReceber) {
     etapas.push({
@@ -97,10 +103,11 @@ function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
   //	Pedido do dono (15/09/2026): o almoxarife acompanha o caminho da nota
   //	que ele mesmo escaneou até sair do escritório, mas não confirma a
   //	entrega física nem o envio — isso continua exclusivo de quem tem
-  //	COMPRAS_NF_ENTREGAR (`ListaDeNF` recebe `somenteLeitura` pra isso, ver
-  //	o comentário lá). "Enviadas" fica de fora: é o fim do ciclo, sem mais
-  //	nada que o almoxarife precise acompanhar.
-  if (podeReceber || podeEntregar) {
+  //	COMPRAS_NF_ENTREGAR ou COMPRAS_NF_ENVIAR_CLIENTE (`ListaDeNF` recebe
+  //	`somenteLeitura` pra isso, ver o comentário lá — migração 075 separou
+  //	as duas rotinas, cada `onde` olha a sua). "Enviadas" fica de fora: é o
+  //	fim do ciclo, sem mais nada que o almoxarife precise acompanhar.
+  if (podeReceber || podeEntregar || podeEnviarCliente) {
     etapas.push(
       {
         chave: 'recebidas',
@@ -120,7 +127,7 @@ function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
       },
     )
   }
-  if (podeEntregar) {
+  if (podeEntregar || podeEnviarCliente) {
     etapas.push({
       chave: 'enviadas',
       titulo: 'Enviadas ao cliente',

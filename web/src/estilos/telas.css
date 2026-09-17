@@ -60,6 +60,16 @@
 .tabela td.acoes{text-align:right;white-space:nowrap}
 .tabela td.acoes .bt{margin-left:5px}
 
+/* Uma célula que abre alguma coisa (a O.C. por trás da linha, por exemplo) —
+ * botão sem cara de botão, só sublinhado ao passar por cima, herdando o
+ * texto da célula em vez de reduzir o tamanho da fonte como `.bt-mini`
+ * faria (17/09/2026). */
+.bt-como-link{
+  background:none;border:0;padding:0;margin:0;font:inherit;color:var(--ink);
+  cursor:pointer;text-align:left;
+}
+.bt-como-link:hover{color:var(--red);text-decoration:underline}
+
 .pino{
   display:inline-block;border-radius:999px;padding:2px 9px;
   font-size:11px;font-weight:700;letter-spacing:.02em;
