@@ -26,8 +26,8 @@ interface Props {
 }
 
 export function TrocarNF({ nota, aoFechar, aoSalvar }: Props) {
-  const [numero, setNumero] = useState(nota.numero)
-  const [valor, setValor] = useState(String(nota.valor).replace('.', ','))
+  const [numero, setNumero] = useState(nota.numero ?? '')
+  const [valor, setValor] = useState(nota.valor != null ? String(nota.valor).replace('.', ',') : '')
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -59,7 +59,7 @@ export function TrocarNF({ nota, aoFechar, aoSalvar }: Props) {
   }
 
   return (
-    <Janela titulo={`Trocar a nota ${nota.numero}`} descricao="A nota nova volta pra Recebidas — precisa ser entregue no escritório de novo." aoFechar={aoFechar}>
+    <Janela titulo={`Trocar a nota ${nota.numero ?? '—'}`} descricao="A nota nova volta pra Recebidas — precisa ser entregue no escritório de novo." aoFechar={aoFechar}>
       <form className="jn-corpo" onSubmit={e => void salvar(e)}>
         <label htmlFor="tn-arquivo">Arquivo da nota (foto ou PDF)</label>
         <input

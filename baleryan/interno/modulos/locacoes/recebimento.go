@@ -1,4 +1,4 @@
-// rev 1 — GET .../itens e POST .../receber: a bifurcação vira dado
+// rev 2 — GET .../itens e POST .../receber: a bifurcação vira dado
 //
 // UMA OC, UM RECEBIMENTO DE LOCAÇÃO, N EQUIPAMENTOS
 //
@@ -7,8 +7,20 @@
 //	`receber` sobe TODOS os arquivos antes de qualquer INSERT (mesma
 //	disciplina de `receberNF`): se uma foto falhar no meio, nada foi criado.
 //	Cada item da OC vira um `locacoes_equipamentos` com o período 1 em
-//	`locacoes_periodos`, e só no fim a OC ganha `destino_recebimento =
-//	'locacao'` — é essa coluna que a tira de "Aguardando NF" (view 065/072).
+//	`locacoes_periodos`.
+//
+// A LOCAÇÃO CONTINUA NO KANBAN DE NF (migração 077, 17/09/2026)
+//
+//	Diferente da rev 1: a OC não sai mais de `nf_progresso_ordens` por uma
+//	coluna própria escondida — ela sai porque nasce, aqui, uma linha em
+//	`notas_fiscais` (origem='locacao', status='aguardando_nf_locacao'). É
+//	"lei" (o dono) que toda nota com faturamento direto ande até "enviada
+//	ao cliente" — locação não é exceção, só entra por uma porta diferente
+//	(o romaneio, não o escaneamento da NF). A NF de verdade nunca chega na
+//	obra — o ADM anexa depois, por `administrativo.anexarNFLocacao`. Por
+//	isso não existe mais campo de "NF opcional" aqui: nunca há NF no
+//	momento do recebimento. `destino_recebimento` continua sendo marcado
+//	na OC, mas só como TAG visual agora — quem tira da fila é a nota.
 package locacoes
 
 import (
@@ -190,19 +202,6 @@ func (m *Modulo) receber(w http.ResponseWriter, r *http.Request) {
 		paginasRomaneio = append(paginasRomaneio, paginaLida{sha: sha})
 	}
 
-	// A NF — OPCIONAL AQUI (pode vir junto com o equipamento, mesmo sem ser
-	// o documento de entrada; ver o cabeçalho da migração 072).
-	nfNumero := strings.TrimSpace(r.FormValue("nf_numero"))
-	nfSha := ""
-	if cabs := r.MultipartForm.File["nf"]; len(cabs) > 0 {
-		sha, err := m.lerEGuardarArquivo(r.Context(), p, cabs[0])
-		if err != nil {
-			web.Falhar(w, http.StatusBadRequest, "Nota fiscal: "+err.Error())
-			return
-		}
-		nfSha = sha
-	}
-
 	// FOTOS POR ITEM — PELO MENOS UMA CADA (decisão fechada com o dono)
 	fotosPorItem := make(map[string][]string, len(itens))
 	for i, it := range itens {
@@ -245,12 +244,6 @@ func (m *Modulo) receber(w http.ResponseWriter, r *http.Request) {
 		"data_recebimento": hoje.Format("2006-01-02"),
 		"recebido_por":     p.UserID,
 		"romaneio_sha256":  paginasRomaneio[0].sha,
-	}
-	if nfNumero != "" {
-		linhaRecebimento["nf_numero"] = nfNumero
-	}
-	if nfSha != "" {
-		linhaRecebimento["nf_sha256"] = nfSha
 	}
 	var criados []map[string]any
 	if err := m.bd.Inserir(r.Context(), "locacoes_recebimentos", []map[string]any{linhaRecebimento}, &criados); err != nil {
@@ -346,6 +339,22 @@ func (m *Modulo) receber(w http.ResponseWriter, r *http.Request) {
 		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID),
 		map[string]any{"destino_recebimento": "locacao"}); err != nil {
 		m.erro(w, "gravei o recebimento mas não consegui atualizar a ordem de compra", err)
+		return
+	}
+
+	// A NOTA NASCE AQUI, SEM NÚMERO NEM VALOR — é ela, não mais
+	// `destino_recebimento`, que tira a OC de "Aguardando NF" (migração
+	// 077: `nf_progresso_ordens` olha `notas_fiscais.origem = 'locacao'`).
+	// Cross-module só no dado (a tabela é de `administrativo`), nunca no
+	// código Go (P-13) — mesma disciplina de `buscarOrdemPorNumero`.
+	if err := m.bd.Inserir(r.Context(), "notas_fiscais", []map[string]any{{
+		"cliente_id":      p.ClienteID,
+		"ordem_compra_id": id,
+		"origem":          "locacao",
+		"status":          "aguardando_nf_locacao",
+		"recebida_por":    p.UserID,
+	}}, nil); err != nil {
+		m.erro(w, "gravei o recebimento mas não consegui abrir a nota fiscal de locação", err)
 		return
 	}
 

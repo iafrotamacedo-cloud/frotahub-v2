@@ -236,10 +236,12 @@ export interface DocumentoOC {
 // Notas Fiscais — Bloco A (12/09/2026, ver o cabeçalho de `notas_fiscais.go`)
 // ---------------------------------------------------------------------------
 
-/** O que `GET /administrativo/nf/painel` devolve — alimenta os quatro
- *  cartões do hub de Notas Fiscais. */
+/** O que `GET /administrativo/nf/painel` devolve — alimenta os cartões do
+ *  hub de Notas Fiscais. */
 export interface PainelDeNF {
   aguardando: number
+  /** Notas de locação sem a NF real ainda (migração 077) — só o ADM vê. */
+  aguardando_locacao: number
   recebidas: number
   entregues: number
   enviadas: number
@@ -259,15 +261,20 @@ export interface OrdemAguardandoNF {
   restante: number
 }
 
-export type StatusNF = 'recebida' | 'entregue_escritorio' | 'enviada_cliente'
+export type StatusNF = 'recebida' | 'aguardando_nf_locacao' | 'entregue_escritorio' | 'enviada_cliente'
+
+export type OrigemNF = 'compra' | 'locacao'
 
 /** Uma nota fiscal — tanto na lista de uma OC (`GET /nf/ordens/{id}`) quanto
- *  nas listas de etapa (`/nf/recebidas`, `/nf/entregues`, `/nf/enviadas`). */
+ *  nas listas de etapa (`/nf/recebidas`, `/nf/entregues`, `/nf/enviadas`,
+ *  `/nf/aguardando-locacao`). `numero`/`valor` são nulos enquanto uma nota
+ *  de locação está em `aguardando_nf_locacao` (migração 077). */
 export interface NotaFiscal {
   id: string
-  numero: string
-  valor: number
+  numero: string | null
+  valor: number | null
   status: StatusNF
+  origem: OrigemNF
   cancelada: boolean
   motivo_cancelamento: string | null
   recebida_em: string

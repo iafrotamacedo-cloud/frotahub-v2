@@ -169,6 +169,11 @@ func (m *Modulo) painelDeNF(w http.ResponseWriter, r *http.Request) {
 		m.erro(w, "não consegui contar as OCs aguardando nota fiscal", err)
 		return
 	}
+	aguardandoLocacao, err := m.bd.BuscarContando(r.Context(), filtroDasNF(p.ClienteID, "aguardando_locacao")+"&select=id&limit=1", nil)
+	if err != nil {
+		m.erro(w, "não consegui contar as notas de locação aguardando NF", err)
+		return
+	}
 	recebidas, err := m.bd.BuscarContando(r.Context(), filtroDasNF(p.ClienteID, "recebidas")+"&select=id&limit=1", nil)
 	if err != nil {
 		m.erro(w, "não consegui contar as notas recebidas", err)
@@ -185,16 +190,19 @@ func (m *Modulo) painelDeNF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Responder(w, http.StatusOK, map[string]any{
-		"aguardando": aguardando,
-		"recebidas":  recebidas,
-		"entregues":  entregues,
-		"enviadas":   enviadas,
+		"aguardando":         aguardando,
+		"aguardando_locacao": aguardandoLocacao,
+		"recebidas":          recebidas,
+		"entregues":          entregues,
+		"enviadas":           enviadas,
 	})
 }
 
 func filtroDasNF(clienteID, vista string) string {
 	base := "notas_fiscais?cliente_id=eq." + banco.Escapar(clienteID) + "&cancelada=eq.false"
 	switch vista {
+	case "aguardando_locacao":
+		return base + "&status=eq.aguardando_nf_locacao&order=recebida_em.desc"
 	case "entregues":
 		return base + "&status=eq.entregue_escritorio&order=entregue_escritorio_em.desc"
 	case "enviadas":
@@ -617,6 +625,13 @@ func nomeExtensao(nome string) string {
 //	`cancelarNF`, que continuam travados em `quemPodeEntregarNF`, sem
 //	mudança nenhuma aqui). "Enviadas" fica de fora: é o fim do ciclo, e só
 //	interessa a quem entrega.
+//
+// "AGUARDANDO_LOCACAO" É SÓ DO ADM (migração 077, 17/09/2026)
+//
+//	Diferente de "recebidas" (que o almoxarife acompanha), esta etapa nunca
+//	passou pela obra — nasce direto no escritório, porque a NF de locação
+//	chega por e-mail pro ADM, nunca pra quem recebeu o equipamento. Por
+//	isso as mesmas duas rotinas de "entregues"/"enviadas", não as três.
 func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) {
 	var p *seguranca.Principal
 	if vista == "enviadas" {
@@ -624,6 +639,8 @@ func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) 
 		// (migração 075), quem só tem essa rotina também precisa ver o que
 		// já mandou — senão a própria etapa que ele conclui vira invisível
 		// pra ele.
+		p = m.quemComQualquerRotina(w, r, RotinaNFEntregar, RotinaNFEnviarCliente)
+	} else if vista == "aguardando_locacao" {
 		p = m.quemComQualquerRotina(w, r, RotinaNFEntregar, RotinaNFEnviarCliente)
 	} else {
 		p = m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
@@ -633,7 +650,7 @@ func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) 
 	}
 	var linhas []map[string]any
 	caminho := filtroDasNF(p.ClienteID, vista) +
-		"&select=id,numero,valor,ordem_compra_id,recebida_em,entregue_escritorio_em,enviada_cliente_em" +
+		"&select=id,numero,valor,origem,ordem_compra_id,recebida_em,entregue_escritorio_em,enviada_cliente_em" +
 		"&limit=" + fmt.Sprint(TetoDaLista)
 	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
 		m.erro(w, "não consegui listar as notas fiscais", err)
@@ -646,6 +663,9 @@ func (m *Modulo) listarNF(w http.ResponseWriter, r *http.Request, vista string) 
 func (m *Modulo) listarNFRecebidas(w http.ResponseWriter, r *http.Request) { m.listarNF(w, r, "recebidas") }
 func (m *Modulo) listarNFEntregues(w http.ResponseWriter, r *http.Request) { m.listarNF(w, r, "entregues") }
 func (m *Modulo) listarNFEnviadas(w http.ResponseWriter, r *http.Request)  { m.listarNF(w, r, "enviadas") }
+func (m *Modulo) listarNFAguardandoLocacao(w http.ResponseWriter, r *http.Request) {
+	m.listarNF(w, r, "aguardando_locacao")
+}
 
 func (m *Modulo) comDadosDaOrdem(ctx context.Context, linhas []map[string]any) {
 	for _, l := range linhas {
@@ -761,6 +781,98 @@ func (m *Modulo) cancelarNF(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /administrativo/nf/notas/{id}/anexar-locacao — o ADM anexa a NF real
+// (migração 077, 17/09/2026)
+// ---------------------------------------------------------------------------
+//
+// A NF DE LOCAÇÃO NUNCA CHEGA NA OBRA — só por e-mail, direto pro ADM. Por
+// isso esta ação: (a) só existe pra notas `origem='locacao'` em
+// `aguardando_nf_locacao`; (b) preenche número/valor/arquivo, que até aqui
+// eram nulos; (c) já ADIANTA pra `entregue_escritorio` — não existe papel
+// físico pra "confirmar que chegou", anexar JÁ é a confirmação. Mesma
+// rotina de `entregarNF` (COMPRAS_NF_ENTREGAR): é o mesmo passo do
+// escritório, só que disparado por upload em vez de clique.
+func (m *Modulo) anexarNFLocacao(w http.ResponseWriter, r *http.Request) {
+	p := m.quemPodeEntregarNF(w, r)
+	if p == nil {
+		return
+	}
+	id, ok := umUUID(r.PathValue("id"))
+	if !ok {
+		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
+		return
+	}
+	if !m.arm.Ligado() {
+		web.Falhar(w, http.StatusServiceUnavailable,
+			"O armazenamento de arquivos não está configurado. Sem ele, anexar a nota seria perdê-la.")
+		return
+	}
+	nf, err := m.contarUm(r.Context(), "notas_fiscais?id=eq."+id+
+		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+
+		"&origem=eq.locacao&status=eq.aguardando_nf_locacao&cancelada=eq.false&select=id&limit=1")
+	if err != nil {
+		web.Falhar(w, http.StatusConflict,
+			"Esta nota não está aguardando NF de locação — a lista pode ter mudado, atualize a página.")
+		return
+	}
+
+	if err := r.ParseMultipartForm(TamanhoMaximo); err != nil {
+		web.Falhar(w, http.StatusBadRequest, "Não consegui ler o que foi enviado.")
+		return
+	}
+	numero := strings.TrimSpace(r.FormValue("numero"))
+	if numero == "" {
+		web.Falhar(w, http.StatusBadRequest, "Informe o número da nota fiscal.")
+		return
+	}
+	valor, err := parseValorNF(r.FormValue("valor"))
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cabs := r.MultipartForm.File["arquivo"]
+	if len(cabs) == 0 {
+		web.Falhar(w, http.StatusBadRequest, "Anexe o PDF ou a foto da nota fiscal.")
+		return
+	}
+	raw, err := lerCabecalhoMultipart(cabs[0])
+	if err != nil {
+		web.Falhar(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	sha, err := m.guardarArquivoNF(r.Context(), p, raw, cabs[0].Filename)
+	if err != nil {
+		m.erro(w, "não consegui guardar o arquivo da nota", err)
+		return
+	}
+
+	var tomadas []map[string]any
+	if err := m.bd.AtualizarDevolvendo(r.Context(), "notas_fiscais",
+		"id=eq."+strCampo(nf["id"])+"&status=eq.aguardando_nf_locacao",
+		map[string]any{
+			"numero":                  numero,
+			"valor":                   valor,
+			"arquivo_sha256":          sha,
+			"status":                  "entregue_escritorio",
+			"entregue_escritorio_em":  time.Now().UTC().Format(time.RFC3339),
+			"entregue_confirmado_por": p.UserID,
+		}, &tomadas); err != nil {
+		m.erro(w, "não consegui anexar a nota fiscal de locação", err)
+		return
+	}
+	if len(tomadas) == 0 {
+		web.Falhar(w, http.StatusConflict, "Esta nota não está mais aguardando NF de locação — atualize a página.")
+		return
+	}
+	_ = m.hist.Registrar(r.Context(), p, "administrativo", id, "anexar_nf_locacao", map[string]historico.Mudanca{
+		"numero": {De: nil, Para: numero},
+		"valor":  {De: nil, Para: valor},
+		"status": {De: "aguardando_nf_locacao", Para: "entregue_escritorio"},
+	})
+	web.Responder(w, http.StatusOK, map[string]any{"status": "entregue_escritorio"})
+}
+
+// ---------------------------------------------------------------------------
 // POST /administrativo/nf/notas/{id}/trocar — troca o arquivo/valor da NOTA
 // ---------------------------------------------------------------------------
 //
@@ -771,6 +883,17 @@ func (m *Modulo) cancelarNF(w http.ResponseWriter, r *http.Request) {
 // `recebida`, NUNCA à frente disso: a nota nova sempre precisa passar pelas
 // duas etapas do escritório de novo, mesmo que a anterior já tivesse
 // passado.
+//
+// LOCAÇÃO VOLTA PRA `aguardando_nf_locacao`, NÃO PRA `recebida` (077)
+//
+//	Uma nota de locação nunca visita `recebida` — não existe papel
+//	escaneado na obra pra "trocar por outro escaneamento". Se a NF que o
+//	ADM já anexou estava errada, o troca devolve pro estado que É o dela
+//	(aguardando outra NF), e número/valor voltam a `null` — não faz
+//	sentido "trocar o arquivo" de uma nota de locação sem também poder
+//	trocar número e valor, já que os três chegam juntos, por e-mail, na
+//	mesma NF. Uma nota AINDA em `aguardando_nf_locacao` (sem número/valor
+//	nenhum) não tem o que trocar — usa `anexarNFLocacao`, não este.
 func (m *Modulo) trocarNF(w http.ResponseWriter, r *http.Request) {
 	p := m.quemComQualquerRotina(w, r, RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente)
 	if p == nil {
@@ -788,10 +911,26 @@ func (m *Modulo) trocarNF(w http.ResponseWriter, r *http.Request) {
 	}
 	nf, err := m.contarUm(r.Context(), "notas_fiscais?id=eq."+id+
 		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&cancelada=eq.false"+
-		"&select=id,ordem_compra_id,numero,valor&limit=1")
+		"&select=id,ordem_compra_id,numero,valor,origem,status&limit=1")
 	if err != nil {
 		m.erro(w, "não achei esta nota fiscal", err)
 		return
+	}
+	if strCampo(nf["origem"]) == "locacao" && strCampo(nf["status"]) == "aguardando_nf_locacao" {
+		web.Falhar(w, http.StatusConflict,
+			"Esta nota ainda não tem NF nenhuma anexada — use \"anexar NF\", não \"trocar\".")
+		return
+	}
+	// A troca já traz número/valor/arquivo corrigidos NA MESMA chamada —
+	// diferente de uma nota de locação recém-nascida (que não tem nada
+	// disso ainda), aqui já existe o que precisa pra continuar dali. Por
+	// isso o destino é `entregue_escritorio` (onde a vida de uma nota de
+	// locação "começa" de verdade), não `aguardando_nf_locacao` de novo —
+	// isso reabriria uma pendência que a própria troca já resolveu.
+	ehLocacao := strCampo(nf["origem"]) == "locacao"
+	statusDeVolta := "recebida"
+	if ehLocacao {
+		statusDeVolta = "entregue_escritorio"
 	}
 
 	if err := r.ParseMultipartForm(TamanhoMaximo); err != nil {
@@ -842,17 +981,25 @@ func (m *Modulo) trocarNF(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	campos := map[string]any{
+		"numero":                 numero,
+		"valor":                  valor,
+		"arquivo_sha256":         shaPrimeira,
+		"status":                 statusDeVolta,
+		"enviada_cliente_em":     nil,
+		"enviada_confirmado_por": nil,
+	}
+	if ehLocacao {
+		// Fica em `entregue_escritorio`: o passo do escritório já estava
+		// feito antes da troca (era exatamente ELE que estava trocando) —
+		// não some `entregue_escritorio_em`/`confirmado_por` de quem já
+		// tinha confirmado.
+	} else {
+		campos["entregue_escritorio_em"] = nil
+		campos["entregue_confirmado_por"] = nil
+	}
 	if err := m.bd.Atualizar(r.Context(), "notas_fiscais",
-		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), map[string]any{
-			"numero":                  numero,
-			"valor":                   valor,
-			"arquivo_sha256":          shaPrimeira,
-			"status":                  "recebida",
-			"entregue_escritorio_em":  nil,
-			"entregue_confirmado_por": nil,
-			"enviada_cliente_em":      nil,
-			"enviada_confirmado_por":  nil,
-		}); err != nil {
+		"id=eq."+id+"&cliente_id=eq."+banco.Escapar(p.ClienteID), campos); err != nil {
 		m.erro(w, "não consegui trocar esta nota fiscal", err)
 		return
 	}

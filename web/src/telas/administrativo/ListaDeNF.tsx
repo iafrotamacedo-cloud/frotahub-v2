@@ -93,7 +93,7 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
   async function abrirArquivo(nf: NotaFiscal) {
     try {
       const r = await motor<{ url: string; nome: string }>(`/administrativo/nf/notas/${nf.id}/arquivo`)
-      setVendo({ endereco: r.url, nome: r.nome || nf.numero })
+      setVendo({ endereco: r.url, nome: r.nome || nf.numero || 'nota' })
     } catch (e) {
       setErro(e instanceof ErroMotor ? e.message : 'Não consegui abrir o arquivo.')
     }
@@ -122,7 +122,7 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
           {notas.map(nf => (
             <CartaoLinha
               key={nf.id}
-              titulo={nf.numero}
+              titulo={<>{nf.numero}{nf.origem === 'locacao' && <span className="loc-selo loc-selo-amarelo" style={{ marginLeft: 8 }}>locação</span>}</>}
               onClick={() => void abrirArquivo(nf)}
               linhas={[
                 { rotulo: 'O.C.', valor: nf.ordem_numero || '—' },
@@ -164,7 +164,10 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
             <tbody>
               {notas.map(nf => (
                 <tr key={nf.id}>
-                  <td>{nf.numero}</td>
+                  <td>
+                    {nf.numero}
+                    {nf.origem === 'locacao' && <span className="loc-selo loc-selo-amarelo" style={{ marginLeft: 8 }}>locação</span>}
+                  </td>
                   <td>{nf.ordem_numero || '—'}</td>
                   <td>{nf.obra_centro_custo || '—'}</td>
                   <td>{emReais(nf.valor)}</td>

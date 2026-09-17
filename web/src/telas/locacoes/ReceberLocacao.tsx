@@ -1,4 +1,4 @@
-// rev 1 — Locações: receber equipamento (Fase 1, 16/09/2026)
+// rev 2 — Locações: receber equipamento (Fase 1, 16/09/2026)
 //
 // A BIFURCAÇÃO DE "AGUARDANDO NF"
 //
@@ -7,6 +7,14 @@
 //	aqui — a prova de entrada é o romaneio (obrigatório) + as fotos de cada
 //	item (obrigatórias, pelo menos uma cada). A data de recebimento é
 //	sempre hoje, decidida no backend — sem campo nesta tela de propósito.
+//
+// SEM CAMPO DE NF (migração 077, 17/09/2026)
+//
+//	A rev 1 tinha um campo opcional de NF "pra quando vem junto com o
+//	equipamento" — o dono corrigiu: a NF de locação NUNCA chega na obra,
+//	só por e-mail, direto pro ADM. O motor já cria a nota
+//	(`aguardando_nf_locacao`) sozinho ao salvar o recebimento; quem anexa a
+//	NF de verdade depois é `administrativo/AnexarNFLocacao.tsx`.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Janela } from '../../componentes/Janela'
 import { ScannerDeDocumento } from '../../componentes/scanner/ScannerDeDocumento'
@@ -31,13 +39,9 @@ export function ReceberLocacao({ ordemCompraId, aoFechar, aoSalvar }: Props) {
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>('mensal')
   const [romaneio, setRomaneio] = useState<File[]>([])
   const [scannerAberto, setScannerAberto] = useState(false)
-  const [nfNumero, setNfNumero] = useState('')
-  const [nfArquivo, setNfArquivo] = useState<File | null>(null)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
-
-  const campoNF = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -107,8 +111,6 @@ export function ReceberLocacao({ ordemCompraId, aoFechar, aoSalvar }: Props) {
       }))))
       forma.append('romaneio', romaneio[0], romaneio[0].name)
       for (const pg of romaneio.slice(1)) forma.append('romaneio_paginas', pg, pg.name)
-      if (nfNumero.trim()) forma.append('nf_numero', nfNumero.trim())
-      if (nfArquivo) forma.append('nf', nfArquivo, nfArquivo.name)
       for (const it of itens) {
         for (const foto of it.fotos) forma.append(`fotos_${it.id}`, foto, foto.name)
       }
@@ -184,31 +186,10 @@ export function ReceberLocacao({ ordemCompraId, aoFechar, aoSalvar }: Props) {
               </button>
             </div>
 
-            <label style={{ marginTop: 14 }}>Nota fiscal (opcional — quando vem junto)</label>
-            <input
-              value={nfNumero}
-              onChange={e => setNfNumero(e.target.value)}
-              placeholder="Número da nota fiscal"
-              disabled={salvando}
-            />
-            <div className="nf-fotos-grade">
-              {nfArquivo && <FotoMini foto={nfArquivo} onRemover={() => setNfArquivo(null)} />}
-              {!nfArquivo && (
-                <button type="button" className="nf-foto-add" onClick={() => campoNF.current?.click()} disabled={salvando}>
-                  <IconeCamera />
-                  <span>Foto da NF</span>
-                </button>
-              )}
-            </div>
-            <input
-              ref={campoNF} type="file" accept="image/*" capture="environment"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const f = e.target.files?.[0]
-                if (f) setNfArquivo(f)
-                e.target.value = ''
-              }}
-            />
+            <p className="dica" style={{ marginTop: 14 }}>
+              A nota fiscal desta locação não chega aqui — a locadora manda por e-mail, e alguém do
+              escritório anexa depois (Notas Fiscais › Aguardando NF de locação).
+            </p>
 
             {erro && <div className="erro-caixa">{erro}</div>}
 

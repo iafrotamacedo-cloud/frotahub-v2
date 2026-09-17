@@ -159,6 +159,10 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/paginas", m.paginaNF)
 	mux.HandleFunc("GET /administrativo/nf/notas/{id}/paginas", m.paginasDaNF)
 	mux.HandleFunc("GET /administrativo/nf/recebidas", m.listarNFRecebidas)
+	// Aguardando NF de locação (migração 077, 17/09/2026) — ver o cabeçalho
+	// de `anexarNFLocacao` em `notas_fiscais.go`.
+	mux.HandleFunc("GET /administrativo/nf/aguardando-locacao", m.listarNFAguardandoLocacao)
+	mux.HandleFunc("POST /administrativo/nf/notas/{id}/anexar-locacao", m.anexarNFLocacao)
 	mux.HandleFunc("GET /administrativo/nf/entregues", m.listarNFEntregues)
 	mux.HandleFunc("GET /administrativo/nf/enviadas", m.listarNFEnviadas)
 	// "notas/{id}/..." e não "{id}/...": `{id}/arquivo` colidiria com

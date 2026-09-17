@@ -27,6 +27,7 @@ import { useEhMobile } from '../../componentes/useEhMobile'
 import { Carregando } from '../../componentes/Carregando'
 import type { Perfil } from '../../sessao/tipos'
 import { AguardandoNF } from './AguardandoNF'
+import { AguardandoNFLocacao } from './AguardandoNFLocacao'
 import { ListaDeNF } from './ListaDeNF'
 import { RotinaNFReceber, RotinaNFEntregar, RotinaNFEnviarCliente, temRotina } from './rotinasNF'
 import type { PainelDeNF } from './tipos'
@@ -61,6 +62,7 @@ export function NotasFiscais({ onde, perfil, abrir }: Props) {
   const podeEnviarCliente = temRotina(perfil, RotinaNFEnviarCliente)
 
   if (onde === 'aguardando') return <AguardandoNF perfil={perfil} />
+  if (onde === 'aguardando-locacao') return <AguardandoNFLocacao />
   if (onde === 'recebidas') return <ListaDeNF vista="recebidas" titulo="Recebidas" somenteLeitura={!podeEntregar} />
   if (onde === 'entregues') return <ListaDeNF vista="entregues" titulo="Entregues no escritório" somenteLeitura={!podeEnviarCliente} />
   if (onde === 'enviadas') return <ListaDeNF vista="enviadas" titulo="Enviadas ao cliente" />
@@ -96,6 +98,18 @@ function montarEtapas(d: PainelDeNF, perfil: Perfil | null): Etapa[] {
       numero: d.aguardando,
       rotulo: 'ordens',
       rodape: 'aguardando o recebimento',
+    })
+  }
+  // Só o ADM (quem entrega/envia) — a NF de locação nunca passa pela obra,
+  // chega direto por e-mail (migração 077).
+  if (podeEntregar || podeEnviarCliente) {
+    etapas.push({
+      chave: 'aguardando-locacao',
+      titulo: 'Aguardando NF de locação',
+      descricao: 'Equipamento já recebido — falta a NF que a locadora manda por e-mail.',
+      icone: <IconeRelogio />,
+      numero: d.aguardando_locacao,
+      rotulo: 'notas',
     })
   }
   // RECEBIDAS E ENTREGUES SÃO VISÍVEIS A QUEM RECEBE, NÃO SÓ A QUEM ENTREGA
