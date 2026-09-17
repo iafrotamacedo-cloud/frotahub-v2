@@ -233,11 +233,97 @@ Nenhuma rotina nova de permissão pra RC: reusei `COMPRAS_ORDENS_GERENCIAR`
 (já é quem gerencia OC em todo o resto do sistema) — RC não ganhou um
 crachá novo, só mais uma capacidade dentro do que ele já tinha.
 
+## Quarta rodada — testando ao vivo, "imagine comigo"
+
+Antes de testar de verdade, o Igor pediu pra percorrer cenários em texto
+("imagine comigo") — tracei um caso concreto (OC de 510, nota de 507 —
+0,59%, dentro dos 3%: a nota vai pra Recebidas normal, a OC sai de
+Aguardando NF e cai em Correção de OC, marcada automática) e ele foi
+achando 6 ajustes em cima disso, testando ao vivo. Pediu pra só registrar
+os 4 primeiros ("não faça nada agora, só guarde") e depois mandou codar
+tudo de uma vez.
+
+Nessa rodada vários arquivos (`ListaDeNF.tsx`, `TrocarNF.tsx`,
+`notas_fiscais.go`, `NotasFiscais.tsx`, `modulo.go`) tinham mudado no disco
+sem eu ter feito — outra sessão trabalhando em paralelo em Locações
+(migração 077, `aguardando_nf_locacao`, campo `origem` na nota). Reli tudo
+do zero antes de mexer, pra não pisar em cima — nada colidiu com o que eu
+já tinha feito (correcao_oc.go, as rotas de correção) — os dois trabalhos
+ficaram em partes diferentes dos mesmos arquivos.
+
+### Ajuste 1 — NF de OC em correção não pode ser entregue no escritório
+
+`avancarNF` (comum a `entregarNF` e `enviarNFAoCliente`) agora busca a OC
+da nota antes de avançar e recusa (409) se `aguardando_correcao=true`. Vale
+pras duas etapas, não só entrega — mandar ao cliente com a OC ainda errada
+seria pior que só travar no escritório.
+
+### Ajustes 2 e 3 — flag de correção + fornecedor na lista de NF
+
+`comDadosDaOrdem` (usada pelas 3 listas — Recebidas/Entregues/Enviadas)
+agora também busca `fornecedor_id`/`aguardando_correcao` da OC e reusa
+`comNomeDoFornecedor` (a mesma função que Aguardando NF já usava — sem
+duplicar a busca). A flag (`pino pino-err`, vermelha, "correção") aparece
+do lado do número da nota sempre que a OC dela está na fila — some sozinha
+no próximo carregamento da lista, porque é sempre a OC atual sendo lida,
+nunca um estado congelado. Coluna de fornecedor nova na tabela, com classe
+`.tabela-nf-apertada` pra caber (letra e preenchimento menores, só nesta
+tabela).
+
+### Ajuste 4 — não era um bug
+
+Já tinha sido feito no item 4 da segunda rodada (link da OC em Aguardando
+NF, desktop incluso). Sugeri duas explicações — cache/deploy atrasado, ou
+confusão com a tela nova de `aguardando_locacao` que a outra sessão criou —
+sem mexer em nada.
+
+### Ajuste 5 — "← voltar" colado no notch/status bar
+
+Achado: `.orc-tela` (a tela de documento — `VisorDeDocumento`,
+`RepararOrdemOC`, `EditorDeOC`) é onde TODA visualização de documento do
+sistema vive, e ela pede "foco" (`usePedirFoco`, `Foco.tsx`) — que esconde
+a barra `.top` do app pra dar o espaço todo ao papel. Só que é a `.top`
+quem reservava `env(safe-area-inset-top)`; sem ela, `.orc-tela` vira o
+topo físico da tela, e o "← voltar" disputa espaço com o relógio/Dynamic
+Island em celular com tela recortada — "alguns celulares" porque só os com
+notch/ilha sofrem disso. `.lay.focada` já existia (App.tsx marcava a casca
+assim que qualquer tela pedia foco) sem NENHUMA regra usando — gancho
+pronto, só faltava a regra: `.lay.focada .orc-tela{padding-top:env(...)}`.
+Não mexe em nenhuma das outras ~14 telas que usam `.orc-tela` só como
+layout comum (essas continuam sob a `.top`, que já cuida da própria
+folga).
+
+### Ajuste 6 — gesto de arrastar (iPhone) pula pro menu
+
+A causa: telas como `VisorDeDocumento` abrem por ESTADO local
+(`setVendo(null)`), nunca mudam o endereço (`#/...`) — proposital, pra não
+empilhar histórico a cada "ver" que a pessoa abre. O botão "← voltar" de
+dentro cobre isso bem, mas o GESTO do sistema mexe direto no histórico do
+navegador, que nunca soube que aquela tela abriu — ele pula ela inteira.
+Corrigido com um hook novo,
+[VoltarLocal.ts](../web/src/componentes/VoltarLocal.ts): ao abrir, empilha
+uma entrada de histórico "muda" (mesmo endereço); o gesto consome ela
+primeiro (dispara `popstate`, que a gente escuta e usa pra fechar a tela
+igual ao botão); só then o próximo gesto volta a valer pra navegação de
+verdade. Fechar por qualquer outro caminho desfaz a entrada muda sozinho —
+com uma trava a mais: só desfaz se ninguém navegou pra outro lugar nesse
+meio tempo (dá pra clicar no menu lateral no computador com um documento
+aberto), senão desfaria a navegação que a pessoa acabou de fazer.
+
+Aplicado só em `VisorDeDocumento.tsx` — é quem cobre toda visualização de
+OC/NF testada hoje. `VisorDaNota.tsx` (Orçamentos, mais antigo, fecha por
+um caminho diferente — não tem um `voltar()` único) ficou de fora por
+enquanto; mesmo problema, mas precisa de mais uma olhada pra encaixar.
+
 ## O que ficou pendente
 
 - Item 2 (scanner torto) segue sem correção — decisão de trade-off do dono.
-- Item 5 (largura no mobile) recebeu uma trava geral (`overflow-x:hidden`),
-  não uma causa raiz confirmada — precisa de celular de verdade se voltar.
+- Item 5 (largura no mobile, primeira rodada) recebeu uma trava geral
+  (`overflow-x:hidden`), não uma causa raiz confirmada — precisa de
+  celular de verdade se voltar.
+- `VisorDaNota.tsx` (Orçamentos) tem o mesmo problema do Ajuste 6 e não foi
+  corrigido — fecha por um caminho diferente do `voltar()` único que
+  `useVoltarLocal` espera.
 - Item 9 (correção de OC): nada testado ao vivo com uma OC real de ponta a
   ponta (receber divergente → cair na fila → corrigir → conferir que o PCO
   realmente reenvia). O e-mail de PCO em si eu não toquei — a expectativa é

@@ -122,11 +122,22 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
           {notas.map(nf => (
             <CartaoLinha
               key={nf.id}
-              titulo={<>{nf.numero}{nf.origem === 'locacao' && <span className="loc-selo loc-selo-amarelo" style={{ marginLeft: 8 }}>locação</span>}</>}
+              titulo={
+                <>
+                  {nf.numero}
+                  {nf.origem === 'locacao' && <span className="loc-selo loc-selo-amarelo" style={{ marginLeft: 8 }}>locação</span>}
+                  {nf.oc_aguardando_correcao && (
+                    <span className="pino pino-err" style={{ marginLeft: 8 }} title="A OC desta nota está na fila de correção, em Compras">
+                      correção
+                    </span>
+                  )}
+                </>
+              }
               onClick={() => void abrirArquivo(nf)}
               linhas={[
                 { rotulo: 'O.C.', valor: nf.ordem_numero || '—' },
                 { rotulo: 'Obra/centro', valor: nf.obra_centro_custo || '—' },
+                { rotulo: 'Fornecedor', valor: nf.fornecedor_nome || '—' },
                 { rotulo: 'Valor', valor: emReais(nf.valor) },
                 { rotulo: 'Recebida em', valor: emDataHora(nf.recebida_em) },
               ]}
@@ -155,10 +166,10 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
         </div>
       ) : (
         <div className="tabela-rolo">
-          <table className="tabela">
+          <table className="tabela tabela-nf-apertada">
             <thead>
               <tr>
-                <th>NF</th><th>O.C.</th><th>Obra/centro</th><th>Valor</th><th>Recebida em</th><th></th>
+                <th>NF</th><th>O.C.</th><th>Obra/centro</th><th>Fornecedor</th><th>Valor</th><th>Recebida em</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -167,9 +178,15 @@ export function ListaDeNF({ vista, titulo, somenteLeitura }: { vista: VistaDeNF;
                   <td>
                     {nf.numero}
                     {nf.origem === 'locacao' && <span className="loc-selo loc-selo-amarelo" style={{ marginLeft: 8 }}>locação</span>}
+                    {nf.oc_aguardando_correcao && (
+                      <span className="pino pino-err" style={{ marginLeft: 8 }} title="A OC desta nota está na fila de correção, em Compras">
+                        correção
+                      </span>
+                    )}
                   </td>
                   <td>{nf.ordem_numero || '—'}</td>
                   <td>{nf.obra_centro_custo || '—'}</td>
+                  <td>{nf.fornecedor_nome || '—'}</td>
                   <td>{emReais(nf.valor)}</td>
                   <td className="tri-fraco">{emDataHora(nf.recebida_em)}</td>
                   <td>

@@ -22,6 +22,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { arquivoDoMotor, salvarArquivo } from '../motor/cliente'
 import { usePedirFoco } from './Foco'
+import { useVoltarLocal } from './VoltarLocal'
 import { FolhaPdfCanvas } from './FolhaPdfCanvas'
 
 export function VisorDeDocumento({
@@ -66,6 +67,11 @@ export function VisorDeDocumento({
   folhaProporcional?: boolean
 }) {
   usePedirFoco()
+  // Ajuste 6 (17/09/2026, obra piloto MSL Fátima) — o gesto de arrastar da
+  // borda (iPhone) fechava esta tela sozinho, mas pulava direto pro menu em
+  // vez de voltar pra lista de onde ela abriu. Ver o cabeçalho de
+  // `VoltarLocal.ts`.
+  useVoltarLocal(voltar)
 
   const [arq, setArq] = useState<{ url: string; blob: Blob | null; nome: string } | null>(null)
   const [erro, setErro] = useState('')

@@ -667,6 +667,11 @@ func (m *Modulo) listarNFAguardandoLocacao(w http.ResponseWriter, r *http.Reques
 	m.listarNF(w, r, "aguardando_locacao")
 }
 
+// comDadosDaOrdem completa cada nota com o que só a OC sabe — o próprio
+// número/obra de sempre, e desde 17/09/2026 também o fornecedor (pedido do
+// dono, lista de Recebidas) e se a OC está na fila de correção (a flag
+// vermelha some sozinha assim que o RC corrige ou desiste, porque esta
+// função relê `aguardando_correcao` a cada carregamento — nunca fica presa).
 func (m *Modulo) comDadosDaOrdem(ctx context.Context, linhas []map[string]any) {
 	for _, l := range linhas {
 		oid := strCampo(l["ordem_compra_id"])
@@ -674,11 +679,14 @@ func (m *Modulo) comDadosDaOrdem(ctx context.Context, linhas []map[string]any) {
 			continue
 		}
 		if o, err := m.contarUm(ctx, "ordens_compra?id=eq."+banco.Escapar(oid)+
-			"&select=numero,obra_centro_custo&limit=1"); err == nil {
+			"&select=numero,obra_centro_custo,fornecedor_id,aguardando_correcao&limit=1"); err == nil {
 			l["ordem_numero"] = o["numero"]
 			l["obra_centro_custo"] = o["obra_centro_custo"]
+			l["fornecedor_id"] = o["fornecedor_id"]
+			l["oc_aguardando_correcao"] = o["aguardando_correcao"]
 		}
 	}
+	m.comNomeDoFornecedor(ctx, linhas)
 }
 
 // ---------------------------------------------------------------------------
@@ -720,11 +728,33 @@ func (m *Modulo) enviarNFAoCliente(w http.ResponseWriter, r *http.Request) {
 // resolvido: cada chamador tem seu próprio porteiro (rotinas diferentes,
 // migração 075), então autenticar aqui de novo escolheria a rotina errada
 // pra uma das duas.
+//
+// NOTA DE OC EM CORREÇÃO NÃO ANDA (17/09/2026, obra piloto MSL Fátima)
+//
+//	A OC está na fila de correção porque pode estar errada — mandar a nota
+//	pro escritório (ou pro cliente) antes de resolver isso é dar seguimento
+//	a papelada que talvez nem exista mais depois do RC corrigir (a nota
+//	migra pra outra OC, e volta pra `recebida` de qualquer jeito — ver
+//	`corrigirOrdemComDivergencia`). Vale pras duas etapas, não só pra
+//	entrega: enviar ao cliente com a OC ainda errada seria pior.
 func (m *Modulo) avancarNF(w http.ResponseWriter, r *http.Request, p *seguranca.Principal, deEsperado, paraStatus string, campos map[string]any, acao string) {
 	id, ok := umUUID(r.PathValue("id"))
 	if !ok {
 		web.Falhar(w, http.StatusBadRequest, "Endereço inválido.")
 		return
+	}
+	if nf, err := m.contarUm(r.Context(), "notas_fiscais?id=eq."+id+
+		"&cliente_id=eq."+banco.Escapar(p.ClienteID)+"&select=ordem_compra_id&limit=1"); err == nil {
+		if oid := strCampo(nf["ordem_compra_id"]); oid != "" {
+			if ordem, err := m.contarUm(r.Context(), "ordens_compra?id=eq."+banco.Escapar(oid)+
+				"&select=aguardando_correcao&limit=1"); err == nil {
+				if b, _ := ordem["aguardando_correcao"].(bool); b {
+					web.Falhar(w, http.StatusConflict,
+						"A OC desta nota está na fila de correção — não dá pra avançar até o RC resolver.")
+					return
+				}
+			}
+		}
 	}
 	quemConfirma := "entregue_confirmado_por"
 	if paraStatus == "enviada_cliente" {

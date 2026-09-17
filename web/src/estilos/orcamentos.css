@@ -29,6 +29,22 @@
 .orc-tela > .hero { flex: 0 0 auto; }
 .orc-painel { gap: var(--folga); }
 
+/* AJUSTE 5 (17/09/2026, obra piloto MSL Fátima) — o "← voltar" colado no
+ * notch/status bar em celular com tela recortada
+ *
+ *   `.orc-tela` é a tela de documento (VisorDeDocumento, RepararOrdemOC,
+ *   EditorDeOC) — todas pedem "foco" (`usePedirFoco`, Foco.tsx), que esconde
+ *   a barra `.top` do app pra dar o espaço todo ao documento. Só que é a
+ *   `.top` quem reservava `env(safe-area-inset-top)` — sem ela, `.orc-tela`
+ *   vira o topo físico da tela, e o "← voltar" (`.orc-barra`) disputa
+ *   espaço com o relógio/câmera/Dynamic Island do celular. `.lay.focada` já
+ *   existia (App.tsx marca assim que alguma tela pede foco) sem nenhuma
+ *   regra usando — é o gancho certo: só desce a barra quando é ELA quem
+ *   está no topo de verdade, sem empurrar as outras dezenas de telas que
+ *   também usam `.orc-tela` só como layout (essas continuam sob `.top`,
+ *   que já cuida da própria folga). */
+.lay.focada .orc-tela { padding-top: env(safe-area-inset-top); }
+
 /* ---------- barra de topo (escura) ---------- */
 
 .orc-topo, .orc-barra {

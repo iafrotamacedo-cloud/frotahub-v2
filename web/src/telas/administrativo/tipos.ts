@@ -284,6 +284,9 @@ export interface NotaFiscal {
   ordem_compra_id?: string
   ordem_numero?: string | null
   obra_centro_custo?: string | null
+  fornecedor_nome?: string | null
+  /** Migração 076 — a OC desta nota está na fila de Correção de OC. */
+  oc_aguardando_correcao?: boolean
 }
 
 /** Uma obra conhecida (`centros_custo`, migração 062) — o catálogo que
