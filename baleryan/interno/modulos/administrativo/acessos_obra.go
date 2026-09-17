@@ -73,9 +73,15 @@ func (m *Modulo) listarAcessosNF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var linhas []map[string]any
+	// `perfis!perfil_id(...)`, não `perfis(...)`: centro_custo_acessos tem DUAS
+	// FKs para perfis (perfil_id e concedido_por — migração 064), e sem dizer
+	// qual delas o PostgREST não desempata sozinho. Devolve um erro em vez da
+	// lista, e o Go falha ao tentar decodificar esse erro como []map — foi
+	// isso que deixava a tela presa em "Acordando o servidor" pra sempre
+	// (17/09/2026, obra piloto MSL Fátima).
 	caminho := "centro_custo_acessos?cliente_id=eq." + banco.Escapar(p.ClienteID) +
 		"&order=criado_em.desc&select=id,perfil_id,centro_custo_id,criado_em," +
-		"perfis(nome),centros_custo(obra_centro_custo)&limit=" + fmt.Sprint(TetoDaLista)
+		"perfis!perfil_id(nome),centros_custo(obra_centro_custo)&limit=" + fmt.Sprint(TetoDaLista)
 	if err := m.bd.Buscar(r.Context(), caminho, &linhas); err != nil {
 		m.erro(w, "não consegui listar os acessos concedidos", err)
 		return

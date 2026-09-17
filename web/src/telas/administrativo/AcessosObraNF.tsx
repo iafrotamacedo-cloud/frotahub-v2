@@ -67,6 +67,14 @@ export function AcessosObraNF() {
     }
   }
 
+  // Se o carregamento falhou, os três estados ficam null pra sempre (o
+  // Promise.all rejeita antes de qualquer `set` individual) — sem este
+  // desvio, a tela ficava presa em <Carregando/> mesmo com o erro já na
+  // mão, girando "Acordando o servidor" pra sempre (17/09/2026, obra
+  // piloto MSL Fátima).
+  if (erro && obras === null && perfis === null && acessos === null) {
+    return <div className="erro-caixa">{erro}</div>
+  }
   if (obras === null || perfis === null || acessos === null) return <Carregando />
 
   return (

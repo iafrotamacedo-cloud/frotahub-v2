@@ -1,8 +1,11 @@
-// rev 4 — receber NF: escaneia TODAS as páginas, salva uma vez (15/09/2026)
+// rev 5 — receber NF: escaneia TODAS as páginas, salva uma vez (15/09/2026)
 //
 // O FLUXO NO CELULAR
 //
-//	1. A janela abre já com o scanner (ScannerDeDocumento) em tela cheia:
+//	1. A janela abre no formulário (não mais direto na câmera — 17/09/2026,
+//	   a pedido do dono: abrir já na câmera pegava o almoxarife de surpresa
+//	   antes de ele ver de qual O.C. é o recebimento). O botão "Escanear a
+//	   nota" é que chama o scanner (ScannerDeDocumento) em tela cheia:
 //	   requadro automático, uma página atrás da outra, "Concluir".
 //	2. As páginas aparecem como miniaturas. Número e valor são digitados —
 //	   a sugestão pela IA (/escanear) existe, mas está DESLIGADA por decisão
@@ -57,7 +60,7 @@ export function ReceberNF({ ordem, aoFechar, aoSalvar }: Props) {
   const [valor, setValor] = useState('')
   const [paginas, setPaginas] = useState<File[]>([])
   const [materialFotos, setMaterialFotos] = useState<File[]>([])
-  const [scannerAberto, setScannerAberto] = useState(true)
+  const [scannerAberto, setScannerAberto] = useState(false)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [lendo, setLendo] = useState(false)
