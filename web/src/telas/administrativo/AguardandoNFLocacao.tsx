@@ -12,6 +12,7 @@ import { Carregando } from '../../componentes/Carregando'
 import { CartaoLinha } from '../../componentes/CartaoLinha'
 import { useEhMobile } from '../../componentes/useEhMobile'
 import { AnexarNFLocacao } from './AnexarNFLocacao'
+import { VisualizarComposicaoLocacao } from './VisualizarComposicaoLocacao'
 import { emDataHora, type NotaFiscal } from './tipos'
 
 export function AguardandoNFLocacao() {
@@ -19,6 +20,9 @@ export function AguardandoNFLocacao() {
   const [notas, setNotas] = useState<NotaFiscal[] | null>(null)
   const [erro, setErro] = useState('')
   const [anexando, setAnexando] = useState<NotaFiscal | null>(null)
+  // O link novo abre a composição (OC + romaneio + fotos) — "anexar NF"
+  // continua um botão à parte, ação diferente (18/09/2026).
+  const [vendo, setVendo] = useState<NotaFiscal | null>(null)
 
   const carregar = useCallback(async () => {
     try {
@@ -32,6 +36,10 @@ export function AguardandoNFLocacao() {
   }, [])
 
   useEffect(() => { void carregar() }, [carregar])
+
+  if (vendo) {
+    return <VisualizarComposicaoLocacao nota={vendo} aoFechar={() => setVendo(null)} />
+  }
 
   return (
     <>
@@ -54,7 +62,7 @@ export function AguardandoNFLocacao() {
             <CartaoLinha
               key={nf.id}
               titulo={`O.C. ${nf.ordem_numero ?? '—'}`}
-              onClick={() => setAnexando(nf)}
+              onClick={() => setVendo(nf)}
               linhas={[
                 { rotulo: 'Obra/centro', valor: nf.obra_centro_custo || '—' },
                 { rotulo: 'Recebido em', valor: emDataHora(nf.recebida_em) },
@@ -76,7 +84,11 @@ export function AguardandoNFLocacao() {
             <tbody>
               {notas.map(nf => (
                 <tr key={nf.id}>
-                  <td>{nf.ordem_numero || '—'}</td>
+                  <td>
+                    <button type="button" className="bt-como-link" onClick={() => setVendo(nf)}>
+                      {nf.ordem_numero || '—'}
+                    </button>
+                  </td>
                   <td>{nf.obra_centro_custo || '—'}</td>
                   <td className="tri-fraco">{emDataHora(nf.recebida_em)}</td>
                   <td>

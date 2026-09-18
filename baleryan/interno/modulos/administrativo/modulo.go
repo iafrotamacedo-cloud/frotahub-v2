@@ -173,6 +173,9 @@ func (m *Modulo) Montar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/cancelar", m.cancelarNF)
 	mux.HandleFunc("POST /administrativo/nf/notas/{id}/trocar", m.trocarNF)
 	mux.HandleFunc("GET /administrativo/nf/notas/{id}/arquivo", m.arquivoDaNF)
+	// A composição da NF de locação (OC + romaneio + fotos, 18/09/2026) —
+	// ver o cabeçalho de `composicao_locacao.go`.
+	mux.HandleFunc("GET /administrativo/nf/notas/{id}/composicao-locacao", m.composicaoLocacaoDaNF)
 	// A configuração de acesso por obra (12/09/2026) — ver o cabeçalho de `acessos_obra.go`.
 	mux.HandleFunc("GET /administrativo/nf/obras", m.listarObrasNF)
 	mux.HandleFunc("GET /administrativo/nf/perfis", m.listarPerfisNF)

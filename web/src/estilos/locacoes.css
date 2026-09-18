@@ -65,3 +65,30 @@
   border-radius:var(--r-m);
   box-shadow:var(--sh-2);
 }
+
+/* ---------------------------------------------------------------------------
+   Composição da NF de locação — OC + romaneio + fotos, uma "folha" A4 por
+   item (18/09/2026, VisualizarComposicaoLocacao.tsx)
+
+   CADA FOLHA É UM QUADRO COM A PROPORÇÃO DE A4, NUNCA O TAMANHO REAL
+     `aspect-ratio` mantém 210×297 em qualquer largura de tela — o zoom vem
+     de graça (a folha cresce/encolhe com a coluna), sem precisar medir
+     nada em JS. Os itens de dentro (`.loc-folha-item`) são posicionados
+     em PORCENTAGEM da folha (calculada a partir de milímetros em
+     `composicaoLocacao.ts`), que é a mesma unidade de `aspect-ratio` —
+     por isso a posição bate exatamente com o que vai pro PDF exportado.
+   --------------------------------------------------------------------------- */
+.loc-comp-corpo{
+  flex:1 1 auto;min-height:0;overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  padding:18px 16px 40px;background:var(--d-bg2);
+}
+.loc-folha{
+  position:relative;width:100%;max-width:640px;aspect-ratio:210/297;
+  background:#fff;border-radius:var(--r-m);box-shadow:var(--sh-escura-3);
+  overflow:hidden;flex:0 0 auto;
+}
+.loc-folha-item{
+  position:absolute;object-fit:cover;display:block;
+  background:#fff;border:1px solid rgba(0,0,0,.06);
+}
